@@ -19,4 +19,4 @@ tmp/
 *.bak
 *.bak-*
 data/crawler/*.csv
-!data/crawler/social_event_real.csv
+tools/*.exe

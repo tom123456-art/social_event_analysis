@@ -1,0 +1,23 @@
+server:
+  port: ${SERVER_PORT:18080}
+  tomcat:
+    max-swallow-size: 100MB
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:social_hotspot_analytics}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: false
+
+logging:
+  level:
+    com.social.hotspot: info

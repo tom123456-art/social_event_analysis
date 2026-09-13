@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.BusinessMapper">
+    <select id="users" resultType="map">
+        SELECT *
+        FROM app_user
+        ORDER BY id ASC
+    </select>
+
+    <select id="userById" resultType="map">
+        SELECT *
+        FROM app_user
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="item.id">
+        INSERT INTO app_user (username, nickname, phone, email, role, status, bio)
+        VALUES (#{item.username}, #{item.nickname}, #{item.phone}, #{item.email},
+                #{item.role}, #{item.status}, #{item.bio})
+    </insert>
+
+    <update id="updateUser">
+        UPDATE app_user
+        SET nickname = #{item.nickname},
+            phone = #{item.phone},
+            email = #{item.email},
+            role = #{item.role},
+            status = #{item.status},
+            bio = #{item.bio}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteUser">
+        DELETE FROM app_user
+        WHERE id = #{id}
+          AND username &lt;&gt; 'admin'
+    </delete>
+
+    <select id="userByUsername" resultType="map">
+        SELECT *
+        FROM app_user
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <select id="interactions" resultType="map">
+        SELECT ui.*, ei.event_name
+        FROM user_interaction ui
+        LEFT JOIN event_info ei ON ui.event_id = ei.event_id
+        ORDER BY ui.created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="userInteractions" resultType="map">
+        SELECT *
+        FROM user_interaction
+        WHERE username = #{username}
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insertInteraction" useGeneratedKeys="true" keyProperty="item.id">
+        INSERT INTO user_interaction (
+            user_id, username, event_id, content_id, platform,
+            action_type, comment_text, sentiment_label, status
+        )
+        VALUES (
+            #{item.user_id}, #{item.username}, #{item.event_id}, #{item.content_id},
+            #{item.platform}, #{item.action_type}, #{item.comment_text},
+            #{item.sentiment_label}, 'NORMAL'
+        )
+    </insert>
+
+    <delete id="deleteInteraction">
+        DELETE FROM user_interaction
+        WHERE id = #{id}
+    </delete>
+
+    <select id="submissions" resultType="map">
+        SELECT us.*, ei.event_name
+        FROM user_submission us
+        LEFT JOIN event_info ei ON us.event_id = ei.event_id
+        ORDER BY us.created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="userSubmissions" resultType="map">
+        SELECT *
+        FROM user_submission
+        WHERE username = #{username}
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insertSubmission" useGeneratedKeys="true" keyProperty="item.id">
+        INSERT INTO user_submission (
+            user_id, username, event_id, platform,
+            title, content_text, location, status
+        )
+        VALUES (
+            #{item.user_id}, #{item.username}, #{item.event_id}, #{item.platform},
+            #{item.title}, #{item.content_text}, #{item.location}, 'PENDING'
+        )
+    </insert>
+
+    <update id="updateSubmissionStatus">
+        UPDATE user_submission
+        SET status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteSubmission">
+        DELETE FROM user_submission
+        WHERE id = #{id}
+    </delete>
+
+    <select id="contents" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+        ORDER BY rank_no ASC
+        LIMIT #{limit}
+    </select>
+</mapper>

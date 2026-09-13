@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.AnalyticsMapper">
+    <select id="events" resultType="map">
+        SELECT event_id, event_name, description, start_time, end_time, status, created_at
+        FROM event_info
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="overview" resultType="map">
+        SELECT *
+        FROM ads_event_overview
+        WHERE event_id = #{eventId}
+    </select>
+
+    <select id="heatTrend" resultType="map">
+        SELECT *
+        FROM ads_event_heat_trend
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC
+    </select>
+
+    <select id="platformTimeline" resultType="map">
+        SELECT *
+        FROM ads_platform_spread_timeline
+        WHERE event_id = #{eventId}
+        ORDER BY first_publish_time ASC
+    </select>
+
+    <select id="interaction" resultType="map">
+        SELECT *
+        FROM ads_interaction_summary
+        WHERE event_id = #{eventId}
+        ORDER BY hot_score DESC
+    </select>
+
+    <select id="keywordRank" resultType="map">
+        SELECT *
+        FROM ads_keyword_rank
+        WHERE event_id = #{eventId}
+        ORDER BY word_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="sentimentTrend" resultType="map">
+        SELECT *
+        FROM ads_sentiment_trend
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC, sentiment_label ASC
+    </select>
+
+    <select id="contentRank" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+        ORDER BY rank_no ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="realPublicContents" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+        ORDER BY publish_time DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="topicCount" resultType="map">
+        SELECT COUNT(*) topic_count
+        FROM (
+            SELECT TRIM(title) topic
+            FROM ads_content_hot_rank
+            WHERE event_id = #{eventId}
+              AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+            GROUP BY TRIM(title)
+        ) topics
+    </select>
+
+    <select id="topicRank" resultType="map">
+        SELECT TRIM(title) topic,
+               COUNT(*) content_count,
+               COUNT(DISTINCT platform) platform_count,
+               MIN(publish_time) first_publish_time,
+               MAX(publish_time) latest_publish_time,
+               SUM(COALESCE(hot_score, 0)) hot_score
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+        GROUP BY TRIM(title)
+        ORDER BY hot_score DESC, content_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="profileCoverage" resultType="map">
+        SELECT COUNT(*) content_count,
+               COUNT(DISTINCT NULLIF(TRIM(author_id), '')) author_count,
+               SUM(CASE WHEN NULLIF(TRIM(author_name), '') IS NOT NULL THEN 1 ELSE 0 END) author_name_count,
+               SUM(CASE WHEN NULLIF(TRIM(location), '') IS NOT NULL THEN 1 ELSE 0 END) location_count,
+               SUM(CASE WHEN NULLIF(TRIM(user_age_group), '') IS NOT NULL THEN 1 ELSE 0 END) age_count,
+               SUM(CASE WHEN NULLIF(TRIM(user_gender), '') IS NOT NULL THEN 1 ELSE 0 END) gender_count
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+    </select>
+
+    <select id="propagationLinks" resultType="map">
+        SELECT parent.platform source_platform,
+               child.platform target_platform,
+               COUNT(*) link_count
+        FROM ads_content_hot_rank child
+        JOIN ads_content_hot_rank parent
+          ON parent.event_id = child.event_id
+         AND parent.content_id = child.parent_content_id
+        WHERE child.event_id = #{eventId}
+          AND NULLIF(TRIM(child.parent_content_id), '') IS NOT NULL
+        GROUP BY parent.platform, child.platform
+        ORDER BY link_count DESC
+    </select>
+
+    <select id="latestBatch" resultType="map">
+        SELECT *
+        FROM etl_batch
+        WHERE event_id = #{eventId}
+        ORDER BY started_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="noiseSummary" resultType="map">
+        SELECT *
+        FROM ads_noise_summary
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC
+    </select>
+
+    <select id="batches" resultType="map">
+        SELECT *
+        FROM etl_batch
+        ORDER BY started_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="taskLogs" resultType="map">
+        SELECT *
+        FROM etl_task_log
+        WHERE batch_id = #{batchId}
+        ORDER BY started_at ASC
+    </select>
+
+    <select id="eventCount" resultType="map">
+        SELECT COUNT(*) event_count
+        FROM event_info
+    </select>
+</mapper>

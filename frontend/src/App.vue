@@ -18,7 +18,11 @@
         <el-button type="primary" @click="goAdmin">{{ adminEntryText }}</el-button>
       </div>
     </header>
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <KeepAlive>
+        <component :is="Component" />
+      </KeepAlive>
+    </router-view>
   </div>
 
   <div v-else class="app-shell">
@@ -64,7 +68,11 @@
           <el-button plain @click="logout">退出</el-button>
         </div>
       </header>
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <KeepAlive>
+          <component :is="Component" />
+        </KeepAlive>
+      </router-view>
     </main>
   </div>
 </template>

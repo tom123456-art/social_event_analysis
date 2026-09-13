@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onActivated, onBeforeUnmount, onDeactivated } from 'vue'
 
 export const DATABASE_SYNCED_EVENT = 'social-hotspot:database-synced'
 
@@ -9,6 +9,7 @@ export function notifyDatabaseSynced() {
 export function useDatabaseAutoRefresh(load: () => Promise<unknown>, intervalMs = 5000) {
   let timer: number | undefined
   let running = false
+  let activatedOnce = false
 
   const refresh = async () => {
     if (running || document.visibilityState === 'hidden') return
@@ -26,17 +27,30 @@ export function useDatabaseAutoRefresh(load: () => Promise<unknown>, intervalMs 
     if (document.visibilityState === 'visible') void refresh()
   }
 
-  onMounted(() => {
+  const start = () => {
     timer = window.setInterval(() => void refresh(), intervalMs)
     window.addEventListener(DATABASE_SYNCED_EVENT, refresh)
     document.addEventListener('visibilitychange', handleVisible)
-  })
+  }
 
-  onBeforeUnmount(() => {
-    if (timer) window.clearInterval(timer)
+  const stop = () => {
+    if (timer) {
+      window.clearInterval(timer)
+      timer = undefined
+    }
     window.removeEventListener(DATABASE_SYNCED_EVENT, refresh)
     document.removeEventListener('visibilitychange', handleVisible)
+  }
+
+  onActivated(() => {
+    start()
+    // Initial data is loaded by the view. Refresh in the background on later returns.
+    if (activatedOnce) void refresh()
+    activatedOnce = true
   })
+
+  onDeactivated(stop)
+  onBeforeUnmount(stop)
 
   return { refresh }
 }

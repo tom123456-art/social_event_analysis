@@ -3,7 +3,7 @@ package com.social.hotspot.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.social.hotspot.common.ApiResponse;
-import com.social.hotspot.service.DataSyncCoordinator;
+import com.social.hotspot.common.sync.DataSyncCoordinator;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

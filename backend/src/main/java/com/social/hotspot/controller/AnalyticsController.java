@@ -2,7 +2,7 @@ package com.social.hotspot.controller;
 
 import com.social.hotspot.common.ApiResponse;
 import com.social.hotspot.service.AnalyticsService;
-import com.social.hotspot.service.DataSyncCoordinator;
+import com.social.hotspot.common.sync.DataSyncCoordinator;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;

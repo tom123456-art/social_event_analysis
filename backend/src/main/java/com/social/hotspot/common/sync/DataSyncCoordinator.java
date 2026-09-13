@@ -1,4 +1,4 @@
-package com.social.hotspot.service;
+package com.social.hotspot.common.sync;
 
 import org.springframework.stereotype.Component;
 

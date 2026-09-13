@@ -24,20 +24,21 @@ public class FrontBusinessController {
     }
 
     @GetMapping("/profile")
-    public ApiResponse<Map<String, Object>> profile(@RequestParam(defaultValue = "student") String username) {
+    public ApiResponse<Map<String, Object>> profile(
+            @RequestParam(name = "username", defaultValue = "student") String username) {
         return ApiResponse.ok(service.profile(username));
     }
 
     @PutMapping("/profile/{username}")
     public ApiResponse<Map<String, Object>> updateProfile(
-            @PathVariable String username,
+            @PathVariable("username") String username,
             @RequestBody Map<String, Object> item) {
         return ApiResponse.ok(service.updateProfile(username, item));
     }
 
     @GetMapping("/interactions")
     public ApiResponse<List<Map<String, Object>>> interactions(
-            @RequestParam(defaultValue = "student") String username) {
+            @RequestParam(name = "username", defaultValue = "student") String username) {
         return ApiResponse.ok(service.userInteractions(username, 30));
     }
 
@@ -48,7 +49,7 @@ public class FrontBusinessController {
 
     @GetMapping("/submissions")
     public ApiResponse<List<Map<String, Object>>> submissions(
-            @RequestParam(defaultValue = "student") String username) {
+            @RequestParam(name = "username", defaultValue = "student") String username) {
         return ApiResponse.ok(service.userSubmissions(username, 30));
     }
 

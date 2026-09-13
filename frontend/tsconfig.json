@@ -11,7 +11,7 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "vue/jsx"]
+    "types": ["vite/client", "vue/jsx", "node"]
   },
   "include": ["src/**/*.ts", "src/**/*.vue"]
 }

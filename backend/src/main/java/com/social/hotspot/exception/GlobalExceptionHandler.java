@@ -1,4 +1,4 @@
-package com.social.hotspot.controller;
+package com.social.hotspot.exception;
 
 import com.social.hotspot.common.ApiResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -9,7 +9,17 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ApiResponse<Void> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
-        return ApiResponse.fail("上传文件过大，请确认后端 multipart.max-file-size 配置已生效：" + ex.getMessage());
+        return ApiResponse.fail("上传文件过大，请检查后端 multipart.max-file-size 配置是否生效：" + ex.getMessage());
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException ex) {
+        return ApiResponse.fail(ex.getMessage());
+    }
+
+    @ExceptionHandler(BusinessException.class)
+    public ApiResponse<Void> handleBusiness(BusinessException ex) {
+        return ApiResponse.fail(ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

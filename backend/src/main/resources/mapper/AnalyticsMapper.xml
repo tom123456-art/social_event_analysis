@@ -118,6 +118,28 @@
         ORDER BY link_count DESC
     </select>
 
+    <select id="topicPropagationLinks" resultType="map">
+        WITH topic_platform AS (
+            SELECT event_id,
+                   platform,
+                   TRIM(title) title
+            FROM ads_content_hot_rank
+            WHERE event_id = #{eventId}
+              AND NULLIF(TRIM(title), '') IS NOT NULL
+            GROUP BY event_id, platform, TRIM(title)
+        )
+        SELECT left_topic.platform source_platform,
+               right_topic.platform target_platform,
+               COUNT(*) link_count
+        FROM topic_platform left_topic
+        JOIN topic_platform right_topic
+          ON left_topic.event_id = right_topic.event_id
+         AND left_topic.platform &lt; right_topic.platform
+         AND left_topic.title = right_topic.title
+        GROUP BY left_topic.platform, right_topic.platform
+        ORDER BY link_count DESC
+    </select>
+
     <select id="latestBatch" resultType="map">
         SELECT *
         FROM etl_batch

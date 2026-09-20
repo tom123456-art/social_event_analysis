@@ -5,14 +5,12 @@ import EventAnalysisView from '../views/EventAnalysisView.vue'
 import PlatformSpreadView from '../views/PlatformSpreadView.vue'
 import KeywordSentimentView from '../views/KeywordSentimentView.vue'
 import SentimentAnalysisView from '../views/SentimentAnalysisView.vue'
-import UserProfileAnalysisView from '../views/UserProfileAnalysisView.vue'
 import ContentDetailView from '../views/ContentDetailView.vue'
 import AdminHomeView from '../views/AdminHomeView.vue'
 import DataManageView from '../views/DataManageView.vue'
 import EtlTaskView from '../views/EtlTaskView.vue'
 import UserManageView from '../views/UserManageView.vue'
 import ProfileManageView from '../views/ProfileManageView.vue'
-import CrawlerManageView from '../views/CrawlerManageView.vue'
 import ScreenView from '../views/ScreenView.vue'
 
 const router = createRouter({
@@ -26,10 +24,8 @@ const router = createRouter({
     { path: '/interaction', redirect: '/analysis' },
     { path: '/keywords', component: KeywordSentimentView, meta: { title: '关键词分析', group: 'front' } },
     { path: '/sentiment', component: SentimentAnalysisView, meta: { title: '情感分析', group: 'front' } },
-    { path: '/users', component: UserProfileAnalysisView, meta: { title: '用户画像', group: 'front' } },
     { path: '/contents', component: ContentDetailView, meta: { title: '内容明细', group: 'front' } },
     { path: '/admin', component: AdminHomeView, meta: { title: '后台首页', group: 'admin', requiresAuth: true, requiresAdmin: true } },
-    { path: '/admin/crawler', component: CrawlerManageView, meta: { title: '采集管理', group: 'admin', requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/data', component: DataManageView, meta: { title: '数据管理', group: 'admin', requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/etl', component: EtlTaskView, meta: { title: 'ETL任务', group: 'admin', requiresAuth: true, requiresAdmin: true } },
     { path: '/admin/users', component: UserManageView, meta: { title: '用户管理', group: 'admin', requiresAuth: true, requiresAdmin: true } },

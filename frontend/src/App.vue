@@ -80,7 +80,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataLine, Files, Monitor, User, Postcard, Search } from '@element-plus/icons-vue'
+import { DataLine, Files, Monitor, User, Postcard } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -91,7 +91,6 @@ const frontMenus = [
   { path: '/platform', name: '平台扩散' },
   { path: '/keywords', name: '关键词分析' },
   { path: '/sentiment', name: '情感分析' },
-  { path: '/users', name: '用户画像' },
   { path: '/contents', name: '内容明细' }
 ]
 
@@ -100,7 +99,6 @@ const fullAdminMenuGroups = [
     title: '运营总览',
     children: [
       { path: '/admin', name: '后台首页', icon: Monitor },
-      { path: '/admin/crawler', name: '采集管理', icon: Search },
       { path: '/admin/etl', name: 'ETL任务', icon: DataLine }
     ]
   },

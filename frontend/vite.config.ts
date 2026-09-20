@@ -7,7 +7,11 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     proxy: {
-      '/api': backendTarget
+      '/api': {
+        target: backendTarget,
+        timeout: 300000,
+        proxyTimeout: 300000
+      }
     }
   }
 })

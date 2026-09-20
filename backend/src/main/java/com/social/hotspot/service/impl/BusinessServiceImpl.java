@@ -19,12 +19,14 @@ public class BusinessServiceImpl implements BusinessService {
 
     @Override
     public List<Map<String, Object>> users() {
-        return mapper.users();
+        return mapper.users().stream()
+                .peek(item -> item.put("role", normalizeRole(item.get("role"))))
+                .toList();
     }
 
     @Override
     public Map<String, Object> saveUser(Map<String, Object> item) {
-        item.putIfAbsent("role", "USER");
+        item.put("role", normalizeRole(item.get("role")));
         item.putIfAbsent("status", "ENABLED");
         mapper.insertUser(item);
         return item;
@@ -32,7 +34,7 @@ public class BusinessServiceImpl implements BusinessService {
 
     @Override
     public Map<String, Object> updateUser(Long id, Map<String, Object> item) {
-        item.putIfAbsent("role", "USER");
+        item.put("role", normalizeRole(item.get("role")));
         item.putIfAbsent("status", "ENABLED");
         mapper.updateUser(id, item);
         return mapper.userById(id);
@@ -47,6 +49,7 @@ public class BusinessServiceImpl implements BusinessService {
     public Map<String, Object> profile(String username) {
         Map<String, Object> user = mapper.userByUsername(username);
         if (user != null) {
+            user.put("role", normalizeRole(user.get("role")));
             return user;
         }
         Map<String, Object> item = new java.util.LinkedHashMap<>();
@@ -132,6 +135,9 @@ public class BusinessServiceImpl implements BusinessService {
         return mapper.contents(eventId, limit);
     }
 
+    private String normalizeRole(Object role) {
+        return "ADMIN".equalsIgnoreCase(text(role).trim()) ? "ADMIN" : "USER";
+    }
     private String sentiment(String text) {
         String value = text == null ? "" : text.toLowerCase(Locale.ROOT);
         if (value.contains("质疑") || value.contains("争议") || value.contains("失望") || value.contains("愤怒")) {

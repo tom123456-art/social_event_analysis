@@ -3,7 +3,6 @@
     <div class="page-head">
       <div>
         <h2>用户管理</h2>
-        <p>维护系统管理员、分析人员和普通查看用户，支持新增、编辑、删除和状态维护。</p>
       </div>
       <el-button type="primary" @click="openUser()">新增用户</el-button>
     </div>
@@ -38,16 +37,6 @@
           </table>
           <el-pagination class="table-pagination" v-model:current-page="userPage" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredUsers.length" />
         </div>
-
-        <div class="card">
-          <div class="card-title">账号维护流程 <span>CRUD</span></div>
-          <div class="process-grid">
-            <div><b>新增</b><span>录入账号、昵称、角色和联系方式</span></div>
-            <div><b>编辑</b><span>维护手机号、邮箱、简介和启用状态</span></div>
-            <div><b>停用</b><span>保留历史记录，只限制后台访问</span></div>
-            <div><b>删除</b><span>普通账号可删除，admin 账号保护</span></div>
-          </div>
-        </div>
       </div>
 
       <div class="grid">
@@ -57,19 +46,9 @@
             <div class="mini-metric"><label>用户总数</label><strong>{{ users.length }}</strong></div>
             <div class="mini-metric"><label>启用账号</label><strong>{{ enabledCount }}</strong></div>
             <div class="mini-metric"><label>管理员</label><strong>{{ adminCount }}</strong></div>
-            <div class="mini-metric"><label>分析人员</label><strong>{{ analystCount }}</strong></div>
+            <div class="mini-metric"><label>普通用户</label><strong>{{ userCount }}</strong></div>
           </div>
         </div>
-
-        <div class="card">
-          <div class="card-title">权限分布 <span>后台权限</span></div>
-          <div class="role-list">
-            <div><b>ADMIN</b><span>系统配置、用户管理、ETL与数据维护</span></div>
-            <div><b>ANALYST</b><span>查看分析结果、维护内容数据</span></div>
-            <div><b>USER</b><span>访问前台已发布分析看板</span></div>
-          </div>
-        </div>
-
         <div class="card table-card small-card">
           <div class="card-title">维护记录 <span>本页操作</span></div>
           <table class="table fixed-rows">
@@ -92,7 +71,7 @@
           <el-form-item label="邮箱"><el-input v-model="draft.email" /></el-form-item>
         </div>
         <div class="form-grid">
-          <el-form-item label="角色"><el-select v-model="draft.role" style="width:100%"><el-option label="管理员" value="ADMIN" /><el-option label="分析人员" value="ANALYST" /><el-option label="普通用户" value="USER" /></el-select></el-form-item>
+          <el-form-item label="角色"><el-select v-model="draft.role" style="width:100%"><el-option label="管理员" value="ADMIN" /><el-option label="普通用户" value="USER" /></el-select></el-form-item>
           <el-form-item label="状态"><el-select v-model="draft.status" style="width:100%"><el-option label="启用" value="ENABLED" /><el-option label="禁用" value="DISABLED" /></el-select></el-form-item>
         </div>
         <el-form-item label="简介"><el-input v-model="draft.bio" type="textarea" :rows="3" /></el-form-item>
@@ -129,7 +108,7 @@ const pagedUsers = computed(() => filteredUsers.value.slice((userPage.value - 1)
 const emptyUserRows = computed(() => Math.max(0, pageSize - pagedUsers.value.length))
 const enabledCount = computed(() => users.value.filter(item => item.status === 'ENABLED').length)
 const adminCount = computed(() => users.value.filter(item => item.role === 'ADMIN').length)
-const analystCount = computed(() => users.value.filter(item => item.role === 'ANALYST').length)
+const userCount = computed(() => users.value.filter(item => item.role !== 'ADMIN').length)
 const pagedLogs = computed(() => operationLogs.value.slice((logPage.value - 1) * logPageSize, logPage.value * logPageSize))
 const emptyLogRows = computed(() => Math.max(0, logPageSize - pagedLogs.value.length))
 

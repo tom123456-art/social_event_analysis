@@ -9,7 +9,6 @@
       <div class="screen-head-copy">
         <div class="screen-kicker"><i></i>多源公开舆情监测 <b>{{ platformCount }} SOURCES ONLINE</b></div>
         <h1>社交媒体热点事件传播态势大屏</h1>
-        <p>{{ overview.event_name || '社交媒体热点事件融合分析' }} · 统一 Raw CSV · Spark ETL 实时计算</p>
       </div>
 
       <div class="screen-head-status">
@@ -274,26 +273,63 @@ const platformRankOption = computed(() => {
   }
 })
 
-const categoryOption = computed(() => ({
-  backgroundColor: 'transparent', animationDuration: 850,
-  tooltip: { formatter: (params: any) => `${params.name}<br/>热度：${heatText(params.value)}<br/>内容：${countText(params.data?.content_count)}条` },
-  series: [{
-    type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false }, visibleMin: 1, squareRatio: 1.08,
-    label: { show: true, color: '#f3fbff', fontSize: 11, fontWeight: 800, formatter: (params: any) => `${params.name}\n${countText(params.data?.content_count)}条` },
-    upperLabel: { show: false }, itemStyle: { borderColor: '#071522', borderWidth: 2, gapWidth: 2 },
-    data: categoryRank.value.slice(0, 8).map(item => ({ name: item.category_label || categoryName(item), value: Number(item.hot_score || 0), content_count: Number(item.content_count || 0), itemStyle: { color: categoryColor(item) } }))
-  }]
-}))
+const categoryOption = computed(() => {
+  const rows = categoryRank.value.slice(0, 7)
+  return {
+    backgroundColor: 'transparent',
+    animationDuration: 850,
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params: any[]) => {
+        const item = params[0]
+        return `${item.name}<br/>热度：${heatText(item.data?.raw_hot_score ?? item.value)}<br/>内容：${countText(item.data?.content_count)}条`
+      }
+    },
+    grid: { left: 58, right: 62, top: 4, bottom: 4, containLabel: false },
+    xAxis: { type: 'value', show: false },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: rows.map(item => item.category_label || categoryName(item)),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#d8eff8', fontSize: 11, fontWeight: 700, margin: 9 }
+    },
+    series: [{
+      type: 'bar',
+      barMaxWidth: 18,
+      showBackground: true,
+      backgroundStyle: { color: 'rgba(112, 165, 188, .08)', borderRadius: 4 },
+      label: {
+        show: true,
+        position: 'right',
+        color: '#b9dbe8',
+        fontSize: 9,
+        formatter: (params: any) => `${heatText(params.data?.raw_hot_score ?? params.value)}  ${countText(params.data?.content_count)}条`
+      },
+      data: rows.map(item => {
+        const hotScore = Number(item.hot_score || 0)
+        return {
+          value: Math.max(1, hotScore),
+          raw_hot_score: hotScore,
+          content_count: Number(item.content_count || 0),
+          itemStyle: { color: categoryColor(item), borderRadius: 4 }
+        }
+      })
+    }]
+  }
+})
 
 const spreadOption = computed(() => ({
   backgroundColor: 'transparent', animationDuration: 900,
   tooltip: { trigger: 'item', formatter: (params: any) => params.data?.root ? `统一热点事件<br/>覆盖 ${platformCount.value} 个平台` : `${params.name}<br/>内容：${countText(params.data?.content_count)}条<br/>首发：${formatFullTime(params.data?.first_publish_time)}<br/>相对延迟：${delayText(params.data?.delay_minutes)}` },
   series: [{
-    type: 'tree', layout: 'orthogonal', orient: 'LR', top: 8, bottom: 8, left: 66, right: 76,
-    symbol: 'rect', symbolSize: [8, 14], edgeShape: 'polyline', edgeForkPosition: '45%', roam: false, initialTreeDepth: -1, expandAndCollapse: false,
+    type: 'tree', layout: 'orthogonal', orient: 'LR', top: 8, bottom: 8, left: 82, right: 132,
+    symbol: 'rect', symbolSize: [9, 15], edgeShape: 'polyline', edgeForkPosition: '45%', roam: false, initialTreeDepth: -1, expandAndCollapse: false,
     lineStyle: { color: '#2b8fb6', width: 1.5 },
-    label: { position: 'left', color: '#ccecff', fontSize: 9, fontWeight: 800 },
-    leaves: { label: { position: 'right', color: '#e7f8ff', fontSize: 9, formatter: (params: any) => `${params.name}  ${countText(params.data?.content_count)}条` } },
+    label: { position: 'left', color: '#ccecff', fontSize: 9, fontWeight: 800, distance: 8 },
+    leaves: { label: { position: 'right', distance: 8, color: '#e7f8ff', fontSize: 9, formatter: (params: any) => `${params.name}  ${countText(params.data?.content_count)}条` } },
     itemStyle: { color: '#22d3ee', borderColor: '#b8f3ff', borderWidth: 1, shadowBlur: 9, shadowColor: 'rgba(34,211,238,.55)' },
     data: [{
       name: '热点事件', root: true, value: Number(overview.value.hot_score || 0),

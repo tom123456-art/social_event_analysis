@@ -3,7 +3,6 @@
     <div class="page-head">
       <div>
         <h2>个人信息管理</h2>
-        <p>维护当前登录账号的资料、联系方式和登录安全信息。普通用户只能访问本页面。</p>
       </div>
       <el-button type="primary" @click="saveProfile">保存资料</el-button>
     </div>
@@ -56,7 +55,6 @@
             <el-button @click="load">重新读取</el-button>
           </el-form-item>
         </el-form>
-        <div class="source-note">当前后端演示接口已支持用户资料更新；密码更新在学生作品中作为管理表单保留，便于后续接入认证模块。</div>
       </div>
     </div>
   </div>

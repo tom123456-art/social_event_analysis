@@ -3,7 +3,6 @@
     <div class="page-head">
       <div>
         <h2>数据管理</h2>
-        <p>ADS 内容由采集与 ETL 自动维护，后台只读查看；人工标注和用户互动仍按业务表独立管理。</p>
       </div>
       <div class="head-actions">
         <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
@@ -18,7 +17,6 @@
         <div class="toolbar">
           <el-input v-model="query" placeholder="搜索标题、正文、平台" style="width:320px" clearable />
           <el-button type="primary" @click="load">查询</el-button>
-          <el-button @click="router.push('/admin/crawler')">去采集网站评论</el-button>
           <el-button @click="router.push('/overview')">查看前台</el-button>
           <el-button @click="query = ''">重置</el-button>
         </div>
@@ -37,7 +35,7 @@
                 <td>{{ row.sentiment_label }}</td>
                 <td>{{ row.hot_score }}</td>
               </tr>
-              <tr v-if="!loading && !filteredContents.length"><td colspan="6">当前事件暂无数据库内容，请先在采集管理中运行采集。</td></tr>
+              <tr v-if="!loading && !filteredContents.length"><td colspan="6">当前事件暂无数据库内容，请先使用独立 Python 采集器生成 Raw CSV，再执行 ETL。</td></tr>
               <tr v-for="i in emptyContentRows" :key="`content-empty-${i}`"><td colspan="6"></td></tr>
             </tbody>
           </table>

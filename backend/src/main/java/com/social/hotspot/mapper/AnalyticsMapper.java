@@ -29,9 +29,6 @@ public interface AnalyticsMapper {
     Map<String, Object> topicCount(@Param("eventId") String eventId);
 
     List<Map<String, Object>> topicRank(@Param("eventId") String eventId, @Param("limit") int limit);
-
-    Map<String, Object> profileCoverage(@Param("eventId") String eventId);
-
     List<Map<String, Object>> propagationLinks(@Param("eventId") String eventId);
 
     List<Map<String, Object>> topicPropagationLinks(@Param("eventId") String eventId);

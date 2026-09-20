@@ -78,7 +78,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         data.put("categoryRank", categoryRank(realPublicContents.isEmpty() ? contentRank : realPublicContents));
         data.put("topicCount", mapper.topicCount(eventId));
         data.put("topicRank", mapper.topicRank(eventId, 30));
-        data.put("profileCoverage", mapper.profileCoverage(eventId));
         data.put("propagationLinks", mapper.propagationLinks(eventId));
         data.put("topicPropagationLinks", mapper.topicPropagationLinks(eventId));
         data.put("noiseSummary", aggregateNoise(mapper.noiseSummary(eventId)));
@@ -371,7 +370,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public Map<String, Object> runLocalCsvEtl(Path rawCsvPath, String requestedEventId) throws Exception {
         if (!Files.exists(rawCsvPath)) {
-            throw new IllegalArgumentException("Raw CSV 文件不存在，请先上传 CSV 或运行采集");
+            throw new IllegalArgumentException("Raw CSV 文件不存在，请先上传 Raw CSV");
         }
         String batchId = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
         LocalDateTime started = LocalDateTime.now();
@@ -393,12 +392,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             validRows.add(row);
         }
         if (validRows.isEmpty()) {
-            throw new IllegalArgumentException("Raw CSV 中没有受支持的真实采集数据，无法执行 ETL；请先运行采集器");
+            throw new IllegalArgumentException("Raw CSV 中没有受支持的真实采集数据，无法执行 ETL；请先准备符合 Raw Schema 的 CSV");
         }
 
         insertBatch(batchId, rawCsvPath, scopedRows.size(), validRows.size(), dirtyCount, duplicateCount, started);
         try {
-            logTask(batchId, "ODS采集", "ODS", scopedRows.size(), scopedRows.size(), "SUCCESS", null);
+            logTask(batchId, "ODS接入", "ODS", scopedRows.size(), scopedRows.size(), "SUCCESS", null);
             logTask(batchId, "DWD字段校验", "DWD", scopedRows.size(), validRows.size(), "SUCCESS", null);
             transactionTemplate.executeWithoutResult(status -> writeAds(validRows));
             logTask(batchId, "DWS聚合", "DWS", validRows.size(), validRows.size(), "SUCCESS", null);
@@ -479,7 +478,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         LocalDateTime endTime = rows.stream().map(row -> row.publishTime).max(LocalDateTime::compareTo).orElse(startTime);
         jdbcTemplate.update("""
                 insert into event_info(event_id, event_name, description, start_time, status)
-                    values(?, ?, '由公开数据源真实采集后执行本地ETL生成的热点事件', ?, 'ACTIVE')
+                    values(?, ?, '由外部 Python 采集器提供 Raw CSV 后执行 ETL 生成的热点事件', ?, 'ACTIVE')
                 on duplicate key update event_name=values(event_name), start_time=least(start_time, values(start_time)), end_time=greatest(coalesce(end_time, values(start_time)), values(start_time)), updated_at=now()
                 """, CANONICAL_EVENT_ID, CANONICAL_EVENT_NAME, Timestamp.valueOf(startTime));
         jdbcTemplate.update("update event_info set end_time=?, updated_at=now() where event_id=?",

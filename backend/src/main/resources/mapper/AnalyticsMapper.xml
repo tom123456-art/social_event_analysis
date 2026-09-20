@@ -93,17 +93,6 @@
         LIMIT #{limit}
     </select>
 
-    <select id="profileCoverage" resultType="map">
-        SELECT COUNT(*) content_count,
-               COUNT(DISTINCT NULLIF(TRIM(author_id), '')) author_count,
-               SUM(CASE WHEN NULLIF(TRIM(author_name), '') IS NOT NULL THEN 1 ELSE 0 END) author_name_count,
-               SUM(CASE WHEN NULLIF(TRIM(location), '') IS NOT NULL THEN 1 ELSE 0 END) location_count,
-               SUM(CASE WHEN NULLIF(TRIM(user_age_group), '') IS NOT NULL THEN 1 ELSE 0 END) age_count,
-               SUM(CASE WHEN NULLIF(TRIM(user_gender), '') IS NOT NULL THEN 1 ELSE 0 END) gender_count
-        FROM ads_content_hot_rank
-        WHERE event_id = #{eventId}
-    </select>
-
     <select id="propagationLinks" resultType="map">
         SELECT parent.platform source_platform,
                child.platform target_platform,

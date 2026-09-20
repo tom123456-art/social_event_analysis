@@ -4,7 +4,6 @@
       <div>
         <span>平台扩散</span>
         <h2>跨平台传播路径分析</h2>
-        <p>页面只读取 MySQL 中已提交的扩散结果，并自动轮询最新数据库快照；采集任务统一在采集管理中执行。</p>
       </div>
       <div class="analysis-actions">
         <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>

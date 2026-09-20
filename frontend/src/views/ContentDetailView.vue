@@ -4,7 +4,6 @@
       <div>
         <span>内容明细</span>
         <h2>原始内容查询与传播样本追溯</h2>
-        <p>查询进入 ADS 内容排行的公开采集内容，支持按平台、情感和关键词筛选，用于解释图表来源。</p>
       </div>
       <div class="analysis-actions">
         <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>

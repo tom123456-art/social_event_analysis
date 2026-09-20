@@ -4,7 +4,6 @@
       <div class="portal-copy">
         <span class="front-kicker">公开前台</span>
         <h1>{{ currentEventName }}</h1>
-        <p>前台只展示 MySQL 中已经完成 ETL 提交的多平台公开内容；后台采集完成后会自动同步，页面持续读取最新数据库快照。</p>
         <div class="portal-search">
           <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
           <el-select v-else v-model="eventId" @change="load">
@@ -73,7 +72,7 @@
               </div>
             </div>
           </article>
-          <div v-if="!pagedRank.length" class="empty">暂无数据库内容，请在后台采集管理中运行任一来源，然后启动 ETL。</div>
+          <div v-if="!pagedRank.length" class="empty">暂无数据库内容，请先使用独立 Python 采集器生成 Raw CSV，再执行 ETL。</div>
         </div>
         <el-pagination class="table-pagination" v-model:current-page="rankPage" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredRank.length" />
       </main>

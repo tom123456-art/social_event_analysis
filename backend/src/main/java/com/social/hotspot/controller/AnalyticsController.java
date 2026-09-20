@@ -46,7 +46,7 @@ public class AnalyticsController {
     private static Path resolveProjectRoot() {
         Path current = Path.of("").toAbsolutePath().normalize();
         for (Path cursor = current; cursor != null; cursor = cursor.getParent()) {
-            if (Files.exists(cursor.resolve(Path.of("tools", "crawler", "hotspot-crawler.js")))) {
+            if (Files.exists(cursor.resolve(Path.of("deploy", "sql", "schema.sql")))) {
                 return cursor;
             }
         }
@@ -208,7 +208,7 @@ public class AnalyticsController {
         if (headerCells.equals(RAW_COLUMNS)) {
             return;
         }
-        throw new IllegalStateException("活动 Raw 文件表头不是纯真实采集格式，请移除旧文件后重新采集：" + RAW_CSV_PATH.toAbsolutePath());
+        throw new IllegalStateException("活动 Raw 文件表头不是纯真实采集格式，请检查 Raw CSV 表头后重新上传：" + RAW_CSV_PATH.toAbsolutePath());
     }
 
     private Map<String, Object> rawCsvPreview(int limit) throws Exception {

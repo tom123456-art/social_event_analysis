@@ -3,7 +3,6 @@
     <div class="page-head compact">
       <div>
         <h2>后台管理首页</h2>
-        <p>后台用于管理数据来源、ETL任务、系统配置和运行状态，不承担普通用户展示职责。</p>
       </div>
       <div>
         <el-button @click="router.push('/overview')">返回前台</el-button>
@@ -17,8 +16,8 @@
       <div class="card">
       <div class="card-title">数据来源说明 <span>数据库快照</span></div>
         <div class="source-box">
-          <b>当前数据来自公开采集与 ETL</b>
-          <p>公开源采集和 ETL 统一写入 social_event_real.csv，再通过项目接口上传到虚拟机，由虚拟机内 Spark 清洗并写入虚拟机 MySQL ADS 表。前台只展示入库后的分析结果。</p>
+          <b>当前数据来自外部 Python 采集与 ETL</b>
+          <p>外部 Python 采集器负责生成 social_event_real.csv；本系统负责接收 Raw CSV、执行 ETL，并向前台提供分析结果。</p>
           <div class="source-grid">
             <div><span>源文件</span><strong>social_event_real.csv</strong></div>
             <div><span>虚拟机仓库</span><strong>/opt/apps/social-hotspot-analytics/warehouse</strong></div>
@@ -113,13 +112,12 @@
       <div class="card quick-card">
         <div class="card-title">后台快捷入口 <span>管理动作</span></div>
         <div class="quick-grid">
-          <el-button @click="router.push('/admin/crawler')">运行采集</el-button>
           <el-button @click="router.push('/admin/data')">数据管理</el-button>
           <el-button @click="router.push('/admin/etl')">ETL任务</el-button>
           <el-button @click="router.push('/admin/users')">用户管理</el-button>
           <el-button type="primary" @click="router.push('/screen')">打开大屏</el-button>
         </div>
-        <div class="source-note">管理动作顺序：选择公开源并小规模采集；系统自动校验 Raw Schema、执行 ETL 并同步 MySQL，前台与大屏自动读取新批次。</div>
+        <div class="source-note">管理动作顺序：使用独立 Python 采集器生成 Raw CSV；在 ETL 任务中上传并执行数据处理，前台与大屏读取最新分析结果。</div>
       </div>
     </div>
   </div>

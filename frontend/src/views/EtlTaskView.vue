@@ -3,7 +3,6 @@
     <div class="page-head">
       <div>
         <h2>ETL任务管理</h2>
-        <p>采集或上传后自动执行 Raw 校验、DWD 清洗、ADS 聚合并同步 MySQL；前端只读取数据库中的已提交结果。</p>
       </div>
       <div class="head-actions">
         <el-button type="primary" :loading="etlRunning" :disabled="uploadLoading || etlRunning" @click="runCurrentEtl">运行当前 Raw ETL</el-button>
@@ -60,7 +59,7 @@
     <div class="card">
       <div class="card-title">ETL阶段 <span>当前批次：{{ selectedBatch || '未选择' }}</span></div>
       <el-steps :active="selected?.status === 'SUCCESS' ? 5 : 1" finish-status="success" simple>
-        <el-step title="ODS采集" />
+        <el-step title="ODS接入" />
         <el-step title="DWD清洗" />
         <el-step title="DWS聚合" />
         <el-step title="ADS统计" />

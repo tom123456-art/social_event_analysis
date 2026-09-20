@@ -6,6 +6,7 @@
         <p>采集或上传后自动执行 Raw 校验、DWD 清洗、ADS 聚合并同步 MySQL；前端只读取数据库中的已提交结果。</p>
       </div>
       <div class="head-actions">
+        <el-button type="primary" :loading="etlRunning" :disabled="uploadLoading || etlRunning" @click="runCurrentEtl">运行当前 Raw ETL</el-button>
         <el-button type="primary" @click="load">刷新批次</el-button>
       </div>
     </div>
@@ -23,13 +24,13 @@
 
     <div class="grid two equal-grid" style="margin-bottom:12px">
       <div class="card">
-        <div class="card-title">上传Raw CSV <span>支持全部已配置采集平台</span></div>
+        <div class="card-title">替换数据基底 CSV <span>上传后覆盖当前 Raw 并重建分析结果</span></div>
         <el-upload
           drag
           accept=".csv"
           :show-file-list="false"
           :http-request="uploadCsv"
-          :disabled="uploadLoading"
+          :disabled="uploadLoading || etlRunning"
         >
           <div class="upload-panel">
             <strong>{{ uploadLoading ? '正在上传...' : '点击或拖拽CSV到这里' }}</strong>
@@ -37,7 +38,7 @@
           </div>
         </el-upload>
         <div class="source-note" v-if="uploadResult">
-          最近上传：{{ uploadResult.file_name }}，追加 {{ uploadResult.append_count }} 行，ETL 批次 {{ uploadResult.etl_batch_id }}。{{ uploadResult.next_step }}
+          最近替换：{{ uploadResult.file_name }}，写入 {{ uploadResult.append_count }} 行，ETL 批次 {{ uploadResult.etl_batch_id }}。{{ uploadResult.next_step }}
         </div>
         <div class="etl-action-strip">
           <span>上传请求只有在 ADS 表和 MySQL 同步成功后才返回成功；失败时会恢复上传前的 Raw 快照。</span>
@@ -131,6 +132,7 @@ const batches = ref<any[]>([])
 const logs = ref<any[]>([])
 const uploadResult = ref<any>(null)
 const uploadLoading = ref(false)
+const etlRunning = ref(false)
 const selectedBatch = ref('')
 const batchQuery = ref('')
 const status = ref('全部')
@@ -159,7 +161,7 @@ async function uploadCsv(option: any) {
   try {
     const formData = new FormData()
     formData.append('file', option.file)
-    const response = await api.post('/etl/raw/upload', formData, { timeout: 180000 })
+    const response = await api.post('/etl/raw/replace', formData, { timeout: 300000 })
     if (response.data?.code !== 0) throw new Error(response.data?.message || '上传失败')
     uploadResult.value = response.data.data
     selectedBatch.value = uploadResult.value.etl_batch_id
@@ -174,6 +176,23 @@ async function uploadCsv(option: any) {
     option.onError?.(error)
   } finally {
     uploadLoading.value = false
+  }}
+async function runCurrentEtl() {
+  etlRunning.value = true
+  try {
+    const response = await api.post('/etl/run', {}, { timeout: 300000 })
+    if (response.data?.code !== 0) throw new Error(response.data?.message || 'ETL 执行失败')
+    const result = response.data.data
+    selectedBatch.value = result.batch_id
+    notifyDatabaseSynced()
+    ElMessage.success(`当前 Raw CSV ETL 已完成，批次 ${result.batch_id}`)
+    await load()
+    await select(result.batch_id)
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || 'ETL 执行失败'
+    ElMessage.error(message)
+  } finally {
+    etlRunning.value = false
   }
 }
 async function select(batchId: string) {

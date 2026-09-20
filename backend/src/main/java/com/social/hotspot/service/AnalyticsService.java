@@ -16,4 +16,6 @@ public interface AnalyticsService {
     List<Map<String, Object>> taskLogs(String batchId);
 
     Map<String, Object> runLocalCsvEtl(Path rawCsvPath, String requestedEventId) throws Exception;
+
+    void clearReplacedDatasetHistory(String eventId, String currentBatchId);
 }

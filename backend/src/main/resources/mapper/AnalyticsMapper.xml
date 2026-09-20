@@ -169,6 +169,19 @@
         ORDER BY started_at ASC
     </select>
 
+    <delete id="deleteTaskLogsForEventExceptBatch">
+        DELETE FROM etl_task_log
+        WHERE batch_id IN (
+            SELECT batch_id FROM etl_batch
+            WHERE event_id = #{eventId} AND batch_id &lt;&gt; #{currentBatchId}
+        )
+    </delete>
+
+    <delete id="deleteBatchesForEventExceptBatch">
+        DELETE FROM etl_batch
+        WHERE event_id = #{eventId} AND batch_id &lt;&gt; #{currentBatchId}
+    </delete>
+
     <select id="eventCount" resultType="map">
         SELECT COUNT(*) event_count
         FROM event_info

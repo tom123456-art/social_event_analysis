@@ -44,5 +44,9 @@ public interface AnalyticsMapper {
 
     List<Map<String, Object>> taskLogs(@Param("batchId") String batchId);
 
+    int deleteTaskLogsForEventExceptBatch(@Param("eventId") String eventId, @Param("currentBatchId") String currentBatchId);
+
+    int deleteBatchesForEventExceptBatch(@Param("eventId") String eventId, @Param("currentBatchId") String currentBatchId);
+
     Map<String, Object> eventCount();
 }

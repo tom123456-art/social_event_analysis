@@ -96,16 +96,16 @@ public class AnalyticsController {
         return ApiResponse.ok(dataSyncCoordinator.execute(() -> service.runLocalCsvEtl(RAW_CSV_PATH, eventId)));
     }
 
-    @PostMapping("/etl/raw/upload")
-    public ApiResponse<Map<String, Object>> uploadRawCsv(@RequestParam("file") MultipartFile file) {
+    @PostMapping("/etl/raw/replace")
+    public ApiResponse<Map<String, Object>> replaceRawCsv(@RequestParam("file") MultipartFile file) {
         try {
-            return doUploadRawCsv(file);
+            return doReplaceRawCsv(file);
         } catch (Exception ex) {
             return ApiResponse.fail("CSV 上传处理失败：" + ex.getClass().getSimpleName() + " - " + ex.getMessage());
         }
     }
 
-    private ApiResponse<Map<String, Object>> doUploadRawCsv(MultipartFile file) throws Exception {
+    private ApiResponse<Map<String, Object>> doReplaceRawCsv(MultipartFile file) throws Exception {
         if (file == null || file.isEmpty()) {
             return ApiResponse.fail("请选择要上传的 CSV 文件");
         }
@@ -150,6 +150,7 @@ public class AnalyticsController {
             try {
                 Files.createDirectories(RAW_CSV_PATH.getParent());
                 ensureRawCsvSchema();
+                Files.deleteIfExists(RAW_CSV_PATH);
                 boolean writeHeader = !Files.exists(RAW_CSV_PATH) || Files.size(RAW_CSV_PATH) == 0;
                 StringBuilder output = new StringBuilder();
                 if (writeHeader) {
@@ -158,7 +159,9 @@ public class AnalyticsController {
                 output.append(rows);
                 Files.writeString(RAW_CSV_PATH, output.toString(), StandardCharsets.UTF_8,
                         StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                return service.runLocalCsvEtl(RAW_CSV_PATH, CANONICAL_EVENT_ID);
+                Map<String, Object> result = service.runLocalCsvEtl(RAW_CSV_PATH, CANONICAL_EVENT_ID);
+                service.clearReplacedDatasetHistory(CANONICAL_EVENT_ID, String.valueOf(result.get("batch_id")));
+                return result;
             } catch (Exception ex) {
                 restoreRawCsv(previousCsv);
                 throw ex;

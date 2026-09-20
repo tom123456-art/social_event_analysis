@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 public class AnalyticsServiceImpl implements AnalyticsService {
     private static final String CANONICAL_EVENT_ID = "public_rss_latest";
     private static final String CANONICAL_EVENT_NAME = "社交媒体热点事件传播分析";
+    private static final Set<String> GENERIC_SOURCE_CATEGORIES = Set.of("未分类", "新闻", "微博", "微博文章");
     private static final List<String> RAW_COLUMNS = List.of(
             "event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type",
             "title", "content_text", "author_id", "author_name", "publish_time", "crawl_time",
@@ -215,7 +216,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             Map<String, Object> item = new LinkedHashMap<>(row);
             item.put("platform", normalizePlatform(row.get("platform")));
             String sourceCategory = String.valueOf(row.getOrDefault("category", "")).trim();
-            String category = sourceCategory.isBlank() ? categoryLabel(row) : sourceCategory;
+            boolean needsClassification = sourceCategory.isBlank() || GENERIC_SOURCE_CATEGORIES.contains(sourceCategory);
+            String category = needsClassification ? categoryLabel(row) : sourceCategory;
             item.put("source_category", sourceCategory);
             item.put("category", categoryCode(category));
             item.put("category_label", category);
@@ -356,6 +358,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public List<Map<String, Object>> taskLogs(String batchId) {
         return mapper.taskLogs(batchId);
+    }
+
+    @Override
+    public void clearReplacedDatasetHistory(String eventId, String currentBatchId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            mapper.deleteTaskLogsForEventExceptBatch(eventId, currentBatchId);
+            mapper.deleteBatchesForEventExceptBatch(eventId, currentBatchId);
+        });
     }
 
     @Override
@@ -671,15 +681,16 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         String path = urlPath(row.sourceUrl);
         return switch (platform) {
             case "TENCENT_NEWS" -> row.contentId.startsWith("TENCENT_NEWS_")
-                    && Set.of("news.qq.com", "new.qq.com", "view.inews.qq.com").contains(host);
+                    && Set.of("news.qq.com", "new.qq.com", "h5.news.qq.com", "view.inews.qq.com").contains(host);
             case "NETEASE_NEWS" -> row.contentId.startsWith("NETEASE_NEWS_")
-                    && Set.of("www.163.com", "news.163.com").contains(host);
-            case "SOHU_NEWS" -> row.contentId.startsWith("SOHU_NEWS_") && "news.sohu.com".equals(host);
+                    && Set.of("www.163.com", "news.163.com", "c.m.163.com").contains(host);
+            case "SOHU_NEWS" -> row.contentId.startsWith("SOHU_NEWS_")
+                    && Set.of("news.sohu.com", "www.sohu.com", "q8.itc.cn").contains(host);
             case "SINA_NEWS" -> row.contentId.startsWith("SINA_NEWS_")
                     && (host.equals("sina.com.cn") || host.endsWith(".sina.com.cn") || host.equals("sina.cn") || host.endsWith(".sina.cn"));
             case "THE_PAPER" -> row.contentId.startsWith("THE_PAPER_") && "www.thepaper.cn".equals(host);
-            case "WEIBO" -> row.contentId.startsWith("WEIBO_") && "weibo.com".equals(host)
-                    && (path.startsWith("/2/detail/") || path.equals("/ttarticle/p/show"));
+            case "WEIBO" -> row.contentId.startsWith("WEIBO_") && Set.of("weibo.com", "s.weibo.com").contains(host)
+                    && (path.startsWith("/2/detail/") || path.equals("/ttarticle/p/show") || path.startsWith("/weibo"));
             default -> false;
         };
     }

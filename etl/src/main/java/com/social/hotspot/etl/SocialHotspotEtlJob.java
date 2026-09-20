@@ -59,17 +59,17 @@ public class SocialHotspotEtlJob {
                                     (
                                             lower(col("platform")).equalTo("tencent_news")
                                                     .and(col("content_id").startsWith("TENCENT_NEWS_"))
-                                                    .and(col("content_id").startsWith("TENCENT_NEWS_IMPORTED_").or(col("source_url").startsWith("https://news.qq.com/").or(col("source_url").startsWith("https://new.qq.com/")).or(col("source_url").startsWith("https://view.inews.qq.com/"))))
+                                                    .and(col("content_id").startsWith("TENCENT_NEWS_IMPORTED_").or(col("source_url").startsWith("https://news.qq.com/").or(col("source_url").startsWith("https://new.qq.com/")).or(col("source_url").startsWith("https://h5.news.qq.com/")).or(col("source_url").startsWith("https://view.inews.qq.com/"))))
                                     )
                                     .or(
                                             lower(col("platform")).equalTo("netease_news")
                                                     .and(col("content_id").startsWith("NETEASE_NEWS_"))
-                                                    .and(col("content_id").startsWith("NETEASE_NEWS_IMPORTED_").or(sourceHost.isin("www.163.com", "news.163.com")))
+                                                    .and(col("content_id").startsWith("NETEASE_NEWS_IMPORTED_").or(sourceHost.isin("www.163.com", "news.163.com", "c.m.163.com")))
                                     )
                                     .or(
                                             lower(col("platform")).equalTo("sohu_news")
                                                     .and(col("content_id").startsWith("SOHU_NEWS_"))
-                                                    .and(col("content_id").startsWith("SOHU_NEWS_IMPORTED_").or(sourceHost.equalTo("news.sohu.com")))
+                                                    .and(col("content_id").startsWith("SOHU_NEWS_IMPORTED_").or(sourceHost.isin("news.sohu.com", "www.sohu.com", "q8.itc.cn")))
                                     )
                                     .or(
                                             lower(col("platform")).equalTo("sina_news")
@@ -84,7 +84,7 @@ public class SocialHotspotEtlJob {
                                     .or(
                                             lower(col("platform")).equalTo("weibo")
                                                     .and(col("content_id").startsWith("WEIBO_"))
-                                                    .and(col("content_id").startsWith("WEIBO_IMPORTED_").or(sourceHost.equalTo("weibo.com").and(sourcePath.startsWith("/2/detail/").or(sourcePath.equalTo("/ttarticle/p/show")))))
+                                                    .and(col("content_id").startsWith("WEIBO_IMPORTED_").or(sourceHost.isin("weibo.com", "s.weibo.com").and(sourcePath.startsWith("/2/detail/").or(sourcePath.equalTo("/ttarticle/p/show")).or(sourcePath.startsWith("/weibo")))))
                                     )
                             )
                     .filter(col("publish_time").isNotNull())

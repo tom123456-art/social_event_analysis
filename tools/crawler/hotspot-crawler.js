@@ -779,7 +779,6 @@ async function crawlSohuNews(source, limit, report) {
         article_title: title,
         content: htmlToText(bodyHtml) || metaContent(html, 'description'),
         keyword: metaContent(html, 'keywords'),
-        category: '新闻',
         publish_time: parsePublishTime(attributeValue(htmlSection(html, /id=["']news-time["']/i, /<\/span>/i), 'data-val') || html.match(/id=["']news-time["'][^>]*>([\s\S]*?)<\/span>/i)?.[1]),
         url: candidate.url,
         content_type: 'news'
@@ -821,7 +820,6 @@ async function crawlSinaNews(source, limit, report) {
       article_title: candidate.title,
       content: candidate.intro || candidate.summary || candidate.wapsummary,
       keyword: candidate.keywords,
-      category: '新闻',
       publish_time: parsePublishTime(candidate.ctime || candidate.mtime || candidate.intime),
       url,
       like_count: nullableCount(candidate.praise),
@@ -870,7 +868,7 @@ async function crawlThePaper(source, limit, report) {
         article_title: detail.name || candidate.name,
         content: htmlToText(detail.content) || detail.summary || candidate.name,
         keyword: detail.tags || (Array.isArray(candidate.tagList) ? candidate.tagList.map(tag => tag.tag).join(',') : ''),
-        category: detail.nodeInfo?.name || candidate.nodeInfo?.name || '新闻',
+        category: detail.nodeInfo?.name || candidate.nodeInfo?.name,
         publish_time: parsePublishTime(detail.publishTime || detail.pubTime || candidate.publishTime || candidate.pubTimeLong),
         url,
         like_count: nullableCount(candidate.praiseTimes),
@@ -938,7 +936,6 @@ async function crawlWeibo(source, limit, report) {
         article_title: extractedTitle === '微博正文' ? extractedContent.slice(0, 60) : extractedTitle,
         content: extractedContent,
         keyword: metaContent(html, 'keywords') || metaContent(html, 'og:keywords', 'property'),
-        category: isArticle ? '微博文章' : '微博',
         publish_time: parsePublishTime(metaContent(html, 'article:published_time', 'property') || candidate.lastmod),
         url: candidate.url,
         content_type: isArticle ? 'article' : 'post'

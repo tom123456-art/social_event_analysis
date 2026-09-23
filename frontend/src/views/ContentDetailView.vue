@@ -10,7 +10,7 @@
         <el-select v-else v-model="eventId" style="width:280px" @change="load">
           <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
         </el-select>
-        <el-button type="primary" @click="load">刷新</el-button>
+        <el-button type="primary" @click="() => load(true)">刷新</el-button>
       </div>
     </div>
 
@@ -102,8 +102,8 @@ const filteredRows = computed(() => rows.value.filter(row => {
 const pagedRows = computed(() => filteredRows.value.slice((page.value - 1) * pageSize, page.value * pageSize))
 const emptyRows = computed(() => Math.max(0, pageSize - pagedRows.value.length))
 
-async function load() {
-  const data = await getData(`/events/${eventId.value}/dashboard`)
+async function load(force = false) {
+  const data = await getData(`/events/${eventId.value}/dashboard`, force)
   rows.value = data.realPublicContents || []
 }
 function reset() { query.value = ''; platform.value = '全部'; sentiment.value = '全部'; category.value = '全部'; page.value = 1 }
@@ -119,5 +119,5 @@ onMounted(async () => {
   eventId.value = events.value.find(item => item.event_id === 'public_rss_latest')?.event_id || events.value[0]?.event_id || eventId.value
   await load().catch(() => ElMessage.error('读取内容明细失败'))
 })
-useDatabaseAutoRefresh(load)
+useDatabaseAutoRefresh(() => load(true), 5000)
 </script>

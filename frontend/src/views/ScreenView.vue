@@ -12,7 +12,7 @@
       </div>
 
       <div class="screen-head-status">
-        <div class="screen-sync"><i></i><span>数据同步正常<small>5 秒自动刷新</small></span></div>
+        <div class="screen-sync"><i></i><span>数据同步正常<small>ETL 完成后刷新</small></span></div>
         <div class="screen-clock"><small>{{ dateText }}</small><strong>{{ timeText }}</strong></div>
       </div>
     </header>

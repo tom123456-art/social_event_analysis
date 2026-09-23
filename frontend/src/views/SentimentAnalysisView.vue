@@ -65,7 +65,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'
 import MetricGrid from '../components/MetricGrid.vue'
-import { getData } from '../api/client'
+import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
 
 const events = ref<any[]>([])
@@ -78,7 +78,9 @@ const currentEventName = computed(() => events.value.find(item => item.event_id 
 
 const sentiment = computed<any[]>(() => data.value.sentimentTrend || [])
 const overview = computed(() => data.value.overview || {})
-const pagedSentiment = computed(() => sentiment.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+const sentimentDetail = computed(() => [...sentiment.value]
+  .sort((a, b) => String(b.time_bucket || '').localeCompare(String(a.time_bucket || ''))))
+const pagedSentiment = computed(() => sentimentDetail.value.slice((page.value - 1) * pageSize, page.value * pageSize))
 const emptyRows = computed(() => Math.max(0, pageSize - pagedSentiment.value.length))
 const totals = computed(() => sentiment.value.reduce((acc, row) => {
   acc[row.sentiment_label] = (acc[row.sentiment_label] || 0) + Number(row.sentiment_count || 0)
@@ -134,6 +136,7 @@ async function load() { data.value = await getData(`/events/${eventId.value}/das
 async function refreshData() {
   refreshing.value = true
   try {
+    clearGetCache()
     await load()
     ElMessage.success('已读取最新数据库快照')
   } catch (error: any) {

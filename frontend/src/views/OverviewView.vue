@@ -123,7 +123,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'
 import MetricGrid from '../components/MetricGrid.vue'
-import { getData } from '../api/client'
+import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
 
 const router = useRouter()
@@ -226,6 +226,7 @@ async function load() {
 async function refreshData() {
   refreshing.value = true
   try {
+    clearGetCache()
     await load()
     ElMessage.success('已读取最新数据库快照')
   } catch (error: any) {

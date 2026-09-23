@@ -69,7 +69,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'
 import MetricGrid from '../components/MetricGrid.vue'
-import { getData } from '../api/client'
+import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
 
 const events = ref<any[]>([])
@@ -134,6 +134,7 @@ async function load() { data.value = await getData(`/events/${eventId.value}/das
 async function refreshData() {
   refreshing.value = true
   try {
+    clearGetCache()
     await load()
     ElMessage.success('已读取最新数据库快照')
   } catch (error: any) {

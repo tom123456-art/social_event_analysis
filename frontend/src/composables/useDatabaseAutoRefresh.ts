@@ -1,56 +1,46 @@
-import { onActivated, onBeforeUnmount, onDeactivated } from 'vue'
+import { onActivated, onBeforeUnmount, onDeactivated, onMounted } from 'vue'
+import { clearGetCache } from '../api/client'
 
 export const DATABASE_SYNCED_EVENT = 'social-hotspot:database-synced'
 
 export function notifyDatabaseSynced() {
+  clearGetCache()
   window.dispatchEvent(new CustomEvent(DATABASE_SYNCED_EVENT))
 }
 
-export function useDatabaseAutoRefresh(load: () => Promise<unknown>, intervalMs = 5000) {
+export function useDatabaseAutoRefresh(load: () => Promise<unknown>, intervalMs = 0) {
   let timer: number | undefined
   let running = false
-  let activatedOnce = false
 
   const refresh = async () => {
-    if (running || document.visibilityState === 'hidden') return
+    if (running) return
     running = true
     try {
       await load()
     } catch {
-      // Background refresh keeps the last committed database snapshot on screen.
+      // Keep the last committed database snapshot on screen when refresh fails.
     } finally {
       running = false
     }
   }
 
-  const handleVisible = () => {
-    if (document.visibilityState === 'visible') void refresh()
+  const startPolling = () => {
+    if (intervalMs > 0 && !timer) timer = window.setInterval(() => void refresh(), intervalMs)
   }
 
-  const start = () => {
-    timer = window.setInterval(() => void refresh(), intervalMs)
-    window.addEventListener(DATABASE_SYNCED_EVENT, refresh)
-    document.addEventListener('visibilitychange', handleVisible)
+  const stopPolling = () => {
+    if (!timer) return
+    window.clearInterval(timer)
+    timer = undefined
   }
 
-  const stop = () => {
-    if (timer) {
-      window.clearInterval(timer)
-      timer = undefined
-    }
+  onMounted(() => window.addEventListener(DATABASE_SYNCED_EVENT, refresh))
+  onActivated(startPolling)
+  onDeactivated(stopPolling)
+  onBeforeUnmount(() => {
+    stopPolling()
     window.removeEventListener(DATABASE_SYNCED_EVENT, refresh)
-    document.removeEventListener('visibilitychange', handleVisible)
-  }
-
-  onActivated(() => {
-    start()
-    // Initial data is loaded by the view. Refresh in the background on later returns.
-    if (activatedOnce) void refresh()
-    activatedOnce = true
   })
-
-  onDeactivated(stop)
-  onBeforeUnmount(stop)
 
   return { refresh }
 }

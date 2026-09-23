@@ -26,7 +26,7 @@ public class RemoteEtlService {
 
     @Value("${vm.etl.enabled:true}")
     private boolean enabled;
-    @Value("${vm.etl.host:192.168.154.131}")
+    @Value("${vm.etl.host:192.168.154.121}")
     private String host;
     @Value("${vm.etl.port:22}")
     private int port;
@@ -36,20 +36,24 @@ public class RemoteEtlService {
     private String sshPassword;
     @Value("${vm.etl.database-password:}")
     private String databasePassword;
+    @Value("${vm.etl.database-host:192.168.154.121}")
+    private String databaseHost;
+    @Value("${vm.etl.worker-hosts:192.168.154.121,192.168.154.122,192.168.154.123}")
+    private String workerHosts;
     @Value("${vm.etl.app-home:/opt/apps/social-hotspot-analytics}")
     private String appHome;
     @Value("${vm.etl.spark-submit:/opt/bigdata/spark/bin/spark-submit}")
     private String sparkSubmit;
-    @Value("${vm.etl.spark-master:spark://192.168.154.131:7077}")
+    @Value("${vm.etl.spark-master:spark://192.168.154.121:7077}")
     private String sparkMaster;
-    @Value("${vm.etl.warehouse-output:hdfs:///social-hotspot-analytics/warehouse}")
+    @Value("${vm.etl.warehouse-output:}")
     private String warehouseOutput;
     @Value("${vm.etl.timeout-seconds:1800}")
     private int timeoutSeconds;
 
     public Map<String, Object> run(Path localCsv) throws Exception {
         if (!enabled) {
-            throw new IllegalStateException("VM ETL 未启用，已拒绝执行本地 ETL");
+            throw new IllegalStateException("VM Spark ETL 未启用");
         }
         if (sshPassword == null || sshPassword.isBlank()) {
             throw new IllegalStateException("未配置 VM_SSH_PASSWORD，无法通过项目接口上传到虚拟机");
@@ -92,6 +96,7 @@ public class RemoteEtlService {
             upload(session, localJar, jarTemp);
             upload(session, localSchema, schemaTemp);
             exec(session, "mv " + sh(csvTemp) + " " + sh(remoteCsv) + " && mv " + sh(jarTemp) + " " + sh(remoteJar) + " && mv " + sh(schemaTemp) + " " + sh(remoteSchema), timeoutSeconds);
+            syncCsvToWorkers(localCsv, remoteDataDir, remoteCsv);
 
             String mysqlSchema = "mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root --password="
                     + sh(databasePassword) + " --default-character-set=utf8mb4 < " + sh(remoteSchema);
@@ -101,12 +106,12 @@ public class RemoteEtlService {
                     + sh(sparkSubmit) + " --class com.social.hotspot.etl.SocialHotspotEtlJob"
                     + " --master " + sh(sparkMaster)
                     + " --deploy-mode client --driver-memory 768m "
-                    + sh(remoteJar)
+                    + " " + sh(remoteJar)
                     + " --input " + sh(fileUri(remoteCsv))
                     + " --event-id " + sh(EVENT_ID)
                     + " --event-name " + sh(EVENT_NAME)
                     + " --batch-id " + sh(batchId)
-                    + " --jdbc-url " + sh("jdbc:mysql://127.0.0.1:3306/social_hotspot_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false")
+                    + " --jdbc-url " + sh("jdbc:mysql://" + databaseHost + ":3306/social_hotspot_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false")
                     + " --jdbc-user root --jdbc-password \"$DB_PASSWORD\""
                     + " --warehouse-output " + sh(warehouseOutput);
             ExecResult sparkResult = exec(session, sparkCommand, timeoutSeconds);
@@ -124,10 +129,14 @@ public class RemoteEtlService {
                 throw new IllegalStateException("VM ETL 批次未成功：" + rows[0]);
             }
 
-            String dwdPath = warehouseOutput + "/dwd/dwd_social_content_detail/batch_id=" + batchId;
-            ExecResult hdfs = warehouseOutput.startsWith("hdfs://")
-                    ? exec(session, "hdfs dfs -test -d " + sh(dwdPath) + " && echo DWD_PRESENT || echo DWD_MISSING", timeoutSeconds)
-                    : exec(session, "test -d " + sh(stripFileUri(dwdPath)) + " && echo DWD_PRESENT || echo DWD_MISSING", timeoutSeconds);
+            String dwdStatus = "NOT_CONFIGURED";
+            if (warehouseOutput != null && !warehouseOutput.isBlank()) {
+                String dwdPath = warehouseOutput + "/dwd/dwd_social_content_detail/batch_id=" + batchId;
+                ExecResult warehouse = warehouseOutput.startsWith("hdfs://")
+                        ? exec(session, "hdfs dfs -test -d " + sh(dwdPath) + " && echo DWD_PRESENT || echo DWD_MISSING", timeoutSeconds)
+                        : exec(session, "test -d " + sh(stripFileUri(dwdPath)) + " && echo DWD_PRESENT || echo DWD_MISSING", timeoutSeconds);
+                dwdStatus = warehouse.stdout().contains("DWD_PRESENT") ? "PRESENT" : "NOT_VERIFIED";
+            }
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
             result.put("mode", "VM_SPARK_ETL");
@@ -140,7 +149,7 @@ public class RemoteEtlService {
             result.put("duplicate_count", parseLong(batch[5]));
             result.put("database_content_count", parseLong(overview[0]));
             result.put("database_platform_count", parseLong(overview.length > 1 ? overview[1] : "0"));
-            result.put("hdfs_dwd_status", hdfs.stdout().contains("DWD_PRESENT") ? "PRESENT" : "NOT_VERIFIED");
+            result.put("hdfs_dwd_status", dwdStatus);
             result.put("spark_log_tail", tail(sparkResult.stdout() + "\n" + sparkResult.stderr(), 4000));
             result.put("message", "CSV 已通过项目接口上传到虚拟机，并由虚拟机 Spark ETL 清洗后写入虚拟机 MySQL");
             return result;
@@ -157,6 +166,34 @@ public class RemoteEtlService {
         } finally {
             sftp.disconnect();
         }
+    }
+
+    private void syncCsvToWorkers(Path localCsv, String remoteDataDir, String remoteCsv) throws Exception {
+        for (String configuredHost : workerHosts.split(",")) {
+            String workerHost = configuredHost.trim();
+            if (workerHost.isBlank() || workerHost.equals(host)) {
+                continue;
+            }
+            Session workerSession = null;
+            try {
+                workerSession = connect(workerHost);
+                exec(workerSession, "mkdir -p " + sh(remoteDataDir), timeoutSeconds);
+                upload(workerSession, localCsv, remoteCsv);
+            } finally {
+                if (workerSession != null) {
+                    workerSession.disconnect();
+                }
+            }
+        }
+    }
+
+    private Session connect(String targetHost) throws Exception {
+        JSch jsch = new JSch();
+        Session session = jsch.getSession(username, targetHost, port);
+        session.setPassword(sshPassword);
+        session.setConfig("StrictHostKeyChecking", "no");
+        session.connect(Math.min(timeoutSeconds * 1000, 30000));
+        return session;
     }
 
     private ExecResult exec(Session session, String command, int timeoutSeconds) throws Exception {

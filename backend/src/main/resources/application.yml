@@ -10,9 +10,9 @@ spring:
       max-request-size: 512MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:social_hotspot_analytics}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://${DB_HOST:192.168.154.121}:${DB_PORT:3306}/${DB_NAME:social_hotspot_analytics}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:123456}
+    password: ${DB_PASSWORD:${VM_ETL_DATABASE_PASSWORD:123456}}
 
 mybatis:
   mapper-locations: classpath:/mapper/*.xml
@@ -22,3 +22,20 @@ mybatis:
 logging:
   level:
     com.social.hotspot: info
+
+
+vm:
+  etl:
+    enabled: ${VM_ETL_ENABLED:true}
+    host: ${VM_ETL_HOST:192.168.154.121}
+    port: ${VM_ETL_PORT:22}
+    username: ${VM_ETL_USERNAME:root}
+    ssh-password: ${VM_ETL_SSH_PASSWORD:123456}
+    database-password: ${VM_ETL_DATABASE_PASSWORD:${DB_PASSWORD:123456}}
+    database-host: ${VM_ETL_DATABASE_HOST:192.168.154.121}
+    worker-hosts: ${VM_ETL_WORKER_HOSTS:192.168.154.121,192.168.154.122,192.168.154.123}
+    app-home: ${VM_ETL_APP_HOME:/opt/apps/social-hotspot-analytics}
+    spark-submit: ${VM_ETL_SPARK_SUBMIT:/opt/bigdata/spark/bin/spark-submit}
+    spark-master: ${VM_ETL_SPARK_MASTER:spark://192.168.154.121:7077}
+    warehouse-output: ${VM_ETL_WAREHOUSE_OUTPUT:}
+    timeout-seconds: ${VM_ETL_TIMEOUT_SECONDS:1800}

@@ -5,6 +5,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.expressions.Window;
 import org.apache.spark.sql.expressions.WindowSpec;
 
@@ -38,72 +40,61 @@ public class SocialHotspotEtlJob {
         SparkSession spark = SparkSession.builder()
                 .appName("social-hotspot-etl-" + batchId)
                 .config("spark.sql.session.timeZone", "Asia/Shanghai")
+                .config("spark.sql.ansi.enabled", "false")
                 .getOrCreate();
 
         LocalDateTime startedAt = LocalDateTime.now();
         upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "ODS", startedAt, null, null, 0, 0, 0, 0);
 
         try {
-            Dataset<Row> raw = ensureColumns(readInput(spark, input), "event_id", "event_name", "url", "source_url")
+            Dataset<Row> parsed = readInput(spark, input).cache();
+            long sourceCount = parsed.count();
+            long structuralDirtyCount = parsed.filter(col("_corrupt_record").isNotNull()).count();
+            Dataset<Row> raw = ensureColumns(parsed, "event_id", "event_name", "url", "source_url")
                     .withColumn("event_id", coalesce(nullIfBlank(col("event_id")), lit(eventId)))
                     .withColumn("event_name", lit(eventName).substr(1, 200));
-            long sourceCount = raw.count();
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "RawToOdsJob", "ODS", sourceCount, sourceCount, "SUCCESS", null);
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityStructural", "DWD", sourceCount,
+                    sourceCount - structuralDirtyCount, "SUCCESS", null);
 
             Dataset<Row> normalized = normalize(raw, batchId);
-            Column sourceHost = lower(regexp_extract(col("source_url"), "^https://([^/]+)", 1));
-            Column sourcePath = regexp_extract(col("source_url"), "^https://[^/]+(/[^?#]*)", 1);
-            Dataset<Row> valid = normalized
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWD", startedAt, null, null, sourceCount, 0, 0, 0);
+            long textRepairedCount = normalized.filter(col("text_normalized")).count();
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityTextNormalization", "DWD", sourceCount,
+                    textRepairedCount, "SUCCESS", null);
+            Column meaningfulChars = regexp_replace(col("clean_text"), "[^\\p{IsHan}A-Za-z0-9]", "");
+            Column compactChars = regexp_replace(col("clean_text"), "\\s+", "");
+            Dataset<Row> qualityCandidates = normalized
                     .filter(col("event_id").isNotNull())
-                    .filter(
-                                    (
-                                            lower(col("platform")).equalTo("tencent_news")
-                                                    .and(col("content_id").startsWith("TENCENT_NEWS_"))
-                                                    .and(col("content_id").startsWith("TENCENT_NEWS_IMPORTED_").or(col("source_url").startsWith("https://news.qq.com/").or(col("source_url").startsWith("https://new.qq.com/")).or(col("source_url").startsWith("https://h5.news.qq.com/")).or(col("source_url").startsWith("https://view.inews.qq.com/"))))
-                                    )
-                                    .or(
-                                            lower(col("platform")).equalTo("netease_news")
-                                                    .and(col("content_id").startsWith("NETEASE_NEWS_"))
-                                                    .and(col("content_id").startsWith("NETEASE_NEWS_IMPORTED_").or(sourceHost.isin("www.163.com", "news.163.com", "c.m.163.com")))
-                                    )
-                                    .or(
-                                            lower(col("platform")).equalTo("sohu_news")
-                                                    .and(col("content_id").startsWith("SOHU_NEWS_"))
-                                                    .and(col("content_id").startsWith("SOHU_NEWS_IMPORTED_").or(sourceHost.isin("news.sohu.com", "www.sohu.com", "q8.itc.cn")))
-                                    )
-                                    .or(
-                                            lower(col("platform")).equalTo("sina_news")
-                                                    .and(col("content_id").startsWith("SINA_NEWS_"))
-                                                    .and(col("content_id").startsWith("SINA_NEWS_IMPORTED_").or(sourceHost.rlike("(^|\\.)sina\\.(com\\.cn|cn)$")))
-                                    )
-                                    .or(
-                                            lower(col("platform")).equalTo("the_paper")
-                                                    .and(col("content_id").startsWith("THE_PAPER_"))
-                                                    .and(col("content_id").startsWith("THE_PAPER_IMPORTED_").or(sourceHost.equalTo("www.thepaper.cn")))
-                                    )
-                                    .or(
-                                            lower(col("platform")).equalTo("weibo")
-                                                    .and(col("content_id").startsWith("WEIBO_"))
-                                                    .and(col("content_id").startsWith("WEIBO_IMPORTED_").or(sourceHost.isin("weibo.com", "s.weibo.com").and(sourcePath.startsWith("/2/detail/").or(sourcePath.equalTo("/ttarticle/p/show")).or(sourcePath.startsWith("/weibo")))))
-                                    )
-                            )
+                    .filter(col("platform").isin("TENCENT_NEWS", "NETEASE_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER", "WEIBO"))
+                    .filter(not(col("is_structurally_invalid")))
+                    .filter(not(col("has_invalid_content_id")))
+                    .filter(not(col("is_potentially_truncated")))
                     .filter(col("publish_time").isNotNull())
-                    .filter(length(col("clean_text")).gt(0));
-            long validBeforeDedup = valid.count();
-            Dataset<Row> detail = valid.withColumn("hot_score", hotScoreExpr());
-            long validCount = detail.count();
-            long dirtyCount = Math.max(0, sourceCount - validBeforeDedup);
-            Row duplicateRow = valid.groupBy("event_id", "platform", "content_id", "content_type").count()
-                    .agg(sum(when(col("count").gt(1), col("count").minus(1)).otherwise(0)).alias("duplicates")).first();
-            long duplicateCount = duplicateRow.isNullAt(0) ? 0 : duplicateRow.getLong(0);
-            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "OdsToDwdCleanJob", "DWD", sourceCount, validCount, "SUCCESS", null);
+                    .filter(not(col("has_invalid_numeric")))
+                    .filter(length(meaningfulChars).geq(4))
+                    .filter(length(meaningfulChars).multiply(5).geq(length(compactChars)));
+            long candidateCount = qualityCandidates.count();
+            long dirtyCount = Math.max(0, sourceCount - candidateCount);
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityCompletenessValidity", "DWD", sourceCount, candidateCount, "SUCCESS", null);
 
+            WindowSpec dedupeWindow = Window.partitionBy("event_id", "platform", "content_id", "content_type")
+                    .orderBy(col("publish_time").desc_nulls_last(), col("crawl_time").desc_nulls_last());
+            Dataset<Row> ranked = qualityCandidates.withColumn("_dedupe_rank", row_number().over(dedupeWindow));
+            long duplicateCount = ranked.filter(col("_dedupe_rank").gt(1)).count();
+            Dataset<Row> valid = ranked.filter(col("_dedupe_rank").equalTo(1)).drop("_dedupe_rank", "has_invalid_numeric",
+                    "is_structurally_invalid", "has_invalid_content_id", "is_potentially_truncated", "text_normalized");
+            Dataset<Row> detail = valid.withColumn("hot_score", hotScoreExpr());
+            long validCount = valid.count();
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityUniqueness", "DWD", candidateCount, validCount, "SUCCESS", null);
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "OdsToDwdCleanJob", "DWD", sourceCount, validCount, "SUCCESS", null);
             if (warehouseOutput != null && !warehouseOutput.isBlank()) {
                 detail.write().mode(SaveMode.Overwrite).parquet(warehouseOutput + "/dwd/dwd_social_content_detail/batch_id=" + batchId);
             }
 
             // Replace the committed ADS snapshot only after the input has passed
             // validation. A malformed CSV must not erase the last good result.
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWS", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
             deleteEventAds(jdbcUrl, jdbcUser, jdbcPassword, eventId);
 
             Dataset<Row> heatTrend = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"))
@@ -192,6 +183,7 @@ public class SocialHotspotEtlJob {
                     .withColumn("duplicate_count", lit(duplicateCount));
 
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwdToDwsAggregateJob", "DWS", validCount, heatTrend.count(), "SUCCESS", null);
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "ADS", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
             writeJdbc(overview, jdbcUrl, jdbcUser, jdbcPassword, "ads_event_overview");
             writeJdbc(heatTrend, jdbcUrl, jdbcUser, jdbcPassword, "ads_event_heat_trend");
             writeJdbc(timelineWithDelay, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_spread_timeline");
@@ -202,6 +194,7 @@ public class SocialHotspotEtlJob {
             writeJdbc(noise, jdbcUrl, jdbcUser, jdbcPassword, "ads_noise_summary");
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwsToAdsAndMysqlSyncJob", "ADS", validCount, 8, "SUCCESS", null);
 
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "MYSQL_SYNC", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
             upsertEvent(jdbcUrl, jdbcUser, jdbcPassword, eventId, eventName, detail);
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "SUCCESS", "MYSQL_SYNC",
                     startedAt, LocalDateTime.now(), null, sourceCount, validCount, dirtyCount, duplicateCount);
@@ -219,9 +212,19 @@ public class SocialHotspotEtlJob {
         if (input.toLowerCase().endsWith(".json") || input.toLowerCase().endsWith(".jsonl")) {
             return spark.read().option("multiLine", "false").json(input);
         }
-        return spark.read().option("header", "true").option("multiLine", "true").option("escape", "\"").csv(input);
+        String[] columns = {"event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type",
+                "title", "content_text", "author_id", "author_name", "publish_time", "crawl_time", "like_count",
+                "comment_count", "repost_count", "share_count", "favorite_count", "view_count", "hot_rank", "location",
+                "user_age_group", "user_gender", "keywords", "source_url", "image_url", "category"};
+        StructType schema = new StructType();
+        for (String column : columns) {
+            schema = schema.add(column, DataTypes.StringType, true);
+        }
+        schema = schema.add("_corrupt_record", DataTypes.StringType, true);
+        return spark.read().schema(schema).option("header", "true").option("multiLine", "true")
+                .option("escape", "\"").option("mode", "PERMISSIVE")
+                .option("columnNameOfCorruptRecord", "_corrupt_record").csv(input);
     }
-
     private static Dataset<Row> ensureColumns(Dataset<Row> data, String... names) {
         Dataset<Row> result = data;
         for (String name : names) {
@@ -236,16 +239,16 @@ public class SocialHotspotEtlJob {
         return raw.select(
                         safeCol(raw, "event_id"),
                         safeCol(raw, "event_name"),
-                        upper(coalesce(nullIfBlank(safeCol(raw, "platform")), lit("UNKNOWN"))).alias("platform"),
+                        normalizePlatform(safeCol(raw, "platform")).alias("platform"),
                         coalesce(nullIfBlank(safeCol(raw, "content_id")), sha2(concat_ws("||", safeCol(raw, "platform"), safeCol(raw, "content_text"), safeCol(raw, "publish_time")), 256)).substr(1, 128).alias("content_id"),
                         coalesce(nullIfBlank(safeCol(raw, "parent_content_id")), lit("")).substr(1, 128).alias("parent_content_id"),
-                        coalesce(nullIfBlank(safeCol(raw, "content_type")), lit("post")).substr(1, 50).alias("content_type"),
-                        coalesce(nullIfBlank(safeCol(raw, "title")), lit("")).substr(1, 300).alias("title"),
-                        regexp_replace(coalesce(nullIfBlank(safeCol(raw, "content_text")), lit("")), "\\s+", " ").substr(1, 1000).alias("clean_text"),
+                        normalizeContentType(safeCol(raw, "content_type")).alias("content_type"),
+                        cleanText(coalesce(nullIfBlank(safeCol(raw, "title")), lit(""))).substr(1, 300).alias("title"),
+                        cleanText(coalesce(nullIfBlank(safeCol(raw, "content_text")), nullIfBlank(safeCol(raw, "title")), lit(""))).alias("clean_text"),
                         nullIfBlank(safeCol(raw, "author_id")).substr(1, 128).alias("author_id"),
-                        coalesce(nullIfBlank(safeCol(raw, "author_name")), lit("")).substr(1, 100).alias("author_name"),
-                        to_timestamp(safeCol(raw, "publish_time")).alias("publish_time"),
-                        to_timestamp(safeCol(raw, "crawl_time")).alias("crawl_time"),
+                        cleanText(coalesce(nullIfBlank(safeCol(raw, "author_name")), lit(""))).substr(1, 100).alias("author_name"),
+                        parseTimestamp(safeCol(raw, "publish_time")).alias("publish_time"),
+                        coalesce(parseTimestamp(safeCol(raw, "crawl_time")), parseTimestamp(safeCol(raw, "publish_time"))).alias("crawl_time"),
                         numberCol(raw, "like_count").alias("like_count"),
                         numberCol(raw, "comment_count").alias("comment_count"),
                         numberCol(raw, "repost_count").alias("repost_count"),
@@ -256,10 +259,15 @@ public class SocialHotspotEtlJob {
                         coalesce(nullIfBlank(safeCol(raw, "location")), lit("")).substr(1, 100).alias("location"),
                         coalesce(nullIfBlank(safeCol(raw, "user_age_group")), lit("")).substr(1, 50).alias("user_age_group"),
                         coalesce(nullIfBlank(safeCol(raw, "user_gender")), lit("")).substr(1, 30).alias("user_gender"),
-                        coalesce(nullIfBlank(safeCol(raw, "keywords")), lit("")).substr(1, 1000).alias("keywords"),
-                        coalesce(nullIfBlank(safeCol(raw, "source_url")), nullIfBlank(safeCol(raw, "url"))).substr(1, 800).alias("source_url"),
+                        cleanText(coalesce(nullIfBlank(safeCol(raw, "keywords")), lit(""))).substr(1, 1000).alias("keywords"),
+                        normalizeUrl(coalesce(nullIfBlank(safeCol(raw, "source_url")), nullIfBlank(safeCol(raw, "url")))).alias("source_url"),
                         coalesce(nullIfBlank(safeCol(raw, "image_url")), lit("")).substr(1, 800).alias("image_url"),
-                        coalesce(nullIfBlank(safeCol(raw, "category")), lit("")).substr(1, 100).alias("category")
+                        cleanText(coalesce(nullIfBlank(safeCol(raw, "category")), lit(""))).substr(1, 100).alias("category"),
+                        hasInvalidNumeric(raw).alias("has_invalid_numeric"),
+                        safeCol(raw, "_corrupt_record").isNotNull().alias("is_structurally_invalid"),
+                        not(coalesce(nullIfBlank(safeCol(raw, "content_id")), lit("")).rlike("^[A-Za-z0-9_-]{3,128}$")).alias("has_invalid_content_id"),
+                        hasPotentialTruncation(raw).alias("is_potentially_truncated"),
+                        requiresTextNormalization(raw).alias("text_normalized")
                 )
                 .withColumn("time_bucket", date_trunc("hour", col("publish_time")))
                 .withColumn("interaction_count", col("like_count").plus(col("comment_count")).plus(col("repost_count"))
@@ -268,6 +276,62 @@ public class SocialHotspotEtlJob {
                 .withColumn("sentiment_label", sentimentExpr())
                 .withColumn("is_noise", col("clean_text").rlike("(?i)(领取|福利|点击链接|加群|广告|刷屏)"))
                 .withColumn("batch_id", lit(batchId));
+    }
+
+    private static Column cleanText(Column source) {
+        Column cleaned = regexp_replace(source, "[\\p{Cc}\\p{Cf}]", "");
+        cleaned = regexp_replace(cleaned, "\\uFFFD|\\u951f\\u65a4\\u62f7|\\u00C3\\u00A9", "");
+        cleaned = regexp_replace(cleaned, "(?i)https?://\\S+", " ");
+        cleaned = regexp_replace(cleaned, "[A-Za-z]{24,}", " ");
+        cleaned = regexp_replace(cleaned, "([!\\uFF01?\\uFF1F.\\u3002,\\uFF0C\\u3001;\\uFF1B:\\uFF1A~\\uFF5E_\\-])\\1{2,}", "$1");
+        return trim(regexp_replace(cleaned, "\\s+", " ")).substr(1, 1000);
+    }
+    private static Column hasPotentialTruncation(Dataset<Row> data) {
+        Column title = trim(coalesce(safeCol(data, "title"), lit("")));
+        Column keywords = trim(coalesce(safeCol(data, "keywords"), lit("")));
+        return title.rlike(".*(\\.\\.\\.|\\u2026)$").or(keywords.rlike(".*[,\\uFF0C\\u3001;\\uFF1B|/]$"));
+    }
+
+    private static Column requiresTextNormalization(Dataset<Row> data) {
+        String[] names = {"title", "content_text", "author_name", "keywords", "category"};
+        Column requiresNormalization = lit(false);
+        for (String name : names) {
+            Column value = coalesce(safeCol(data, name), lit(""));
+            requiresNormalization = requiresNormalization.or(value.rlike("[\\p{Cc}\\p{Cf}]|\\uFFFD|\\u951f\\u65a4\\u62f7|\\u00C3\\u00A9|\\s{2,}"));
+        }
+        return requiresNormalization;
+    }
+    private static Column normalizePlatform(Column value) {
+        Column normalized = upper(regexp_replace(trim(coalesce(value, lit("UNKNOWN"))), "[\\s-]+", "_"));
+        return when(normalized.isin("TENCENTNEWS", "TENCENT_NEWS", "TENCENT"), "TENCENT_NEWS")
+                .when(normalized.isin("NETEASENEWS", "NETEASE_NEWS", "NETEASE"), "NETEASE_NEWS")
+                .when(normalized.isin("SOHUNEWS", "SOHU_NEWS", "SOHU"), "SOHU_NEWS")
+                .when(normalized.isin("SINANEWS", "SINA_NEWS", "SINA"), "SINA_NEWS")
+                .when(normalized.isin("THEPAPER", "THE_PAPER", "PAPER"), "THE_PAPER")
+                .when(normalized.isin("WEIBO", "SINA_WEIBO"), "WEIBO")
+                .otherwise(normalized);
+    }
+
+    private static Column normalizeContentType(Column value) {
+        Column normalized = lower(trim(coalesce(value, lit("post"))));
+        return when(normalized.isin("news", "article", "post", "video", "image", "comment"), normalized)
+                .otherwise("post");
+    }
+
+    private static Column normalizeUrl(Column value) {
+        return when(value.rlike("(?i)^https?://\\S+$"), trim(value)).otherwise(lit(""));
+    }
+
+    private static Column hasInvalidNumeric(Dataset<Row> data) {
+        String[] names = {"like_count", "comment_count", "repost_count", "share_count", "favorite_count", "view_count", "hot_rank"};
+        Column invalid = lit(false);
+        for (String name : names) {
+            Column value = trim(safeCol(data, name));
+            Column digits = regexp_replace(value, "[+,]", "");
+            Column validNumber = value.rlike("^\\+?\\d[\\d,]*$").and(length(digits).leq(8));
+            invalid = invalid.or(value.isNotNull().and(value.notEqual("")).and(not(validNumber)));
+        }
+        return invalid;
     }
 
     private static Column safeCol(Dataset<Row> data, String name) {
@@ -291,6 +355,18 @@ public class SocialHotspotEtlJob {
         return coalesce(regexp_replace(safeCol(data, name), "[^0-9]", "").cast("long"), lit(0L));
     }
 
+    private static Column parseTimestamp(Column value) {
+        Column normalized = trim(value);
+        return coalesce(
+                to_timestamp(normalized, "yyyy-MM-dd HH:mm:ss"),
+                to_timestamp(normalized, "yyyy-MM-dd HH:mm"),
+                to_timestamp(normalized, "yyyy/MM/dd HH:mm:ss"),
+                to_timestamp(normalized, "yyyy/M/d H:mm:ss"),
+                to_timestamp(normalized, "yyyy/M/d H:mm"),
+                to_timestamp(normalized, "yyyy-MM-dd'T'HH:mm:ss")
+        );
+    }
+
     private static Column sentimentExpr() {
         Column text = lower(col("clean_text"));
         return when(text.rlike("支持|精彩|夺冠|开心|燃|厉害|喜欢|正能量|祝贺|历史|respect"), "positive")
@@ -299,7 +375,7 @@ public class SocialHotspotEtlJob {
     }
 
     private static Column hotScoreExpr() {
-        Column rankBoost = when(col("hot_rank").gt(0), lit(101.0).minus(col("hot_rank"))).otherwise(lit(1.0));
+        Column rankBoost = when(col("hot_rank").gt(0), greatest(lit(0.0), lit(101.0).minus(col("hot_rank")))).otherwise(lit(1.0));
         Column engagement = col("like_count").plus(col("comment_count").multiply(2))
                 .plus(col("repost_count").multiply(3)).plus(col("share_count").multiply(2))
                 .plus(col("favorite_count")).plus(col("view_count").divide(1000));

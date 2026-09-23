@@ -58,7 +58,13 @@
 
     <div class="card">
       <div class="card-title">ETL阶段 <span>当前批次：{{ selectedBatch || '未选择' }}</span></div>
-      <el-steps :active="selected?.status === 'SUCCESS' ? 5 : 1" finish-status="success" simple>
+      <div class="progress-row etl-progress-row">
+        <span>{{ progress.statusText }}</span>
+        <div class="progress"><i :style="{ width: `${progress.percent}%` }"></i></div>
+        <strong>{{ progress.percent }}%</strong>
+      </div>
+      <div class="source-note etl-progress-note">{{ progress.detail }}<span v-if="progress.eta">，预计还需 {{ progress.eta }}</span></div>
+      <el-steps :active="progress.activeStage" :process-status="progress.failed ? 'error' : 'process'" :finish-status="progress.failed ? 'error' : 'success'" simple>
         <el-step title="ODS接入" />
         <el-step title="DWD清洗" />
         <el-step title="DWS聚合" />
@@ -138,6 +144,18 @@ const status = ref('全部')
 const batchPage = ref(1)
 const logPage = ref(1)
 const pageSize = 8
+const etlRequestTimeout = 2100000
+const progressTimer = ref<number>()
+const progressStartedAt = ref(0)
+const progressBaselineBatchId = ref('')
+const progress = ref({ batchId: '', percent: 0, activeStage: 0, statusText: '等待任务', detail: '尚未开始 ETL', eta: '', failed: false })
+const stageProgress: Record<string, { percent: number, activeStage: number, text: string }> = {
+  ODS: { percent: 20, activeStage: 0, text: 'ODS 接入' },
+  DWD: { percent: 45, activeStage: 1, text: 'DWD 清洗' },
+  DWS: { percent: 65, activeStage: 2, text: 'DWS 聚合' },
+  ADS: { percent: 82, activeStage: 3, text: 'ADS 统计' },
+  MYSQL_SYNC: { percent: 95, activeStage: 4, text: 'MySQL 同步' }
+}
 
 const filteredBatches = computed(() => batches.value.filter(item => {
   const matchBatch = !batchQuery.value || String(item.batch_id).includes(batchQuery.value)
@@ -157,12 +175,14 @@ async function load() {
 }
 async function uploadCsv(option: any) {
   uploadLoading.value = true
+  startProgressMonitor()
   try {
     const formData = new FormData()
     formData.append('file', option.file)
-    const response = await api.post('/etl/raw/replace', formData, { timeout: 300000 })
+    const response = await api.post('/etl/raw/replace', formData, { timeout: etlRequestTimeout })
     if (response.data?.code !== 0) throw new Error(response.data?.message || '上传失败')
     uploadResult.value = response.data.data
+    updateProgress({ status: 'SUCCESS', current_stage: 'MYSQL_SYNC', batch_id: uploadResult.value.etl_batch_id })
     selectedBatch.value = uploadResult.value.etl_batch_id
     notifyDatabaseSynced()
     ElMessage.success(`CSV已上传并同步数据库，批次 ${uploadResult.value.etl_batch_id}`)
@@ -174,14 +194,17 @@ async function uploadCsv(option: any) {
     ElMessage.error(message)
     option.onError?.(error)
   } finally {
+    stopProgressMonitor()
     uploadLoading.value = false
   }}
 async function runCurrentEtl() {
   etlRunning.value = true
+  startProgressMonitor()
   try {
-    const response = await api.post('/etl/run', {}, { timeout: 300000 })
+    const response = await api.post('/etl/run', {}, { timeout: etlRequestTimeout })
     if (response.data?.code !== 0) throw new Error(response.data?.message || 'ETL 执行失败')
     const result = response.data.data
+    updateProgress({ status: 'SUCCESS', current_stage: 'MYSQL_SYNC', batch_id: result.batch_id })
     selectedBatch.value = result.batch_id
     notifyDatabaseSynced()
     ElMessage.success(`当前 Raw CSV ETL 已完成，批次 ${result.batch_id}`)
@@ -191,8 +214,55 @@ async function runCurrentEtl() {
     const message = error?.response?.data?.message || error?.message || 'ETL 执行失败'
     ElMessage.error(message)
   } finally {
+    stopProgressMonitor()
     etlRunning.value = false
   }
+}
+function updateProgress(batch: any) {
+  const status = String(batch?.status || 'RUNNING').toUpperCase()
+  const stage = String(batch?.current_stage || '').toUpperCase()
+  const item = stageProgress[stage]
+  const failed = status === 'FAILED'
+  const done = status === 'SUCCESS'
+  const percent = done ? 100 : failed ? Math.max(5, item?.percent || 5) : item?.percent || 5
+  const elapsed = progressStartedAt.value ? Math.max(1, Math.round((Date.now() - progressStartedAt.value) / 1000)) : 0
+  const etaSeconds = !done && percent > 5 ? Math.max(1, Math.round(elapsed * (100 - percent) / percent)) : 0
+  progress.value = {
+    batchId: batch?.batch_id || progress.value.batchId,
+    percent,
+    activeStage: done ? 5 : item?.activeStage || 0,
+    statusText: failed ? 'ETL 失败' : done ? 'ETL 完成' : item?.text || '正在准备任务',
+    detail: failed ? (batch?.error_message || '任务执行失败') : done ? '五个阶段已完成，数据库已同步' : item ? `正在执行 ${item.text}` : '正在上传并等待 VM ETL 接管',
+    eta: etaSeconds ? formatDuration(etaSeconds) : done ? '' : '计算中',
+    failed
+  }
+}
+async function pollProgress() {
+  try {
+    const response = await api.get('/etl/batches?limit=1')
+    const batch = response.data?.data?.[0]
+    if (batch && (!progressBaselineBatchId.value || batch.batch_id !== progressBaselineBatchId.value || batch.status === 'RUNNING')) {
+      updateProgress(batch)
+    }
+  } catch {
+    // Keep the last known progress while the status request is unavailable.
+  }
+}
+function startProgressMonitor() {
+  stopProgressMonitor()
+  progressStartedAt.value = Date.now()
+  progressBaselineBatchId.value = ''
+  progress.value = { batchId: '', percent: 5, activeStage: 0, statusText: '正在准备任务', detail: '文件已提交，等待 VM ETL 开始', eta: '计算中', failed: false }
+  void pollProgress()
+  progressTimer.value = window.setInterval(() => void pollProgress(), 2000)
+}
+function stopProgressMonitor() {
+  if (progressTimer.value) window.clearInterval(progressTimer.value)
+  progressTimer.value = undefined
+}
+function formatDuration(seconds: number) {
+  if (seconds < 60) return `${seconds} 秒`
+  return `${Math.floor(seconds / 60)} 分钟 ${seconds % 60} 秒`
 }
 async function select(batchId: string) {
   selectedBatch.value = batchId

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 const backendTarget = process.env.VITE_API_TARGET || 'http://127.0.0.1:18080'
+const etlProxyTimeout = 2100000
 
 export default defineConfig({
   plugins: [vue()],
@@ -9,8 +10,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: backendTarget,
-        timeout: 300000,
-        proxyTimeout: 300000
+        timeout: etlProxyTimeout,
+        proxyTimeout: etlProxyTimeout
       }
     }
   }

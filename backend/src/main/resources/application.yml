@@ -1,8 +1,10 @@
+# 后端 HTTP 服务与上传文件大小限制。
 server:
   port: ${SERVER_PORT:18080}
   tomcat:
     max-swallow-size: 512MB
 
+# Spring 文件上传和数据库连接配置；默认值可由环境变量覆盖。
 spring:
   servlet:
     multipart:
@@ -14,16 +16,19 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:${VM_ETL_DATABASE_PASSWORD:123456}}
 
+# MyBatis 映射文件位置及字段映射策略。
 mybatis:
   mapper-locations: classpath:/mapper/*.xml
   configuration:
     map-underscore-to-camel-case: false
 
+# 应用日志级别，排查问题时可临时调整为 debug。
 logging:
   level:
     com.social.hotspot: info
 
 
+# 虚拟机 Spark ETL 配置：负责上传 CSV、模型并执行远程分析任务。
 vm:
   etl:
     enabled: ${VM_ETL_ENABLED:true}

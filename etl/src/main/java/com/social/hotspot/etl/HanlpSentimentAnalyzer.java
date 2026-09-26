@@ -13,7 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Map;
 
-/** Spark Executor 端的 HanLP 情感推理。 */
+/** HanLP 情感分析器：在 Spark Executor 中加载模型并输出三分类结果。 */
 public final class HanlpSentimentAnalyzer {
     private static volatile ModelHolder holder;
     private static volatile String bundledModelPath;
@@ -26,6 +26,7 @@ public final class HanlpSentimentAnalyzer {
         if (text == null || text.isBlank()) {
             return "neutral|0.000000|1.000000|0.000000";
         }
+        // 先取 HanLP 原始概率，再按系统阈值补足二分类模型无法识别的中性结果。
         IClassifier classifier = classifier(distributedModelName);
         Map<String, Double> prediction = classifier.predict(text);
         double positive = probability(prediction, "positive", "pos", "\u6b63\u5411", "\u6b63\u9762", "\u79ef\u6781");
@@ -73,6 +74,7 @@ public final class HanlpSentimentAnalyzer {
         synchronized (HanlpSentimentAnalyzer.class) {
             current = holder;
             if (current == null || !current.modelName.equals(distributedModelName)) {
+                // 每个 Executor 只加载一次模型，避免逐条文本重复反序列化。
                 String resolved = resolveModel(distributedModelName);
                 Object object = IOUtil.readObjectFrom(resolved);
                 if (!(object instanceof NaiveBayesModel model)) {
@@ -117,6 +119,7 @@ public final class HanlpSentimentAnalyzer {
     }
 
     private static String bundledModel() {
+        // 本地开发时允许使用随 JAR 打包的模型，部署环境优先使用指定模型文件。
         String existing = bundledModelPath;
         if (existing != null) {
             return existing;

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Spark 与项目在虚拟机中的部署目录，以及本次任务使用的 CSV 和 HanLP 模型。
+
 SPARK_HOME=/opt/bigdata/spark
 APP_HOME=/opt/apps/social-hotspot-analytics
 BATCH_ID=$(date +%Y%m%d%H%M%S)

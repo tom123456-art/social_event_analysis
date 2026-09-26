@@ -13,7 +13,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-/** 使用已标注文本训练可序列化的 HanLP 朴素贝叶斯情感模型。 */
+/** HanLP 模型训练工具：把带标签语料训练为可部署的情感模型。 */
 public final class HanlpSentimentModelTrainer {
     private HanlpSentimentModelTrainer() {
     }
@@ -54,6 +54,7 @@ public final class HanlpSentimentModelTrainer {
         System.out.println("HanLP 情感模型已保存至 " + output + "，样本数=" + dataSet.size());
     }
 
+    /** 逐行读取指定类别语料，并跳过空白文本。 */
     private static void addLines(MemoryDataSet dataSet, String label, Path file, Charset encoding) throws Exception {
         if (!Files.isRegularFile(file)) {
             throw new IllegalArgumentException("训练语料文件不存在：" + file.toAbsolutePath());

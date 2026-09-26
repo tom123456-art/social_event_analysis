@@ -23,6 +23,8 @@ import java.util.Properties;
 
 import static org.apache.spark.sql.functions.*;
 
+
+/** Spark ETL 主任务：清洗社交内容、计算指标并写入 MySQL 分析表。 */
 public class SocialHotspotEtlJob {
     private static final String[] INTERACTION_FIELDS = {"like_count", "comment_count", "repost_count", "favorite_count"};
     // A field must be non-zero in at least 1% of one platform's records before it participates in that platform''s score.
@@ -584,6 +586,7 @@ public class SocialHotspotEtlJob {
                 .when(col("platform").isin("SINA_NEWS", "NETEASE_NEWS"), "COMMENT_1_FIELD")
                 .otherwise("UNSUPPORTED");
     }
+    // 从关键词或标题中提取前两个词，作为热点话题的稳定标识。
     private static Column topicSeedExpr() {
         Column keywordText = regexp_replace(coalesce(nullIfBlank(col("keywords")), lit("")), "[,，�?|�?\\s]+", ",");
         Column keywordSeed = concat_ws(" / ", slice(split(keywordText, ","), 1, 2));
@@ -597,7 +600,7 @@ public class SocialHotspotEtlJob {
         try {
             return Double.parseDouble(value);
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Invalid numeric parameter --" + key + ": " + value, ex);
+            throw new IllegalArgumentException("数值参数格式不正确：--" + key + "=" + value, ex);
         }
     }
 
@@ -720,7 +723,7 @@ public class SocialHotspotEtlJob {
     private static String required(Map<String, String> params, String key) {
         String value = params.get(key);
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Missing required argument --" + key);
+            throw new IllegalArgumentException("\u7f3a\u5c11\u5fc5\u8981\u53c2\u6570\uff1a--" + key);
         }
         return value;
     }

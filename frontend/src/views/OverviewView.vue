@@ -14,7 +14,7 @@
           <el-button @click="router.push('/contents')">查看明细</el-button>
         </div>
         <div class="portal-actions">
-          <button @click="router.push('/analysis')">传播趋势</button>
+          <button @click="router.push('/analysis')">热点趋势</button>
           <button @click="router.push('/platform')">平台扩散</button>
           <button @click="router.push('/keywords')">关键词分析</button>
           <button @click="router.push('/sentiment')">情感变化</button>

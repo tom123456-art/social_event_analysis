@@ -19,7 +19,7 @@ const router = createRouter({
     { path: '/', redirect: '/overview' },
     { path: '/login', component: LoginView, meta: { title: '登录', public: true } },
     { path: '/overview', component: OverviewView, meta: { title: '热点门户', group: 'front' } },
-    { path: '/analysis', component: EventAnalysisView, meta: { title: '传播趋势', group: 'front' } },
+    { path: '/analysis', component: EventAnalysisView, meta: { title: '热点趋势', group: 'front' } },
     { path: '/platform', component: PlatformSpreadView, meta: { title: '平台扩散', group: 'front' } },
     { path: '/interaction', redirect: '/analysis' },
     { path: '/keywords', component: KeywordSentimentView, meta: { title: '关键词分析', group: 'front' } },

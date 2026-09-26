@@ -87,7 +87,7 @@ const router = useRouter()
 
 const frontMenus = [
   { path: '/overview', name: '热点门户' },
-  { path: '/analysis', name: '传播趋势' },
+  { path: '/analysis', name: '热点趋势' },
   { path: '/platform', name: '平台扩散' },
   { path: '/keywords', name: '关键词分析' },
   { path: '/sentiment', name: '情感分析' },

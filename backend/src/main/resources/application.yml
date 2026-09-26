@@ -38,4 +38,5 @@ vm:
     spark-submit: ${VM_ETL_SPARK_SUBMIT:/opt/bigdata/spark/bin/spark-submit}
     spark-master: ${VM_ETL_SPARK_MASTER:spark://192.168.154.121:7077}
     warehouse-output: ${VM_ETL_WAREHOUSE_OUTPUT:}
+    sentiment-model: ${VM_ETL_SENTIMENT_MODEL:etl/models/weibo-sentiment.bin}
     timeout-seconds: ${VM_ETL_TIMEOUT_SECONDS:1800}

@@ -13,7 +13,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Train a serializable HanLP Naive Bayes sentiment model from labeled text. */
+/** 使用已标注文本训练可序列化的 HanLP 朴素贝叶斯情感模型。 */
 public final class HanlpSentimentModelTrainer {
     private HanlpSentimentModelTrainer() {
     }
@@ -34,7 +34,7 @@ public final class HanlpSentimentModelTrainer {
         } else {
             Path corpus = Path.of(required(params, "corpus")).toAbsolutePath().normalize();
             if (!Files.isDirectory(corpus)) {
-                throw new IllegalArgumentException("Corpus directory does not exist: " + corpus);
+                throw new IllegalArgumentException("训练语料目录不存在：" + corpus);
             }
             requireCategory(corpus, "positive");
             requireCategory(corpus, "negative");
@@ -42,21 +42,21 @@ public final class HanlpSentimentModelTrainer {
         }
 
         if (dataSet.size() == 0) {
-            throw new IllegalArgumentException("No training samples were loaded");
+            throw new IllegalArgumentException("未读取到可用训练样本。");
         }
         if (output.getParent() != null) Files.createDirectories(output.getParent());
 
         IClassifier classifier = new NaiveBayesClassifier();
         classifier.train(dataSet);
         if (!IOUtil.saveObjectTo(classifier.getModel(), output.toString())) {
-            throw new IllegalStateException("HanLP could not save model: " + output);
+            throw new IllegalStateException("HanLP 情感模型保存失败：" + output);
         }
-        System.out.println("HanLP sentiment model saved to " + output + ", samples=" + dataSet.size());
+        System.out.println("HanLP 情感模型已保存至 " + output + "，样本数=" + dataSet.size());
     }
 
     private static void addLines(MemoryDataSet dataSet, String label, Path file, Charset encoding) throws Exception {
         if (!Files.isRegularFile(file)) {
-            throw new IllegalArgumentException("Training file does not exist: " + file.toAbsolutePath());
+            throw new IllegalArgumentException("训练语料文件不存在：" + file.toAbsolutePath());
         }
         long accepted = 0;
         try (BufferedReader reader = Files.newBufferedReader(file, encoding)) {
@@ -69,14 +69,14 @@ public final class HanlpSentimentModelTrainer {
             }
         }
         if (accepted == 0) {
-            throw new IllegalArgumentException("Training file has no usable lines: " + file.toAbsolutePath());
+            throw new IllegalArgumentException("训练语料文件中没有可用文本：" + file.toAbsolutePath());
         }
-        System.out.println(label + " samples=" + accepted);
+        System.out.println(label + " 类样本数=" + accepted);
     }
 
     private static void requireCategory(Path corpus, String category) {
         if (!Files.isDirectory(corpus.resolve(category))) {
-            throw new IllegalArgumentException("Missing corpus category directory: " + category + "/");
+            throw new IllegalArgumentException("缺少训练类别目录：" + category + "/");
         }
     }
 
@@ -93,7 +93,7 @@ public final class HanlpSentimentModelTrainer {
     private static String required(Map<String, String> params, String key) {
         String value = params.get(key);
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Missing --" + key);
+            throw new IllegalArgumentException("缺少必要参数：--" + key);
         }
         return value;
     }

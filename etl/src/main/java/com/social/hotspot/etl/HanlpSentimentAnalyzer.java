@@ -13,7 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Map;
 
-/** Executor-side HanLP sentiment inference. */
+/** Spark Executor 端的 HanLP 情感推理。 */
 public final class HanlpSentimentAnalyzer {
     private static volatile ModelHolder holder;
     private static volatile String bundledModelPath;
@@ -34,7 +34,7 @@ public final class HanlpSentimentAnalyzer {
 
         double recognized = positive + neutral + negative;
         if (recognized <= 0D) {
-            throw new IllegalStateException("HanLP model must contain positive, negative, or neutral labels: "
+            throw new IllegalStateException("HanLP 模型必须包含正向、负向或中性标签："
                     + prediction.keySet());
         }
         positive /= recognized;
@@ -76,7 +76,7 @@ public final class HanlpSentimentAnalyzer {
                 String resolved = resolveModel(distributedModelName);
                 Object object = IOUtil.readObjectFrom(resolved);
                 if (!(object instanceof NaiveBayesModel model)) {
-                    throw new IllegalStateException("Invalid HanLP NaiveBayes model: " + resolved);
+                    throw new IllegalStateException("HanLP 朴素贝叶斯模型文件无效：" + resolved);
                 }
                 IClassifier classifier = new NaiveBayesClassifier(model).enableProbability(true);
                 holder = current = new ModelHolder(distributedModelName, classifier);
@@ -87,7 +87,7 @@ public final class HanlpSentimentAnalyzer {
 
     private static String resolveModel(String modelName) {
         if (modelName == null || modelName.isBlank()) {
-            throw new IllegalArgumentException("Missing --sentiment-model");
+            throw new IllegalArgumentException("缺少情感模型参数：--sentiment-model");
         }
         File direct = new File(modelName);
         if (direct.isFile()) {
@@ -112,8 +112,8 @@ public final class HanlpSentimentAnalyzer {
         if (sparkPath != null && new File(sparkPath).isFile()) {
             return sparkPath;
         }
-        throw new IllegalStateException("Executor cannot find HanLP sentiment model: " + modelName
-                + ". Use spark-submit --files to distribute it.");
+        throw new IllegalStateException("Spark Executor 未找到 HanLP 情感模型：" + modelName
+                + "。请检查模型文件是否已部署到 Executor。");
     }
 
     private static String bundledModel() {
@@ -136,7 +136,7 @@ public final class HanlpSentimentAnalyzer {
                 bundledModelPath = target.getAbsolutePath();
                 return bundledModelPath;
             } catch (Exception exception) {
-                throw new IllegalStateException("Unable to extract bundled HanLP sentiment model", exception);
+                throw new IllegalStateException("无法解压内置 HanLP 情感模型", exception);
             }
         }
     }

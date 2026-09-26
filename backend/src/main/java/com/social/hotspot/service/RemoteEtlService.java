@@ -55,25 +55,25 @@ public class RemoteEtlService {
 
     public Map<String, Object> run(Path localCsv) throws Exception {
         if (!enabled) {
-            throw new IllegalStateException("VM Spark ETL is disabled");
+            throw new IllegalStateException("远程 Spark ETL 未启用，请检查 VM_ETL_ENABLED 配置。");
         }
         if (sshPassword == null || sshPassword.isBlank()) {
-            throw new IllegalStateException("VM_SSH_PASSWORD is not configured");
+            throw new IllegalStateException("未配置虚拟机 SSH 密码，请检查 VM_ETL_SSH_PASSWORD 配置。");
         }
         if (databasePassword == null || databasePassword.isBlank()) {
-            throw new IllegalStateException("VM_ETL_DATABASE_PASSWORD is not configured");
+            throw new IllegalStateException("未配置虚拟机数据库密码，请检查 VM_ETL_DATABASE_PASSWORD 配置。");
         }
         if (sentimentModel == null || sentimentModel.isBlank()) {
-            throw new IllegalStateException("VM_ETL_SENTIMENT_MODEL is required for HanLP sentiment analysis");
+            throw new IllegalStateException("未配置 HanLP 情感模型，请检查 VM_ETL_SENTIMENT_MODEL 配置。");
         }
         Path projectRoot = resolveProjectRoot();
         Path configuredModel = Path.of(sentimentModel);
         Path localSentimentModel = (configuredModel.isAbsolute() ? configuredModel : projectRoot.resolve(configuredModel)).normalize();
         if (!Files.isRegularFile(localSentimentModel)) {
-            throw new IllegalStateException("HanLP sentiment model does not exist: " + localSentimentModel);
+            throw new IllegalStateException("未找到 HanLP 情感模型文件：" + localSentimentModel);
         }
         if (!Files.exists(localCsv)) {
-            throw new IllegalArgumentException("Local CSV does not exist: " + localCsv.toAbsolutePath());
+            throw new IllegalArgumentException("未找到待处理的 CSV 文件：" + localCsv.toAbsolutePath());
         }
 
         String batchId = LocalDateTime.now().format(BATCH_FORMAT);
@@ -93,10 +93,10 @@ public class RemoteEtlService {
         Path localJar = projectRoot.resolve("etl/target/social-hotspot-etl-1.0.0-SNAPSHOT.jar");
         Path localSchema = projectRoot.resolve("deploy/sql/schema.sql");
         if (!Files.exists(localJar)) {
-            throw new IllegalStateException("ETL JAR does not exist: " + localJar.toAbsolutePath());
+            throw new IllegalStateException("未找到 ETL 构建包：" + localJar.toAbsolutePath());
         }
         if (!Files.exists(localSchema)) {
-            throw new IllegalStateException("Database schema does not exist: " + localSchema.toAbsolutePath());
+            throw new IllegalStateException("未找到数据库初始化脚本：" + localSchema.toAbsolutePath());
         }
 
         JSch jsch = new JSch();
@@ -141,12 +141,12 @@ public class RemoteEtlService {
             ExecResult verify = exec(session, "mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root --password=" + sh(databasePassword) + " --batch --skip-column-names --execute=" + sh(verifySql), timeoutSeconds);
             String[] rows = verify.stdout().lines().filter(line -> !line.isBlank()).toArray(String[]::new);
             if (rows.length < 2) {
-                throw new IllegalStateException("VM ETL verification returned incomplete MySQL results: " + verify.stdout());
+                throw new IllegalStateException("远程 ETL 已结束，但数据库校验结果不完整：" + verify.stdout());
             }
             String[] batch = rows[0].trim().split("\\|", -1);
             String[] overview = rows[1].trim().split("\\|", -1);
             if (batch.length < 6 || !"SUCCESS".equals(batch[1])) {
-                throw new IllegalStateException("VM ETL batch did not complete successfully: " + rows[0]);
+                throw new IllegalStateException("远程 ETL 批次执行失败：" + rows[0]);
             }
 
             String dwdStatus = "NOT_CONFIGURED";
@@ -171,7 +171,7 @@ public class RemoteEtlService {
             result.put("database_platform_count", parseLong(overview.length > 1 ? overview[1] : "0"));
             result.put("hdfs_dwd_status", dwdStatus);
             result.put("spark_log_tail", tail(sparkResult.stdout() + "\n" + sparkResult.stderr(), 4000));
-            result.put("message", "CSV was uploaded to the VM and processed by Spark ETL into the VM MySQL database");
+            result.put("message", "CSV 已上传至虚拟机，并已由 Spark ETL 清洗后写入虚拟机 MySQL 数据库。");
             return result;
         } finally {
             session.disconnect();
@@ -235,7 +235,7 @@ public class RemoteEtlService {
                 Thread.sleep(100);
             }
             if (!channel.isClosed()) {
-                throw new IllegalStateException("VM command timed out: " + tail(command, 500));
+                throw new IllegalStateException("虚拟机命令执行超时：" + tail(command, 500));
             }
             while (stdout.available() > 0) {
                 output.write(bufferRead(stdout));
@@ -243,7 +243,7 @@ public class RemoteEtlService {
             int exit = channel.getExitStatus();
             ExecResult result = new ExecResult(output.toString(StandardCharsets.UTF_8), stderr.toString(StandardCharsets.UTF_8), exit);
             if (exit != 0) {
-                throw new IllegalStateException("VM command failed (exit=" + exit + "): " + tail(result.stderr() + "\\n" + result.stdout(), 3000));
+                throw new IllegalStateException("虚拟机命令执行失败（退出码=" + exit + "）：" + tail(result.stderr() + "\n" + result.stdout(), 3000));
             }
             return result;
         } finally {

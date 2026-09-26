@@ -5,7 +5,6 @@ import com.social.hotspot.service.BusinessService;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -139,7 +138,7 @@ public class BusinessServiceImpl implements BusinessService {
         return "ADMIN".equalsIgnoreCase(text(role).trim()) ? "ADMIN" : "USER";
     }
     private String sentiment(String text) {
-        String value = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        String value = text == null ? "" : text;
         if (value.contains("质疑") || value.contains("争议") || value.contains("失望") || value.contains("愤怒")) {
             return "negative";
         }

@@ -11,11 +11,23 @@ export function clearGetCache() {
   getCache.clear()
 }
 
-api.interceptors.response.use((response) => {
-  // A successful write can change data used by any dashboard or admin view.
-  if (response.config.method?.toLowerCase() !== 'get') clearGetCache()
-  return response
-})
+api.interceptors.response.use(
+  (response) => {
+    // A successful write can change data used by any dashboard or admin view.
+    if (response.config.method?.toLowerCase() !== 'get') clearGetCache()
+    return response
+  },
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      error.message = '请求超时，请稍后重试。'
+    } else if (!error.response) {
+      error.message = '无法连接后端服务，请检查服务是否已启动。'
+    } else {
+      error.message = error.response.data?.message || `请求失败（状态码 ${error.response.status}）。`
+    }
+    return Promise.reject(error)
+  }
+)
 
 function unwrap<T>(response: any): T {
   const body = response.data

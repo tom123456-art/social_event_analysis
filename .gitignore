@@ -20,3 +20,6 @@ tmp/
 *.bak-*
 data/crawler/*.csv
 tools/*.exe
+
+# Local backend runtime model copy
+backend/etl/

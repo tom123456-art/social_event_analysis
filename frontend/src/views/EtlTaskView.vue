@@ -149,6 +149,7 @@ const progressTimer = ref<number>()
 const progressStartedAt = ref(0)
 const progressBaselineBatchId = ref('')
 const progress = ref({ batchId: '', percent: 0, activeStage: 0, statusText: '等待任务', detail: '尚未开始 ETL', eta: '', failed: false })
+const progressTrackedBatchId = ref('')
 const stageProgress: Record<string, { percent: number, activeStage: number, text: string }> = {
   ODS: { percent: 20, activeStage: 0, text: 'ODS 接入' },
   DWD: { percent: 45, activeStage: 1, text: 'DWD 清洗' },
@@ -175,7 +176,7 @@ async function load() {
 }
 async function uploadCsv(option: any) {
   uploadLoading.value = true
-  startProgressMonitor()
+  await startProgressMonitor()
   try {
     const formData = new FormData()
     formData.append('file', option.file)
@@ -199,7 +200,7 @@ async function uploadCsv(option: any) {
   }}
 async function runCurrentEtl() {
   etlRunning.value = true
-  startProgressMonitor()
+  await startProgressMonitor()
   try {
     const response = await api.post('/etl/run', {}, { timeout: etlRequestTimeout })
     if (response.data?.code !== 0) throw new Error(response.data?.message || 'ETL 执行失败')
@@ -223,14 +224,15 @@ function updateProgress(batch: any) {
   const stage = String(batch?.current_stage || '').toUpperCase()
   const item = stageProgress[stage]
   const failed = status === 'FAILED'
+  const previous = progress.value
   const done = status === 'SUCCESS'
-  const percent = done ? 100 : failed ? Math.max(5, item?.percent || 5) : item?.percent || 5
+  const percent = done ? 100 : failed ? Math.max(5, item?.percent || previous.percent || 5) : item?.percent || 5
   const elapsed = progressStartedAt.value ? Math.max(1, Math.round((Date.now() - progressStartedAt.value) / 1000)) : 0
   const etaSeconds = !done && percent > 5 ? Math.max(1, Math.round(elapsed * (100 - percent) / percent)) : 0
   progress.value = {
     batchId: batch?.batch_id || progress.value.batchId,
     percent,
-    activeStage: done ? 5 : item?.activeStage || 0,
+    activeStage: done ? 5 : failed ? (item?.activeStage ?? previous.activeStage) : item?.activeStage || 0,
     statusText: failed ? 'ETL 失败' : done ? 'ETL 完成' : item?.text || '正在准备任务',
     detail: failed ? (batch?.error_message || '任务执行失败') : done ? '五个阶段已完成，数据库已同步' : item ? `正在执行 ${item.text}` : '正在上传并等待 VM ETL 接管',
     eta: etaSeconds ? formatDuration(etaSeconds) : done ? '' : '计算中',
@@ -241,20 +243,38 @@ async function pollProgress() {
   try {
     const response = await api.get('/etl/batches?limit=1')
     const batch = response.data?.data?.[0]
-    if (batch && (!progressBaselineBatchId.value || batch.batch_id !== progressBaselineBatchId.value || batch.status === 'RUNNING')) {
-      updateProgress(batch)
+    const batchId = String(batch?.batch_id || '')
+    if (!batchId) return
+    if (!progressTrackedBatchId.value) {
+      if (!progressBaselineBatchId.value) {
+        progressBaselineBatchId.value = batchId
+        return
+      }
+      if (batchId === progressBaselineBatchId.value) return
+      progressTrackedBatchId.value = batchId
     }
+    if (batchId !== progressTrackedBatchId.value) return
+    updateProgress(batch)
   } catch {
     // Keep the last known progress while the status request is unavailable.
   }
 }
-function startProgressMonitor() {
+async function startProgressMonitor() {
   stopProgressMonitor()
   progressStartedAt.value = Date.now()
-  progressBaselineBatchId.value = ''
+  progressBaselineBatchId.value = String(latestBatch.value?.batch_id || '')
+  progressTrackedBatchId.value = ''
   progress.value = { batchId: '', percent: 5, activeStage: 0, statusText: '正在准备任务', detail: '文件已提交，等待 VM ETL 开始', eta: '计算中', failed: false }
-  void pollProgress()
+  if (!progressBaselineBatchId.value) {
+    try {
+      const response = await api.get('/etl/batches?limit=1')
+      progressBaselineBatchId.value = String(response.data?.data?.[0]?.batch_id || '')
+    } catch {
+      // The first poll establishes the baseline if the status endpoint is temporarily unavailable.
+    }
+  }
   progressTimer.value = window.setInterval(() => void pollProgress(), 2000)
+  void pollProgress()
 }
 function stopProgressMonitor() {
   if (progressTimer.value) window.clearInterval(progressTimer.value)

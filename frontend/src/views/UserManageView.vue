@@ -85,9 +85,10 @@
 </template>
 
 <script setup lang="ts">
+// 用户管理页：维护账号、角色和启用状态。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteData, getData, postData, putData } from '../api/client'
+import { deleteData, getData, getErrorMessage, postData, putData } from '../api/client'
 
 const users = ref<any[]>([])
 const query = ref('')
@@ -125,23 +126,32 @@ async function saveUser() {
     ElMessage.warning('请填写账号和昵称')
     return
   }
-  if (draft.id) await putData(`/admin/users/${draft.id}`, draft)
-  else await postData('/admin/users', draft)
-  ElMessage.success('用户已保存')
-  userDialog.value = false
-  pushLog(`${draft.username} 资料已保存`)
-  await load()
+  try {
+    if (draft.id) await putData(`/admin/users/${draft.id}`, draft)
+    else await postData('/admin/users', draft)
+    ElMessage.success('用户已保存')
+    userDialog.value = false
+    pushLog(`${draft.username} 资料已保存`)
+    await load()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '保存用户失败，请稍后重试。'))
+  }
 }
 async function removeUser(user: any) {
   if (user.username === 'admin') {
     ElMessage.warning('admin账号不能删除')
     return
   }
-  await ElMessageBox.confirm(`确认删除用户：${user.username}？`, '删除确认')
-  await deleteData(`/admin/users/${user.id}`)
-  ElMessage.success('用户已删除')
-  pushLog(`${user.username} 已删除`)
-  await load()
+  try {
+    await ElMessageBox.confirm(`确认删除用户：${user.username}？`, '删除确认')
+    await deleteData(`/admin/users/${user.id}`)
+    ElMessage.success('用户已删除')
+    pushLog(`${user.username} 已删除`)
+    await load()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, '删除用户失败，请稍后重试。'))
+  }
 }
 
 function pushLog(text: string) {

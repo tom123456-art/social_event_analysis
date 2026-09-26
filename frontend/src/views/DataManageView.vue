@@ -95,10 +95,11 @@
 </template>
 
 <script setup lang="ts">
+// 数据管理页：管理人工投稿、互动记录和内容审核状态。
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteData, getData, putData } from '../api/client'
+import { deleteData, getData, getErrorMessage, putData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
 
 const router = useRouter()
@@ -151,23 +152,37 @@ async function load() {
 }
 
 async function setStatus(row: any, status: string) {
-  await putData(`/admin/submissions/${row.id}/status`, { status })
-  ElMessage.success('审核状态已更新')
-  await load()
+  try {
+    await putData(`/admin/submissions/${row.id}/status`, { status })
+    ElMessage.success('审核状态已更新')
+    await load()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '更新审核状态失败，请稍后重试。'))
+  }
 }
 
 async function removeSubmission(row: any) {
-  await ElMessageBox.confirm(`确认删除投稿：${row.title}？`, '删除确认')
-  await deleteData(`/admin/submissions/${row.id}`)
-  ElMessage.success('已删除标注记录')
-  await load()
+  try {
+    await ElMessageBox.confirm(`确认删除投稿：${row.title}？`, '删除确认')
+    await deleteData(`/admin/submissions/${row.id}`)
+    ElMessage.success('已删除标注记录')
+    await load()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, '删除标注记录失败，请稍后重试。'))
+  }
 }
 
 async function removeInteraction(row: any) {
-  await ElMessageBox.confirm('确认删除这条互动记录？', '删除确认')
-  await deleteData(`/admin/interactions/${row.id}`)
-  ElMessage.success('已删除互动')
-  await load()
+  try {
+    await ElMessageBox.confirm('确认删除这条互动记录？', '删除确认')
+    await deleteData(`/admin/interactions/${row.id}`)
+    ElMessage.success('已删除互动')
+    await load()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, '删除互动记录失败，请稍后重试。'))
+  }
 }
 
 function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }

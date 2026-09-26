@@ -61,9 +61,10 @@
 </template>
 
 <script setup lang="ts">
+// 个人资料页：查看并修改当前用户的基础资料。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getData, putData } from '../api/client'
+import { getData, getErrorMessage, putData } from '../api/client'
 
 const currentUser = localStorage.getItem('social_user') || 'student'
 const profile = reactive<any>({ username: currentUser, role: 'USER', status: 'ENABLED' })
@@ -73,14 +74,22 @@ const avatarText = computed(() => String(profile.username || currentUser).slice(
 const roleText = computed(() => String(profile.role).toUpperCase() === 'ADMIN' ? '系统管理员' : '普通用户')
 
 async function load() {
-  const data = await getData(`/front/profile?username=${encodeURIComponent(currentUser)}`).catch(() => null)
-  if (data) Object.assign(profile, data)
+  try {
+    const data = await getData(`/front/profile?username=${encodeURIComponent(currentUser)}`)
+    Object.assign(profile, data)
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '\u8bfb\u53d6\u4e2a\u4eba\u8d44\u6599\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002'))
+  }
 }
 
 async function saveProfile() {
-  await putData(`/front/profile/${encodeURIComponent(currentUser)}`, profile)
-  ElMessage.success('个人资料已保存')
-  await load()
+  try {
+    await putData(`/front/profile/${encodeURIComponent(currentUser)}`, profile)
+    ElMessage.success('个人资料已保存')
+    await load()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '保存个人资料失败，请稍后重试。'))
+  }
 }
 
 function resetPassword() {

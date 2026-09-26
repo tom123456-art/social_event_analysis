@@ -55,7 +55,6 @@ CREATE TABLE IF NOT EXISTS ads_event_overview (
   platform_count BIGINT,
   comment_count BIGINT,
   repost_count BIGINT,
-  share_count BIGINT,
   like_count BIGINT,
   view_count BIGINT,
   positive_count BIGINT,
@@ -74,6 +73,7 @@ CREATE TABLE IF NOT EXISTS ads_event_heat_trend (
   content_count BIGINT,
   interaction_count BIGINT,
   hot_score DECIMAL(18,2),
+  avg_heat_index DECIMAL(8,2),
   UNIQUE KEY uk_heat (event_id, time_bucket, platform)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -85,6 +85,10 @@ CREATE TABLE IF NOT EXISTS ads_platform_spread_timeline (
   delay_minutes BIGINT,
   content_count BIGINT,
   hot_score DECIMAL(18,2),
+  avg_heat_index DECIMAL(8,2),
+  max_heat_index DECIMAL(8,2),
+  peak_time DATETIME,
+  high_heat_count BIGINT,
   UNIQUE KEY uk_platform_timeline (event_id, platform)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -96,7 +100,6 @@ CREATE TABLE IF NOT EXISTS ads_interaction_summary (
   comment_count BIGINT,
   repost_count BIGINT,
   like_count BIGINT,
-  share_count BIGINT,
   favorite_count BIGINT,
   view_count BIGINT,
   hot_score DECIMAL(18,2),
@@ -124,13 +127,10 @@ CREATE TABLE IF NOT EXISTS ads_content_hot_rank (
   comment_count BIGINT,
   forward_count BIGINT,
   repost_count BIGINT,
-  share_count BIGINT,
   view_count BIGINT,
-  location VARCHAR(100),
-  user_age_group VARCHAR(50),
-  user_gender VARCHAR(30),
   sentiment_label VARCHAR(20),
   hot_score DECIMAL(18,2),
+  platform_heat_index DECIMAL(8,2),
   source_url VARCHAR(800),
   image_url VARCHAR(800)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -155,6 +155,28 @@ CREATE TABLE IF NOT EXISTS ads_sentiment_trend (
   UNIQUE KEY uk_sentiment_trend (event_id, time_bucket, platform, sentiment_label)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS dwd_weibo_sentiment_result (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  content_id VARCHAR(128) NOT NULL,
+  parent_content_id VARCHAR(128),
+  platform VARCHAR(50) NOT NULL,
+  publish_time DATETIME,
+  content_text VARCHAR(1000) NOT NULL,
+  sentiment_label VARCHAR(20) NOT NULL,
+  sentiment_positive_score DECIMAL(10,6) NOT NULL,
+  sentiment_neutral_score DECIMAL(10,6) NOT NULL,
+  sentiment_negative_score DECIMAL(10,6) NOT NULL,
+  confidence DECIMAL(10,6) NOT NULL,
+  analysis_method VARCHAR(64) NOT NULL,
+  model_version VARCHAR(128) NOT NULL,
+  batch_id VARCHAR(64) NOT NULL,
+  analyzed_at DATETIME NOT NULL,
+  UNIQUE KEY uk_weibo_sentiment_result (event_id, content_id),
+  KEY idx_weibo_sentiment_event_time (event_id, publish_time),
+  KEY idx_weibo_sentiment_label (event_id, sentiment_label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS ads_noise_summary (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   event_id VARCHAR(64),
@@ -165,6 +187,82 @@ CREATE TABLE IF NOT EXISTS ads_noise_summary (
   high_freq_user_count BIGINT,
   noise_count BIGINT,
   UNIQUE KEY uk_noise (event_id, time_bucket, platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ads_platform_daily_heat (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  platform VARCHAR(50) NOT NULL,
+  time_bucket DATE NOT NULL,
+  content_count BIGINT NOT NULL,
+  average_heat_index DECIMAL(8,2),
+  peak_content_heat_index DECIMAL(8,2),
+  high_heat_content_count BIGINT NOT NULL,
+  heat_algorithm VARCHAR(32) NOT NULL,
+  UNIQUE KEY uk_platform_daily_heat (event_id, platform, time_bucket),
+  KEY idx_platform_daily_heat_event_time (event_id, time_bucket)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS ads_platform_category_heat (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  platform VARCHAR(50) NOT NULL,
+  time_bucket DATE NOT NULL,
+  category VARCHAR(100) NOT NULL,
+  content_count BIGINT NOT NULL,
+  platform_content_count BIGINT NOT NULL,
+  coverage_share DECIMAL(8,2) NOT NULL,
+  average_relative_heat_index DECIMAL(8,2),
+  composite_attention_index DECIMAL(8,2) NOT NULL,
+  signal_mode VARCHAR(32) NOT NULL,
+  UNIQUE KEY uk_platform_category_heat (event_id, platform, time_bucket, category),
+  KEY idx_platform_category_heat_event_time (event_id, time_bucket)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS ads_topic_trend (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  topic_id VARCHAR(64) NOT NULL,
+  topic_name VARCHAR(300),
+  category VARCHAR(100),
+  time_bucket DATE NOT NULL,
+  content_count BIGINT NOT NULL,
+  platform_count BIGINT NOT NULL,
+  burst_index DECIMAL(8,2),
+  UNIQUE KEY uk_topic_trend (event_id, topic_id, time_bucket),
+  KEY idx_topic_trend_event_time (event_id, time_bucket)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ads_topic_summary (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  topic_id VARCHAR(64) NOT NULL,
+  topic_name VARCHAR(300),
+  category VARCHAR(100),
+  first_publish_time DATETIME,
+  peak_time DATETIME,
+  latest_publish_time DATETIME,
+  content_count BIGINT NOT NULL,
+  platform_count BIGINT NOT NULL,
+  duration_days INT NOT NULL,
+  peak_daily_count BIGINT NOT NULL,
+  peak_burst_index DECIMAL(8,2),
+  current_stage VARCHAR(32),
+  UNIQUE KEY uk_topic_summary (event_id, topic_id),
+  KEY idx_topic_summary_event_peak (event_id, peak_burst_index)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ads_topic_key_content (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  topic_id VARCHAR(64) NOT NULL,
+  event_role VARCHAR(32) NOT NULL,
+  publish_time DATETIME,
+  platform VARCHAR(50),
+  content_id VARCHAR(128),
+  title VARCHAR(300),
+  clean_text VARCHAR(1000),
+  source_url VARCHAR(800),
+  UNIQUE KEY uk_topic_key_content (event_id, topic_id, event_role),
+  KEY idx_topic_key_content_event_topic (event_id, topic_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS app_user (

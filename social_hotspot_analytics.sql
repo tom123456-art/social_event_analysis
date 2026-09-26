@@ -1,299 +1,287 @@
-/*
- Navicat Premium Dump SQL
+CREATE DATABASE IF NOT EXISTS social_hotspot_analytics
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
 
- Source Server         : 数据库密码123456
- Source Server Type    : MySQL
- Source Server Version : 80022 (8.0.22)
- Source Host           : localhost:3306
- Source Schema         : social_hotspot_analytics
+USE social_hotspot_analytics;
 
- Target Server Type    : MySQL
- Target Server Version : 80022 (8.0.22)
- File Encoding         : 65001
+CREATE TABLE IF NOT EXISTS event_info (
+  event_id VARCHAR(64) PRIMARY KEY,
+  event_name VARCHAR(200) NOT NULL,
+  description VARCHAR(500),
+  start_time DATETIME,
+  end_time DATETIME,
+  status VARCHAR(32) DEFAULT 'ACTIVE',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
- Date: 20/09/2026 21:59:25
-*/
+CREATE TABLE IF NOT EXISTS etl_batch (
+  batch_id VARCHAR(32) PRIMARY KEY,
+  event_id VARCHAR(64) NOT NULL,
+  source_path VARCHAR(500) NOT NULL,
+  source_count BIGINT DEFAULT 0,
+  valid_count BIGINT DEFAULT 0,
+  dirty_count BIGINT DEFAULT 0,
+  duplicate_count BIGINT DEFAULT 0,
+  status VARCHAR(32) NOT NULL,
+  current_stage VARCHAR(32) NOT NULL,
+  started_at DATETIME,
+  finished_at DATETIME,
+  error_message VARCHAR(1000),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
+CREATE TABLE IF NOT EXISTS etl_task_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  batch_id VARCHAR(32) NOT NULL,
+  task_name VARCHAR(100) NOT NULL,
+  task_stage VARCHAR(32) NOT NULL,
+  input_count BIGINT DEFAULT 0,
+  output_count BIGINT DEFAULT 0,
+  status VARCHAR(32) NOT NULL,
+  started_at DATETIME,
+  finished_at DATETIME,
+  error_message VARCHAR(1000),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_batch_id (batch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_content_hot_rank
--- ----------------------------
-DROP TABLE IF EXISTS `ads_content_hot_rank`;
-CREATE TABLE `ads_content_hot_rank`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `rank_no` int NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `content_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `parent_content_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `content_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `title` varchar(300) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `clean_text` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `author_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `author_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `publish_time` datetime NULL DEFAULT NULL,
-  `crawl_time` datetime NULL DEFAULT NULL,
-  `keywords` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `category` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `like_count` bigint NULL DEFAULT NULL,
-  `favorite_count` bigint NULL DEFAULT NULL,
-  `comment_count` bigint NULL DEFAULT NULL,
-  `forward_count` bigint NULL DEFAULT NULL,
-  `repost_count` bigint NULL DEFAULT NULL,
-  `share_count` bigint NULL DEFAULT NULL,
-  `view_count` bigint NULL DEFAULT NULL,
-  `location` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `user_age_group` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `user_gender` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `sentiment_label` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `hot_score` decimal(18, 2) NULL DEFAULT NULL,
-  `source_url` varchar(800) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `image_url` varchar(800) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2236542 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_event_overview (
+  event_id VARCHAR(64) PRIMARY KEY,
+  event_name VARCHAR(200),
+  content_count BIGINT,
+  user_count BIGINT,
+  platform_count BIGINT,
+  comment_count BIGINT,
+  repost_count BIGINT,
+  like_count BIGINT,
+  view_count BIGINT,
+  positive_count BIGINT,
+  neutral_count BIGINT,
+  negative_count BIGINT,
+  hot_score DECIMAL(18,2),
+  peak_time DATETIME,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_event_heat_trend
--- ----------------------------
-DROP TABLE IF EXISTS `ads_event_heat_trend`;
-CREATE TABLE `ads_event_heat_trend`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `time_bucket` datetime NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `content_count` bigint NULL DEFAULT NULL,
-  `interaction_count` bigint NULL DEFAULT NULL,
-  `hot_score` decimal(18, 2) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_heat`(`event_id` ASC, `time_bucket` ASC, `platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 387864 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_event_heat_trend (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  time_bucket DATETIME,
+  platform VARCHAR(50),
+  content_count BIGINT,
+  interaction_count BIGINT,
+  hot_score DECIMAL(18,2),
+  avg_heat_index DECIMAL(8,2),
+  UNIQUE KEY uk_heat (event_id, time_bucket, platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_event_overview
--- ----------------------------
-DROP TABLE IF EXISTS `ads_event_overview`;
-CREATE TABLE `ads_event_overview`  (
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `event_name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `content_count` bigint NULL DEFAULT NULL,
-  `user_count` bigint NULL DEFAULT NULL,
-  `platform_count` bigint NULL DEFAULT NULL,
-  `comment_count` bigint NULL DEFAULT NULL,
-  `repost_count` bigint NULL DEFAULT NULL,
-  `share_count` bigint NULL DEFAULT NULL,
-  `like_count` bigint NULL DEFAULT NULL,
-  `view_count` bigint NULL DEFAULT NULL,
-  `positive_count` bigint NULL DEFAULT NULL,
-  `neutral_count` bigint NULL DEFAULT NULL,
-  `negative_count` bigint NULL DEFAULT NULL,
-  `hot_score` decimal(18, 2) NULL DEFAULT NULL,
-  `peak_time` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`event_id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_platform_spread_timeline (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  platform VARCHAR(50),
+  first_publish_time DATETIME,
+  delay_minutes BIGINT,
+  content_count BIGINT,
+  hot_score DECIMAL(18,2),
+  avg_heat_index DECIMAL(8,2),
+  max_heat_index DECIMAL(8,2),
+  peak_time DATETIME,
+  high_heat_count BIGINT,
+  UNIQUE KEY uk_platform_timeline (event_id, platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_interaction_summary
--- ----------------------------
-DROP TABLE IF EXISTS `ads_interaction_summary`;
-CREATE TABLE `ads_interaction_summary`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `content_count` bigint NULL DEFAULT NULL,
-  `comment_count` bigint NULL DEFAULT NULL,
-  `repost_count` bigint NULL DEFAULT NULL,
-  `like_count` bigint NULL DEFAULT NULL,
-  `share_count` bigint NULL DEFAULT NULL,
-  `favorite_count` bigint NULL DEFAULT NULL,
-  `view_count` bigint NULL DEFAULT NULL,
-  `hot_score` decimal(18, 2) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_interaction`(`event_id` ASC, `platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 390 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_interaction_summary (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  platform VARCHAR(50),
+  content_count BIGINT,
+  comment_count BIGINT,
+  repost_count BIGINT,
+  like_count BIGINT,
+  favorite_count BIGINT,
+  view_count BIGINT,
+  hot_score DECIMAL(18,2),
+  UNIQUE KEY uk_interaction (event_id, platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_keyword_rank
--- ----------------------------
-DROP TABLE IF EXISTS `ads_keyword_rank`;
-CREATE TABLE `ads_keyword_rank`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `keyword` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `word_count` bigint NULL DEFAULT NULL,
-  `platform_top` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `sentiment_top` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_keyword_rank`(`event_id` ASC, `keyword` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 5560 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_content_hot_rank (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  rank_no INT,
+  platform VARCHAR(50),
+  content_id VARCHAR(128),
+  parent_content_id VARCHAR(128),
+  content_type VARCHAR(50),
+  title VARCHAR(300),
+  clean_text VARCHAR(1000),
+  author_id VARCHAR(128),
+  author_name VARCHAR(100),
+  publish_time DATETIME,
+  crawl_time DATETIME,
+  keywords VARCHAR(1000),
+  category VARCHAR(100),
+  like_count BIGINT,
+  favorite_count BIGINT,
+  comment_count BIGINT,
+  forward_count BIGINT,
+  repost_count BIGINT,
+  view_count BIGINT,
+  sentiment_label VARCHAR(20),
+  hot_score DECIMAL(18,2),
+  platform_heat_index DECIMAL(8,2),
+  source_url VARCHAR(800),
+  image_url VARCHAR(800)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_noise_summary
--- ----------------------------
-DROP TABLE IF EXISTS `ads_noise_summary`;
-CREATE TABLE `ads_noise_summary`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `time_bucket` datetime NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `content_count` bigint NULL DEFAULT NULL,
-  `duplicate_count` bigint NULL DEFAULT NULL,
-  `high_freq_user_count` bigint NULL DEFAULT NULL,
-  `noise_count` bigint NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_noise`(`event_id` ASC, `time_bucket` ASC, `platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 341260 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_keyword_rank (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  keyword VARCHAR(100),
+  word_count BIGINT,
+  platform_top VARCHAR(50),
+  sentiment_top VARCHAR(20),
+  UNIQUE KEY uk_keyword_rank (event_id, keyword)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_platform_spread_timeline
--- ----------------------------
-DROP TABLE IF EXISTS `ads_platform_spread_timeline`;
-CREATE TABLE `ads_platform_spread_timeline`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `first_publish_time` datetime NULL DEFAULT NULL,
-  `delay_minutes` bigint NULL DEFAULT NULL,
-  `content_count` bigint NULL DEFAULT NULL,
-  `hot_score` decimal(18, 2) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_platform_timeline`(`event_id` ASC, `platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 394 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_sentiment_trend (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  time_bucket DATETIME,
+  platform VARCHAR(50),
+  sentiment_label VARCHAR(20),
+  sentiment_count BIGINT,
+  UNIQUE KEY uk_sentiment_trend (event_id, time_bucket, platform, sentiment_label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for ads_sentiment_trend
--- ----------------------------
-DROP TABLE IF EXISTS `ads_sentiment_trend`;
-CREATE TABLE `ads_sentiment_trend`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `time_bucket` datetime NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `sentiment_label` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `sentiment_count` bigint NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_sentiment_trend`(`event_id` ASC, `time_bucket` ASC, `platform` ASC, `sentiment_label` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 462849 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS dwd_weibo_sentiment_result (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  content_id VARCHAR(128) NOT NULL,
+  parent_content_id VARCHAR(128),
+  platform VARCHAR(50) NOT NULL,
+  publish_time DATETIME,
+  content_text VARCHAR(1000) NOT NULL,
+  sentiment_label VARCHAR(20) NOT NULL,
+  sentiment_positive_score DECIMAL(10,6) NOT NULL,
+  sentiment_neutral_score DECIMAL(10,6) NOT NULL,
+  sentiment_negative_score DECIMAL(10,6) NOT NULL,
+  confidence DECIMAL(10,6) NOT NULL,
+  analysis_method VARCHAR(64) NOT NULL,
+  model_version VARCHAR(128) NOT NULL,
+  batch_id VARCHAR(64) NOT NULL,
+  analyzed_at DATETIME NOT NULL,
+  UNIQUE KEY uk_weibo_sentiment_result (event_id, content_id),
+  KEY idx_weibo_sentiment_event_time (event_id, publish_time),
+  KEY idx_weibo_sentiment_label (event_id, sentiment_label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for app_user
--- ----------------------------
-DROP TABLE IF EXISTS `app_user`;
-CREATE TABLE `app_user`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `username` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `nickname` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `phone` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `role` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'USER',
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'ENABLED',
-  `bio` varchar(300) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `username`(`username` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_noise_summary (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64),
+  time_bucket DATETIME,
+  platform VARCHAR(50),
+  content_count BIGINT,
+  duplicate_count BIGINT,
+  high_freq_user_count BIGINT,
+  noise_count BIGINT,
+  UNIQUE KEY uk_noise (event_id, time_bucket, platform)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for etl_batch
--- ----------------------------
-DROP TABLE IF EXISTS `etl_batch`;
-CREATE TABLE `etl_batch`  (
-  `batch_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `source_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `source_count` bigint NULL DEFAULT 0,
-  `valid_count` bigint NULL DEFAULT 0,
-  `dirty_count` bigint NULL DEFAULT 0,
-  `duplicate_count` bigint NULL DEFAULT 0,
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `current_stage` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `started_at` datetime NULL DEFAULT NULL,
-  `finished_at` datetime NULL DEFAULT NULL,
-  `error_message` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`batch_id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_topic_trend (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  topic_id VARCHAR(64) NOT NULL,
+  topic_name VARCHAR(300),
+  category VARCHAR(100),
+  time_bucket DATE NOT NULL,
+  content_count BIGINT NOT NULL,
+  platform_count BIGINT NOT NULL,
+  burst_index DECIMAL(8,2),
+  UNIQUE KEY uk_topic_trend (event_id, topic_id, time_bucket),
+  KEY idx_topic_trend_event_time (event_id, time_bucket)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for etl_task_log
--- ----------------------------
-DROP TABLE IF EXISTS `etl_task_log`;
-CREATE TABLE `etl_task_log`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `batch_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `task_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `task_stage` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `input_count` bigint NULL DEFAULT 0,
-  `output_count` bigint NULL DEFAULT 0,
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `started_at` datetime NULL DEFAULT NULL,
-  `finished_at` datetime NULL DEFAULT NULL,
-  `error_message` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_batch_id`(`batch_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 294 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_topic_summary (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  topic_id VARCHAR(64) NOT NULL,
+  topic_name VARCHAR(300),
+  category VARCHAR(100),
+  first_publish_time DATETIME,
+  peak_time DATETIME,
+  latest_publish_time DATETIME,
+  content_count BIGINT NOT NULL,
+  platform_count BIGINT NOT NULL,
+  duration_days INT NOT NULL,
+  peak_daily_count BIGINT NOT NULL,
+  peak_burst_index DECIMAL(8,2),
+  current_stage VARCHAR(32),
+  UNIQUE KEY uk_topic_summary (event_id, topic_id),
+  KEY idx_topic_summary_event_peak (event_id, peak_burst_index)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for event_info
--- ----------------------------
-DROP TABLE IF EXISTS `event_info`;
-CREATE TABLE `event_info`  (
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `event_name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `start_time` datetime NULL DEFAULT NULL,
-  `end_time` datetime NULL DEFAULT NULL,
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'ACTIVE',
-  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`event_id`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS ads_topic_key_content (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  event_id VARCHAR(64) NOT NULL,
+  topic_id VARCHAR(64) NOT NULL,
+  event_role VARCHAR(32) NOT NULL,
+  publish_time DATETIME,
+  platform VARCHAR(50),
+  content_id VARCHAR(128),
+  title VARCHAR(300),
+  clean_text VARCHAR(1000),
+  source_url VARCHAR(800),
+  UNIQUE KEY uk_topic_key_content (event_id, topic_id, event_role),
+  KEY idx_topic_key_content_event_topic (event_id, topic_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for user_interaction
--- ----------------------------
-DROP TABLE IF EXISTS `user_interaction`;
-CREATE TABLE `user_interaction`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NULL DEFAULT NULL,
-  `username` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `content_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `action_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `comment_text` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `sentiment_label` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'neutral',
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'NORMAL',
-  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_interaction_event`(`event_id` ASC) USING BTREE,
-  INDEX `idx_interaction_user`(`user_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS app_user (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL UNIQUE,
+  nickname VARCHAR(100) NOT NULL,
+  phone VARCHAR(32),
+  email VARCHAR(120),
+  role VARCHAR(32) DEFAULT 'USER',
+  status VARCHAR(32) DEFAULT 'ENABLED',
+  bio VARCHAR(300),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for user_submission
--- ----------------------------
-DROP TABLE IF EXISTS `user_submission`;
-CREATE TABLE `user_submission`  (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NULL DEFAULT NULL,
-  `username` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `event_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `content_text` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `location` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'PENDING',
-  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_submission_event`(`event_id` ASC) USING BTREE,
-  INDEX `idx_submission_user`(`user_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+CREATE TABLE IF NOT EXISTS user_interaction (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT,
+  username VARCHAR(64),
+  event_id VARCHAR(64) NOT NULL,
+  content_id VARCHAR(128),
+  platform VARCHAR(50),
+  action_type VARCHAR(32) NOT NULL,
+  comment_text VARCHAR(1000),
+  sentiment_label VARCHAR(20) DEFAULT 'neutral',
+  status VARCHAR(32) DEFAULT 'NORMAL',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_interaction_event (event_id),
+  KEY idx_interaction_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-SET FOREIGN_KEY_CHECKS = 1;
+CREATE TABLE IF NOT EXISTS user_submission (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT,
+  username VARCHAR(64),
+  event_id VARCHAR(64) NOT NULL,
+  platform VARCHAR(50) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  content_text VARCHAR(1000) NOT NULL,
+  location VARCHAR(100),
+  status VARCHAR(32) DEFAULT 'PENDING',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_submission_event (event_id),
+  KEY idx_submission_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO app_user(id, username, nickname, phone, email, role, status, bio) VALUES
+  (1, 'admin', '系统管理员', '13800000000', 'admin@example.com', 'ADMIN', 'ENABLED', '负责后台数据、ETL和用户管理'),
+  (2, 'student', '演示用户', '13900000000', 'student@example.com', 'USER', 'ENABLED', '前台普通用户，用于产生互动数据');

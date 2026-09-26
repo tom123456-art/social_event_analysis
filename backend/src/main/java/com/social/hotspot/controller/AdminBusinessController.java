@@ -17,6 +17,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
+/** 后台业务接口：提供用户、人工标注和互动记录的管理接口。 */
 public class AdminBusinessController {
     private final BusinessService service;
 

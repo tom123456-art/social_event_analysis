@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
+/** 数据库结构初始化器：启动时补齐分析表、字段和必要索引。 */
 public class DatabaseSchemaInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DatabaseSchemaInitializer.class);
     private static final String TABLE = "ads_content_hot_rank";

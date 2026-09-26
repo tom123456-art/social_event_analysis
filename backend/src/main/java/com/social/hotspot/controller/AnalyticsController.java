@@ -28,6 +28,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
+/** 分析接口：提供事件概览、趋势、关键词、情感和 ETL 任务接口。 */
 public class AnalyticsController {
     private static final Path PROJECT_ROOT = resolveProjectRoot();
     private static final Path RAW_CSV_PATH = PROJECT_ROOT.resolve(Path.of("data", "crawler", "social_event_real.csv"));

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 @Mapper
+/** 业务数据访问接口：声明用户、互动和投稿的数据库操作方法。 */
 public interface BusinessMapper {
     List<Map<String, Object>> users();
 

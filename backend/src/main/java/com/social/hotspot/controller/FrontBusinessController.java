@@ -16,6 +16,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/front")
+/** 前台业务接口：提供个人资料、用户互动和内容投稿接口。 */
 public class FrontBusinessController {
     private final BusinessService service;
 

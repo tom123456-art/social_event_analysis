@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 @Mapper
+/** 分析数据访问接口：声明各类分析结果的数据库查询方法。 */
 public interface AnalyticsMapper {
     List<Map<String, Object>> events();
 

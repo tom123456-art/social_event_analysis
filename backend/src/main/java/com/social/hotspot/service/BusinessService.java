@@ -3,6 +3,7 @@ package com.social.hotspot.service;
 import java.util.List;
 import java.util.Map;
 
+/** 业务服务接口：定义用户、互动和投稿的业务能力。 */
 public interface BusinessService {
     List<Map<String, Object>> users();
 

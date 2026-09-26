@@ -3,6 +3,7 @@ package com.social.hotspot.service;
 import java.util.List;
 import java.util.Map;
 
+/** 分析服务接口：定义前端分析页面需要的数据能力。 */
 public interface AnalyticsService {
     List<Map<String, Object>> events();
 

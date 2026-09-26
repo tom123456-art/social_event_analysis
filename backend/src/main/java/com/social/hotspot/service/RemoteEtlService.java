@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
+/** 远程 ETL 服务：上传资源到虚拟机并触发 Spark 情感分析任务。 */
 public class RemoteEtlService {
     private static final String EVENT_ID = "public_rss_latest";
     private static final String EVENT_NAME = "Social Media Hotspot Event Propagation Analysis";
@@ -53,6 +54,7 @@ public class RemoteEtlService {
     @Value("${vm.etl.timeout-seconds:1800}")
     private int timeoutSeconds;
 
+    /** 校验本地构建产物后上传至虚拟机，执行 Spark 任务并核验数据库结果。 */
     public Map<String, Object> run(Path localCsv) throws Exception {
         if (!enabled) {
             throw new IllegalStateException("远程 Spark ETL 未启用，请检查 VM_ETL_ENABLED 配置。");
@@ -189,6 +191,7 @@ public class RemoteEtlService {
     }
 
     private void syncFileToWorkers(Path localFile, String remoteDir, String remoteFile) throws Exception {
+        // 集群模式下把 CSV 和模型同步到全部 Worker，避免任务调度后找不到文件。
         for (String configuredHost : workerHosts.split(",")) {
             String workerHost = configuredHost.trim();
             if (workerHost.isBlank() || workerHost.equals(host)) {
@@ -217,6 +220,7 @@ public class RemoteEtlService {
     }
 
     private ExecResult exec(Session session, String command, int timeoutSeconds) throws Exception {
+        // 循环读取标准输出，既避免缓冲区阻塞，也能在失败时保留诊断信息。
         ChannelExec channel = (ChannelExec) session.openChannel("exec");
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
         channel.setErrStream(stderr);

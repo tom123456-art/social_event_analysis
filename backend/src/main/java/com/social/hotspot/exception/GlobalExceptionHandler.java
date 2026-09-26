@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
+/** 全局异常处理器：将后端异常转换成统一的中文接口提示。 */
 public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ApiResponse<Void> handleMaxUploadSize(MaxUploadSizeExceededException ex) {

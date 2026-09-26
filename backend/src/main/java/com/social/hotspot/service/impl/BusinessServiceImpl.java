@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+/** 业务服务实现：处理用户资料、互动记录和人工投稿。 */
 public class BusinessServiceImpl implements BusinessService {
     private static final String CANONICAL_EVENT_ID = "public_rss_latest";
     private final BusinessMapper mapper;
@@ -81,6 +82,7 @@ public class BusinessServiceImpl implements BusinessService {
 
     @Override
     public Map<String, Object> addInteraction(Map<String, Object> item) {
+        // 前台互动没有提供用户时，使用演示账号并确保该账号已存在。
         String username = text(item.getOrDefault("username", "student"));
         Map<String, Object> user = profile(username);
         item.put("user_id", user.get("id"));
@@ -138,6 +140,7 @@ public class BusinessServiceImpl implements BusinessService {
         return "ADMIN".equalsIgnoreCase(text(role).trim()) ? "ADMIN" : "USER";
     }
     private String sentiment(String text) {
+        // 此处仅为用户手工互动的轻量兜底；采集内容情感由 Spark Executor 中的 HanLP 模型计算。
         String value = text == null ? "" : text;
         if (value.contains("质疑") || value.contains("争议") || value.contains("失望") || value.contains("愤怒")) {
             return "negative";

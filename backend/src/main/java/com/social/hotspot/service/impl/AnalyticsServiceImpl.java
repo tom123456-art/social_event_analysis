@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+/** 分析服务实现：整理数据库原始结果并计算页面需要的派生指标。 */
 public class AnalyticsServiceImpl implements AnalyticsService {
     private static final String CANONICAL_EVENT_ID = "public_rss_latest";
     private static final Set<String> GENERIC_SOURCE_CATEGORIES = Set.of("未分类", "新闻", "微博", "微博文章");

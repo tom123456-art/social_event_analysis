@@ -148,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+// 关键词分析页：展示关键词频次、关联平台和关注建议。
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'

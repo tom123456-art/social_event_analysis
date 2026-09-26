@@ -128,6 +128,7 @@
 </template>
 
 <script setup lang="ts">
+// ETL 任务页：上传原始 CSV、启动虚拟机 Spark 任务并展示进度。
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, getData } from '../api/client'

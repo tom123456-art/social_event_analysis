@@ -1,3 +1,4 @@
+// 前端路由配置：将访问路径映射到对应的页面组件。
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import OverviewView from '../views/OverviewView.vue'

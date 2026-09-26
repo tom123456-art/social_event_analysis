@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+// 应用外壳：负责顶部导航、菜单切换和页面容器布局。
 import { computed, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DataLine, Files, Monitor, User, Postcard } from '@element-plus/icons-vue'

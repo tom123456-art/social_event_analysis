@@ -30,6 +30,7 @@
 </template>
 
 <script setup lang="ts">
+// 登录页：校验演示账号并保存当前登录用户信息。
 import { reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'

@@ -126,6 +126,7 @@
 </template>
 
 <script setup lang="ts">
+// 大屏页：以可视化方式展示事件传播和情感概览。
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'

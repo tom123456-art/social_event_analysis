@@ -124,6 +124,7 @@
 </template>
 
 <script setup lang="ts">
+// 后台首页：展示 ETL 批次、数据规模和管理概览。
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'

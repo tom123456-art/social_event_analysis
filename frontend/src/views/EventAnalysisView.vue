@@ -98,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+// 热点趋势页：分析事件随时间变化的热度、话题和传播阶段。
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'

@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+// 内容明细页：展示事件下的热点内容并支持筛选查看。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getData } from '../api/client'

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="analysis-front sentiment-page">
     <div class="analysis-page-head"><div><span>情感分析 · 微博评论</span><h2>微博舆情情感变化与风险观察</h2><p>仅统计平台字段归一化后包含 WEIBO 的评论记录，新闻媒体数据与互动量字段均不参与分析。</p></div><div class="analysis-actions"><el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag><el-select v-else v-model="eventId" style="width:280px" @change="load"><el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" /></el-select><el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button></div></div>
     <MetricGrid :items="metrics" />
@@ -11,6 +11,7 @@
   </div>
 </template>
 <script setup lang="ts">
+// 情感分析页：展示微博评论的正向、中性和负向变化。
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'

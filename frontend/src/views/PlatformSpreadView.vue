@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+// 平台扩散页：比较不同平台的传播时间、热度和覆盖情况。
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'

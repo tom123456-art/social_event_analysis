@@ -1,3 +1,4 @@
+// 数据自动刷新工具：在数据写入后通知相关页面重新读取数据库。
 import { onActivated, onBeforeUnmount, onDeactivated, onMounted } from 'vue'
 import { clearGetCache } from '../api/client'
 

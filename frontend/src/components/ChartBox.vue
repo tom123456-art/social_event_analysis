@@ -3,6 +3,7 @@
 </template>
 
 <script setup lang="ts">
+// 通用图表组件：负责创建、更新和销毁 ECharts 图表实例。
 import * as echarts from 'echarts'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 

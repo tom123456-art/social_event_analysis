@@ -118,6 +118,7 @@
 </template>
 
 <script setup lang="ts">
+// 热点门户页：汇总事件核心指标并提供分析入口。
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'

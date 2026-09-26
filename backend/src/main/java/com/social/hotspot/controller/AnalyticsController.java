@@ -36,8 +36,19 @@ public class AnalyticsController {
     private static final List<String> RAW_COLUMNS = Arrays.asList(
             "event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type",
             "title", "content_text", "author_id", "author_name", "publish_time", "crawl_time",
+            "like_count", "comment_count", "repost_count", "favorite_count", "view_count",
+            "hot_rank", "keywords", "source_url", "image_url", "category"
+    );
+    private static final List<String> LEGACY_RAW_COLUMNS = Arrays.asList(
+            "event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type",
+            "title", "content_text", "author_id", "author_name", "publish_time", "crawl_time",
             "like_count", "comment_count", "repost_count", "share_count", "favorite_count", "view_count",
             "hot_rank", "location", "user_age_group", "user_gender", "keywords", "source_url", "image_url", "category"
+    );
+    private static final List<String> CRAWLER_RAW_COLUMNS = Arrays.asList(
+            "event_id", "event_name", "platform", "content_id", "content_type", "title", "content_text",
+            "author_name", "publish_time", "crawl_time", "like_count", "comment_count", "repost_count",
+            "favorite_count", "hot_rank", "keywords", "source_url", "image_url", "category"
     );
     private final AnalyticsService service;
     private final RemoteEtlService remoteEtlService;
@@ -67,6 +78,21 @@ public class AnalyticsController {
     @GetMapping("/events/{eventId}/dashboard")
     public ApiResponse<Map<String, Object>> dashboard(@PathVariable("eventId") String eventId) {
         return ApiResponse.ok(service.dashboard(eventId));
+    }
+
+    @GetMapping("/events/{eventId}/keyword-analysis")
+    public ApiResponse<List<Map<String, Object>>> keywordAnalysis(@PathVariable("eventId") String eventId) {
+        return ApiResponse.ok(service.keywordAnalysis(eventId));
+    }
+
+    @GetMapping("/events/{eventId}/sentiment-analysis")
+    public ApiResponse<List<Map<String, Object>>> sentimentAnalysis(@PathVariable("eventId") String eventId) {
+        return ApiResponse.ok(service.sentimentAnalysis(eventId));
+    }
+    @GetMapping("/events/{eventId}/topics/{topicId}")
+    public ApiResponse<List<Map<String, Object>>> topicKeyContents(@PathVariable("eventId") String eventId,
+                                                                     @PathVariable("topicId") String topicId) {
+        return ApiResponse.ok(service.topicKeyContents(eventId, topicId));
     }
 
     @GetMapping("/admin/overview")
@@ -128,8 +154,8 @@ public class AnalyticsController {
         String[] lines = content.split("\n");
         String header = stripBom(lines[0]).trim();
         List<String> uploadColumns = parseCsvLine(header);
-        if (!RAW_COLUMNS.equals(uploadColumns)) {
-            return ApiResponse.fail("CSV 表头与 ETL Raw Schema 不一致，应为：" + String.join(",", RAW_COLUMNS));
+        if (!isSupportedRawSchema(uploadColumns)) {
+            return ApiResponse.fail("CSV 表头不受支持，请使用当前采集格式或完整 ETL Raw Schema");
         }
 
         StringBuilder rows = new StringBuilder();
@@ -140,10 +166,10 @@ public class AnalyticsController {
                 continue;
             }
             List<String> cells = parseCsvLine(row);
-            if (cells.size() != RAW_COLUMNS.size()) {
-                return ApiResponse.fail("CSV 第 " + (i + 1) + " 行字段数量不正确，应为 " + RAW_COLUMNS.size() + " 列，实际为 " + cells.size() + " 列");
+            if (cells.size() != uploadColumns.size()) {
+                return ApiResponse.fail("CSV 第 " + (i + 1) + " 行字段数量不正确，应为 " + uploadColumns.size() + " 列，实际为 " + cells.size() + " 列");
             }
-            rows.append(normalizeRawRow(row, uploadColumns.size())).append("\n");
+            rows.append(normalizeRawRow(cells, uploadColumns)).append("\n");
             rowCount++;
         }
         if (rowCount == 0) {
@@ -235,10 +261,16 @@ public class AnalyticsController {
             return;
         }
         List<String> headerCells = parseCsvLine(stripBom(lines.get(0)).trim());
-        if (headerCells.equals(RAW_COLUMNS)) {
+        if (isSupportedRawSchema(headerCells)) {
             return;
         }
         throw new IllegalStateException("活动 Raw 文件表头不是纯真实采集格式，请检查 Raw CSV 表头后重新上传：" + RAW_CSV_PATH.toAbsolutePath());
+    }
+
+    private boolean isSupportedRawSchema(List<String> columns) {
+        return columns.equals(RAW_COLUMNS)
+                || columns.equals(LEGACY_RAW_COLUMNS)
+                || columns.equals(CRAWLER_RAW_COLUMNS);
     }
 
     private Map<String, Object> rawCsvPreview(int limit) throws Exception {
@@ -252,6 +284,7 @@ public class AnalyticsController {
         if (lines.size() <= 1) {
             return data;
         }
+        List<String> headerCells = parseCsvLine(stripBom(lines.get(0)).trim());
         List<List<String>> rows = new java.util.ArrayList<>();
         for (int i = 1; i < lines.size(); i++) {
             String row = lines.get(i).trim();
@@ -259,10 +292,7 @@ public class AnalyticsController {
                 continue;
             }
             List<String> cells = parseCsvLine(row);
-            while (cells.size() < RAW_COLUMNS.size()) {
-                cells.add("");
-            }
-            rows.add(cells);
+            rows.add(projectRawCells(cells, headerCells));
         }
         int from = Math.max(0, rows.size() - Math.max(1, limit));
         List<Map<String, Object>> preview = new java.util.ArrayList<>();
@@ -292,17 +322,22 @@ public class AnalyticsController {
         return data;
     }
 
-    private String normalizeRawRow(String row, int sourceColumnSize) {
-        List<String> cells = parseCsvLine(row);
-        if (cells.size() < sourceColumnSize) {
-            return row;
+    private String normalizeRawRow(List<String> cells, List<String> sourceColumns) {
+        List<String> normalized = projectRawCells(cells, sourceColumns);
+        normalized.set(RAW_COLUMNS.indexOf("event_id"), CANONICAL_EVENT_ID);
+        normalized.set(RAW_COLUMNS.indexOf("event_name"), CANONICAL_EVENT_NAME);
+        return toCsvLine(normalized);
+    }
+
+    private List<String> projectRawCells(List<String> cells, List<String> sourceColumns) {
+        List<String> projected = new java.util.ArrayList<>(java.util.Collections.nCopies(RAW_COLUMNS.size(), ""));
+        for (int targetIndex = 0; targetIndex < RAW_COLUMNS.size(); targetIndex++) {
+            int sourceIndex = sourceColumns.indexOf(RAW_COLUMNS.get(targetIndex));
+            if (sourceIndex >= 0 && sourceIndex < cells.size()) {
+                projected.set(targetIndex, cells.get(sourceIndex));
+            }
         }
-        while (cells.size() < RAW_COLUMNS.size()) {
-            cells.add("");
-        }
-        cells.set(0, CANONICAL_EVENT_ID);
-        cells.set(1, CANONICAL_EVENT_NAME);
-        return toCsvLine(cells);
+        return projected;
     }
 
     private List<String> parseCsvLine(String line) {

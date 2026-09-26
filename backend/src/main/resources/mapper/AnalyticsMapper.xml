@@ -28,6 +28,99 @@
         WHERE event_id = #{eventId}
         ORDER BY first_publish_time ASC
     </select>
+    <select id="trendHeatTrend" resultType="map">
+        SELECT *
+        FROM ads_event_heat_trend
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+        ORDER BY time_bucket ASC, platform ASC
+    </select>
+
+    <select id="trendPlatformSummary" resultType="map">
+        SELECT *
+        FROM ads_platform_spread_timeline
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+        ORDER BY avg_heat_index DESC, content_count DESC
+    </select>
+
+    <select id="trendContentRank" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+        ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="platformDailyHeat" resultType="map">
+        SELECT *
+        FROM ads_platform_daily_heat
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC, platform ASC
+    </select>
+    <select id="platformCategoryHeat" resultType="map">
+        SELECT *
+        FROM ads_platform_category_heat
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+        ORDER BY time_bucket ASC, platform ASC, category ASC
+    </select>
+    <select id="platformCategoryHourlyHeat" resultType="map">
+        WITH hourly_category AS (
+            SELECT event_id,
+                   platform,
+                   DATE_FORMAT(publish_time, '%Y-%m-%d %H:00:00') AS time_bucket,
+                   category,
+                   COUNT(*) AS content_count,
+                   ROUND(AVG(COALESCE(platform_heat_index, 0)), 2) AS average_relative_heat_index
+            FROM ads_content_hot_rank
+            WHERE event_id = #{eventId}
+              AND platform IN ('TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER')
+              AND publish_time IS NOT NULL
+              AND NULLIF(TRIM(category), '') IS NOT NULL
+            GROUP BY event_id, platform, DATE_FORMAT(publish_time, '%Y-%m-%d %H:00:00'), category
+        ), hourly_total AS (
+            SELECT event_id, platform, time_bucket, SUM(content_count) AS platform_content_count
+            FROM hourly_category
+            GROUP BY event_id, platform, time_bucket
+        )
+        SELECT category.event_id,
+               category.platform,
+               category.time_bucket,
+               category.category,
+               category.content_count,
+               total.platform_content_count,
+               category.average_relative_heat_index
+        FROM hourly_category category
+        JOIN hourly_total total
+          ON total.event_id = category.event_id
+         AND total.platform = category.platform
+         AND total.time_bucket = category.time_bucket
+        ORDER BY category.time_bucket ASC, category.platform ASC, category.category ASC
+    </select>
+    <select id="topicTrend" resultType="map">
+        SELECT *
+        FROM ads_topic_trend
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC, burst_index DESC
+    </select>
+
+    <select id="topicSummary" resultType="map">
+        SELECT *
+        FROM ads_topic_summary
+        WHERE event_id = #{eventId}
+        ORDER BY peak_burst_index DESC, content_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="topicKeyContents" resultType="map">
+        SELECT *
+        FROM ads_topic_key_content
+        WHERE event_id = #{eventId}
+          AND topic_id = #{topicId}
+        ORDER BY publish_time ASC
+    </select>
 
     <select id="interaction" resultType="map">
         SELECT *
@@ -51,6 +144,14 @@
         ORDER BY time_bucket ASC, sentiment_label ASC
     </select>
 
+    <select id="sentimentAnalysisRows" resultType="map">
+        SELECT content_id, title, UPPER(TRIM(platform)) AS platform, publish_time, keywords, clean_text AS content_text, sentiment_label, category, content_type
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND UPPER(TRIM(platform)) LIKE '%WEIBO%'
+          AND UPPER(TRIM(platform)) NOT IN ('SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+        ORDER BY publish_time ASC, id ASC
+    </select>
     <select id="contentRank" resultType="map">
         SELECT *
         FROM ads_content_hot_rank
@@ -63,6 +164,17 @@
         SELECT *
         FROM ads_content_hot_rank
         WHERE event_id = #{eventId}
+        ORDER BY publish_time DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="keywordAnalysisRows" resultType="map">
+        SELECT content_id, platform, publish_time, keywords, category, author_name,
+               like_count, comment_count, repost_count, favorite_count
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform IN ('SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          AND NULLIF(TRIM(keywords), '') IS NOT NULL
         ORDER BY publish_time DESC, id DESC
         LIMIT #{limit}
     </select>

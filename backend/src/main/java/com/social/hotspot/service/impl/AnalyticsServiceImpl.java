@@ -58,8 +58,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public Map<String, Object> dashboard(String eventId) {
         List<Map<String, Object>> heatTrend = aggregateHeatTrend(mapper.heatTrend(eventId));
         List<Map<String, Object>> platformTimeline = aggregatePlatformTimeline(mapper.platformTimeline(eventId));
-        List<Map<String, Object>> trendHeatTrend = mapper.trendHeatTrend(eventId);
-        List<Map<String, Object>> trendPlatformSummary = mapper.trendPlatformSummary(eventId);
         // Dashboard views only render a small top-content subset. Returning the
         // complete table makes every frontend page deserialize and process an
         // unbounded payload, which can block the browser on large events.
@@ -69,7 +67,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         List<Map<String, Object>> recentPlatformTimeline = aggregateRecentPlatformTimeline(platformDailyHeat);
         Map<String, Object> categoryPropagation = analyzeCategoryPropagation(
                 recentRows(mapper.platformCategoryHourlyHeat(eventId), "time_bucket", 7));
-        List<Map<String, Object>> topicSummary = mapper.topicSummary(eventId, 80);
         List<Map<String, Object>> sentimentTrend = aggregateSentimentTrend(mapper.sentimentTrend(eventId));
         List<Map<String, Object>> contentRank = enrichContentRows(mapper.contentRank(eventId, 20));
         List<Map<String, Object>> realPublicContents = enrichContentRows(mapper.realPublicContents(eventId, 300));
@@ -79,18 +76,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         data.put("heatTrend", heatTrend);
         data.put("platformTimeline", platformTimeline);
         data.put("recentPlatformTimeline", recentPlatformTimeline);
-        data.put("trendHeatTrend", trendHeatTrend);
-        data.put("trendPlatformSummary", trendPlatformSummary);
         data.put("trendContentRank", trendContentRank);
         data.put("platformCategoryHeat", platformCategoryHeat);
         data.put("categoryPropagationLinks", categoryPropagation.get("links"));
         data.put("categoryPropagationTimeline", categoryPropagation.get("timeline"));
         data.put("categoryPropagationSummary", categoryPropagation.get("summary"));
         data.put("platformDailyHeat", platformDailyHeat);
-        data.put("topicTrend", mapper.topicTrend(eventId));
-        data.put("topicSummary", topicSummary);
-        data.put("topicKeyContents", topicSummary.isEmpty()
-                ? List.of() : mapper.topicKeyContents(eventId, String.valueOf(topicSummary.get(0).get("topic_id"))));
         data.put("interaction", mapper.interaction(eventId));
         data.put("keywordRank", mapper.keywordRank(eventId, 30));
         data.put("sentimentTrend", sentimentTrend);
@@ -99,8 +90,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         data.put("categoryRank", categoryRank(realPublicContents.isEmpty() ? contentRank : realPublicContents));
         data.put("topicCount", mapper.topicCount(eventId));
         data.put("topicRank", mapper.topicRank(eventId, 30));
-        data.put("propagationLinks", mapper.propagationLinks(eventId));
-        data.put("topicPropagationLinks", mapper.topicPropagationLinks(eventId));
         data.put("noiseSummary", aggregateNoise(mapper.noiseSummary(eventId)));
         data.put("latestBatch", mapper.latestBatch(eventId));
         return data;
@@ -114,10 +103,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public List<Map<String, Object>> sentimentAnalysis(String eventId) {
         return mapper.sentimentAnalysisRows(eventId);
-    }
-    @Override
-    public List<Map<String, Object>> topicKeyContents(String eventId, String topicId) {
-        return mapper.topicKeyContents(eventId, topicId);
     }
 
     /**
@@ -230,12 +215,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             Map<String, Object> target = grouped.computeIfAbsent(platform, key -> {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("platform", platform);
-                for (String field : List.of("content_count", "duplicate_count", "high_freq_user_count", "noise_count")) {
+                for (String field : List.of("content_count", "duplicate_count", "noise_count")) {
                     item.put(field, 0L);
                 }
                 return item;
             });
-            for (String field : List.of("content_count", "duplicate_count", "high_freq_user_count", "noise_count")) {
+            for (String field : List.of("content_count", "duplicate_count", "noise_count")) {
                 addLong(target, field, row.get(field));
             }
         }
@@ -282,7 +267,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 item.put("content_count", 0L);
                 item.put("hot_score", 0D);
                 item.put("heat_weight", 0D);
-                item.put("peak_heat_index", 0D);
                 return item;
             });
             if (day.isBefore(timestampValue(target.get("first_publish_time")))) {
@@ -293,7 +277,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             addLong(target, "content_count", count);
             addDouble(target, "hot_score", averageHeat * count);
             addDouble(target, "heat_weight", averageHeat * count);
-            target.put("peak_heat_index", Math.max(doubleValue(target.get("peak_heat_index")), doubleValue(row.get("peak_content_heat_index"))));
         }
         LocalDateTime base = earliest == null ? LocalDateTime.MIN : earliest;
         for (Map<String, Object> item : grouped.values()) {

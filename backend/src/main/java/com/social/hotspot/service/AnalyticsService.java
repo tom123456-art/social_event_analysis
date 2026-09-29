@@ -13,8 +13,6 @@ public interface AnalyticsService {
 
     List<Map<String, Object>> sentimentAnalysis(String eventId);
 
-    List<Map<String, Object>> topicKeyContents(String eventId, String topicId);
-
     Map<String, Object> adminOverview();
 
     List<Map<String, Object>> batches(int limit);

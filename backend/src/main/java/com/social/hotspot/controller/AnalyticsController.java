@@ -90,11 +90,6 @@ public class AnalyticsController {
     public ApiResponse<List<Map<String, Object>>> sentimentAnalysis(@PathVariable("eventId") String eventId) {
         return ApiResponse.ok(service.sentimentAnalysis(eventId));
     }
-    @GetMapping("/events/{eventId}/topics/{topicId}")
-    public ApiResponse<List<Map<String, Object>>> topicKeyContents(@PathVariable("eventId") String eventId,
-                                                                     @PathVariable("topicId") String topicId) {
-        return ApiResponse.ok(service.topicKeyContents(eventId, topicId));
-    }
 
     @GetMapping("/admin/overview")
     public ApiResponse<Map<String, Object>> adminOverview() {

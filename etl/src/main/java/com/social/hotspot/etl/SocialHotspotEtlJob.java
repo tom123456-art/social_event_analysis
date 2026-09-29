@@ -115,13 +115,10 @@ public class SocialHotspotEtlJob {
             // validation. A malformed CSV must not erase the last good result.
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWS", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
             deleteEventAds(jdbcUrl, jdbcUser, jdbcPassword, eventId);
-
             Dataset<Row> heatTrend = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"))
                     .agg(
                             count(lit(1)).alias("content_count"),
-                            sum(col("interaction_count")).alias("interaction_count"),
-                            round(sum(col("hot_score")), 2).alias("hot_score"),
-                            round(avg(col("platform_heat_index")), 2).alias("avg_heat_index")
+                            round(sum(col("hot_score")), 2).alias("hot_score")
                     );
 
             Dataset<Row> platformDailyHeat = detail
@@ -131,20 +128,14 @@ public class SocialHotspotEtlJob {
                     .agg(
                             count(lit(1)).alias("content_count"),
                             round(avg(col("platform_heat_index")), 2).alias("average_heat_index"),
-                            round(max(col("platform_heat_index")), 2).alias("peak_content_heat_index"),
-                            sum(when(col("platform_heat_index").geq(80), 1).otherwise(0)).alias("high_heat_content_count"),
-                            first(col("signal_mode"), true).alias("heat_algorithm")
+                            sum(when(col("platform_heat_index").geq(80), 1).otherwise(0)).alias("high_heat_content_count")
                     )
                     .select(col("event_id"), col("platform"), col("heat_day").alias("time_bucket"), col("content_count"),
-                            col("average_heat_index"), col("peak_content_heat_index"), col("high_heat_content_count"), col("heat_algorithm"));
+                            col("average_heat_index"), col("high_heat_content_count"));
+
             Dataset<Row> interaction = detail.groupBy(col("event_id"), col("platform"))
                     .agg(
                             count(lit(1)).alias("content_count"),
-                            sum(col("comment_count")).alias("comment_count"),
-                            sum(col("repost_count")).alias("repost_count"),
-                            sum(col("like_count")).alias("like_count"),
-                            sum(col("favorite_count")).alias("favorite_count"),
-                            sum(col("view_count")).alias("view_count"),
                             round(sum(col("hot_score")), 2).alias("hot_score")
                     );
 
@@ -152,11 +143,10 @@ public class SocialHotspotEtlJob {
                     .agg(
                             min(col("publish_time")).alias("first_publish_time"),
                             count(lit(1)).alias("content_count"),
-                            round(sum(col("hot_score")), 2).alias("hot_score"),
-                            round(avg(col("platform_heat_index")), 2).alias("avg_heat_index"),
-                            round(max(col("platform_heat_index")), 2).alias("max_heat_index"),
-                            sum(when(col("platform_heat_index").geq(80), 1).otherwise(0)).alias("high_heat_count")
+                            round(sum(col("hot_score")), 2).alias("hot_score")
                     );
+
+
             Dataset<Row> platformCategoryBase = detail
                     .filter(col("platform").isin("TENCENT_NEWS", "NETEASE_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER"))
                     .withColumn("category_label", when(length(trim(col("category"))).gt(0), trim(col("category"))).otherwise(lit("未分类")))
@@ -165,49 +155,14 @@ public class SocialHotspotEtlJob {
                     .agg(count(lit(1)).alias("platform_content_count"));
             Dataset<Row> platformCategoryHeat = platformCategoryBase
                     .groupBy(col("event_id"), col("platform"), col("category_day"), col("category_label"))
-                    .agg(
-                            count(lit(1)).alias("content_count"),
-                            round(avg(col("platform_heat_index")), 2).alias("average_relative_heat_index"),
-                            first(col("signal_mode"), true).alias("signal_mode")
-                    )
+                    .agg(count(lit(1)).alias("content_count"), round(avg(col("platform_heat_index")), 2).alias("average_relative_heat_index"))
                     .join(platformDailyTotal, new String[]{"event_id", "platform", "category_day"}, "inner")
-                    .withColumn("coverage_share", round(col("content_count").cast("double").divide(col("platform_content_count")).multiply(100), 2))
-                    .withColumn("composite_attention_index", round(
-                            sqrt(col("coverage_share").multiply(coalesce(col("average_relative_heat_index"), lit(0D)))), 2))
-                    .select(
-                            col("event_id"), col("platform"), col("category_day").alias("time_bucket"), col("category_label").alias("category"),
-                            col("content_count"), col("platform_content_count"), col("coverage_share"),
-                            col("average_relative_heat_index"), col("composite_attention_index"), col("signal_mode")
-                    );
-            Timestamp firstTime = (Timestamp) timeline.agg(min(col("first_publish_time")).alias("t")).first().getAs("t");
-            if (firstTime == null) {
-                throw new IllegalStateException("有效记录的 publish_time 和 crawl_time 均无法解析，无法生成时间趋势");
-            }
-            WindowSpec platformPeakWindow = Window.partitionBy("event_id", "platform")
-                    .orderBy(col("avg_heat_index").desc_nulls_last(), col("time_bucket").asc());
-            Dataset<Row> platformPeak = heatTrend.withColumn("_peak_rank", row_number().over(platformPeakWindow))
-                    .filter(col("_peak_rank").equalTo(1))
-                    .select(col("event_id"), col("platform"), col("time_bucket").alias("peak_time"));
-            Dataset<Row> timelineWithDelay = timeline.withColumn("delay_minutes",
-                    unix_timestamp(col("first_publish_time")).minus(lit(firstTime.getTime() / 1000)).divide(60).cast("long"))
-                    .join(platformPeak, new String[]{"event_id", "platform"}, "left");
-
+                    .withColumn("coverage_share", col("content_count").cast("double").divide(col("platform_content_count")).multiply(100))
+                    .withColumn("composite_attention_index", round(sqrt(col("coverage_share").multiply(coalesce(col("average_relative_heat_index"), lit(0D)))), 2))
+                    .select(col("event_id"), col("platform"), col("category_day").alias("time_bucket"), col("category_label").alias("category"),
+                            col("content_count"), col("composite_attention_index"));
             Dataset<Row> sentiment = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"), col("sentiment_label"))
                     .agg(count(lit(1)).alias("sentiment_count"));
-            Dataset<Row> sentimentResult = detail
-                    .filter(col("platform").equalTo("WEIBO"))
-                    .select(
-                            col("event_id"), col("content_id"), col("parent_content_id"), col("platform"),
-                            col("publish_time"), col("clean_text").alias("content_text"),
-                            col("sentiment_label"), col("sentiment_positive_score"),
-                            col("sentiment_neutral_score"), col("sentiment_negative_score"),
-                            greatest(col("sentiment_positive_score"), col("sentiment_neutral_score"),
-                                    col("sentiment_negative_score")).alias("confidence"),
-                            lit("HANLP_NAIVE_BAYES").alias("analysis_method"),
-                            lit(sentimentModelName).substr(1, 128).alias("model_version"),
-                            lit(batchId).alias("batch_id"), current_timestamp().alias("analyzed_at")
-                    );
-
             Dataset<Row> keywords = detail
                     .withColumn("keyword", explode(split(regexp_replace(coalesce(col("keywords"), col("clean_text")), "[,，、/|；;]+", " "), "\\s+")))
                     .withColumn("keyword", trim(col("keyword")))
@@ -224,127 +179,32 @@ public class SocialHotspotEtlJob {
             WindowSpec rankWindow = Window.partitionBy("event_id").orderBy(col("hot_score").desc());
             Dataset<Row> contentRank = detail
                     .withColumn("rank_no", row_number().over(rankWindow))
-                    .select("event_id", "rank_no", "platform", "content_id", "parent_content_id", "content_type", "title", "clean_text",
-                            "author_id", "author_name", "publish_time", "crawl_time", "keywords", "category", "like_count",
-                            "favorite_count", "comment_count", "forward_count", "repost_count", "view_count",
-                            "sentiment_label", "hot_score", "platform_heat_index", "source_url", "image_url");
-
-            Dataset<Row> topicTagged = detail
-                    .withColumn("topic_seed", topicSeedExpr())
-                    .filter(length(col("topic_seed")).geq(2))
-                    .withColumn("topic_id", sha2(concat_ws("||", col("event_id"), col("category"), col("topic_seed")), 256).substr(1, 64))
-                    .withColumn("topic_day", to_date(col("publish_time")));
-            topicTagged = topicTagged.persist(StorageLevel.MEMORY_AND_DISK());
-            Dataset<Row> topicNames = topicTagged.groupBy(col("event_id"), col("topic_id"))
-                    .agg(first(col("title"), true).alias("topic_name"), first(col("category"), true).alias("category"));
-            Dataset<Row> topicTrendBase = topicTagged.groupBy(col("event_id"), col("topic_id"), col("topic_day"))
-                    .agg(count(lit(1)).alias("content_count"), countDistinct(col("platform")).alias("platform_count"));
-            WindowSpec topicBaselineWindow = Window.partitionBy("event_id", "topic_id")
-                    .orderBy(col("topic_day").asc()).rowsBetween(-7, -1);
-            Dataset<Row> topicTrend = topicTrendBase
-                    .withColumn("_baseline_count", avg(col("content_count")).over(topicBaselineWindow))
-                    .withColumn("burst_index", round(when(col("_baseline_count").isNull(), least(lit(500.0), log1p(col("content_count")).multiply(100)))
-                            .otherwise(least(lit(500.0), col("content_count").divide(col("_baseline_count").plus(1)).multiply(100))), 2))
-                    .drop("_baseline_count")
-                    .join(topicNames, new String[]{"event_id", "topic_id"}, "left")
-                    .select("event_id", "topic_id", "topic_name", "category", "topic_day", "content_count", "platform_count", "burst_index")
-                    .withColumnRenamed("topic_day", "time_bucket");
-            Dataset<Row> topicTotals = topicTagged.groupBy(col("event_id"), col("topic_id"))
-                    .agg(min(col("publish_time")).alias("first_publish_time"),
-                            max(col("publish_time")).alias("latest_publish_time"),
-                            count(lit(1)).alias("content_count"),
-                            countDistinct(col("platform")).alias("platform_count"))
-                    .withColumn("duration_days", datediff(to_date(col("latest_publish_time")), to_date(col("first_publish_time"))).plus(1));
-            WindowSpec topicPeakWindow = Window.partitionBy("event_id", "topic_id")
-                    .orderBy(col("burst_index").desc(), col("content_count").desc(), col("time_bucket").asc());
-            Dataset<Row> topicPeak = topicTrend.withColumn("_topic_peak_rank", row_number().over(topicPeakWindow))
-                    .filter(col("_topic_peak_rank").equalTo(1))
-                    .select(col("event_id"), col("topic_id"), col("time_bucket").alias("peak_time"),
-                            col("content_count").alias("peak_daily_count"), col("burst_index").alias("peak_burst_index"));
-            Dataset<Row> topicLatest = topicTrend.groupBy(col("event_id"), col("topic_id"))
-                    .agg(max(col("time_bucket")).alias("_latest_day"));
-            Dataset<Row> topicWindows = topicTrend.join(topicLatest, new String[]{"event_id", "topic_id"})
-                    .groupBy(col("event_id"), col("topic_id"))
-                    .agg(sum(when(datediff(col("_latest_day"), col("time_bucket")).lt(3), col("content_count")).otherwise(0)).alias("_recent_count"),
-                            sum(when(datediff(col("_latest_day"), col("time_bucket")).between(3, 5), col("content_count")).otherwise(0)).alias("_previous_count"));
-            Dataset<Row> topicSummary = topicTotals.join(topicPeak, new String[]{"event_id", "topic_id"})
-                    .join(topicNames, new String[]{"event_id", "topic_id"})
-                    .join(topicWindows, new String[]{"event_id", "topic_id"})
-                    .withColumn("current_stage", when(col("_previous_count").gt(0).and(col("_recent_count").gt(col("_previous_count").multiply(1.3))), "上升中")
-                            .when(col("_previous_count").gt(0).and(col("_recent_count").lt(col("_previous_count").multiply(0.7))), "回落中")
-                            .when(col("duration_days").geq(7), "持续关注")
-                            .otherwise("短期集中"))
-                    .filter(col("content_count").geq(3).and(col("duration_days").geq(2).or(col("platform_count").geq(2))))
-                    .select("event_id", "topic_id", "topic_name", "category", "first_publish_time", "peak_time", "latest_publish_time",
-                            "content_count", "platform_count", "duration_days", "peak_daily_count", "peak_burst_index", "current_stage");
-            Dataset<Row> qualifiedTopicIds = topicSummary.select("event_id", "topic_id");
-            topicTrend = topicTrend.join(qualifiedTopicIds, new String[]{"event_id", "topic_id"}, "inner");
-            Dataset<Row> qualifiedTopicContent = topicTagged.join(qualifiedTopicIds, new String[]{"event_id", "topic_id"}, "inner");
-            WindowSpec firstContentWindow = Window.partitionBy("event_id", "topic_id").orderBy(col("publish_time").asc());
-            WindowSpec latestContentWindow = Window.partitionBy("event_id", "topic_id").orderBy(col("publish_time").desc());
-            WindowSpec peakContentWindow = Window.partitionBy("event_id", "topic_id").orderBy(col("publish_time").asc());
-            Dataset<Row> firstTopicContent = qualifiedTopicContent.withColumn("_content_rank", row_number().over(firstContentWindow))
-                    .filter(col("_content_rank").equalTo(1)).withColumn("event_role", lit("首次报道"));
-            Dataset<Row> latestTopicContent = qualifiedTopicContent.withColumn("_content_rank", row_number().over(latestContentWindow))
-                    .filter(col("_content_rank").equalTo(1)).withColumn("event_role", lit("最新进展"));
-            Dataset<Row> peakTopicContent = qualifiedTopicContent.join(topicPeak.select("event_id", "topic_id", "peak_time"),
-                            new String[]{"event_id", "topic_id"}, "inner")
-                    .filter(to_date(col("publish_time")).equalTo(col("peak_time")))
-                    .withColumn("_content_rank", row_number().over(peakContentWindow))
-                    .filter(col("_content_rank").equalTo(1)).withColumn("event_role", lit("峰值报道"));
-            String[] topicContentColumns = {"event_id", "topic_id", "event_role", "publish_time", "platform", "content_id", "title", "clean_text", "source_url"};
-            Dataset<Row> topicKeyContents = firstTopicContent.selectExpr(topicContentColumns)
-                    .unionByName(peakTopicContent.selectExpr(topicContentColumns))
-                    .unionByName(latestTopicContent.selectExpr(topicContentColumns));
-
+                    .select("event_id", "rank_no", "platform", "content_id", "content_type", "title", "clean_text", "author_name", "publish_time", "keywords", "category", "like_count", "favorite_count", "comment_count", "repost_count", "sentiment_label", "hot_score", "platform_heat_index", "source_url");
             Dataset<Row> overview = detail.groupBy(col("event_id"), col("event_name"))
                     .agg(
                             count(lit(1)).alias("content_count"),
-                            countDistinct(when(col("author_id").isNotNull(), col("author_id"))).alias("user_count"),
                             countDistinct(col("platform")).alias("platform_count"),
-                            sum(col("comment_count")).alias("comment_count"),
-                            sum(col("repost_count")).alias("repost_count"),
-                            sum(col("like_count")).alias("like_count"),
-                            sum(col("view_count")).alias("view_count"),
-                            sum(when(col("sentiment_label").equalTo("positive"), 1).otherwise(0)).alias("positive_count"),
-                            sum(when(col("sentiment_label").equalTo("neutral"), 1).otherwise(0)).alias("neutral_count"),
-                            sum(when(col("sentiment_label").equalTo("negative"), 1).otherwise(0)).alias("negative_count"),
-                            round(sum(col("hot_score")), 2).alias("hot_score"),
-                            max(col("publish_time")).alias("peak_time")
+                            round(sum(col("hot_score")), 2).alias("hot_score")
                     );
-
-            Dataset<Row> highFreqUsers = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"), col("author_id"))
-                    .agg(count(lit(1)).alias("user_content_count"))
-                    .filter(col("user_content_count").gt(3))
-                    .groupBy(col("event_id"), col("time_bucket"), col("platform"))
-                    .agg(countDistinct(col("author_id")).alias("high_freq_user_count"));
-
             Dataset<Row> noise = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"))
                     .agg(
                             sum(when(col("is_noise").equalTo(true), 1).otherwise(0)).alias("noise_count"),
                             count(lit(1)).alias("content_count")
                     )
-                    .join(highFreqUsers, new String[]{"event_id", "time_bucket", "platform"}, "left")
-                    .withColumn("high_freq_user_count", coalesce(col("high_freq_user_count"), lit(0)))
                     .withColumn("duplicate_count", lit(duplicateCount));
-
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwdToDwsAggregateJob", "DWS", validCount, heatTrend.count(), "SUCCESS", null);
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "ADS", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
             writeJdbc(overview, jdbcUrl, jdbcUser, jdbcPassword, "ads_event_overview");
             writeJdbc(heatTrend, jdbcUrl, jdbcUser, jdbcPassword, "ads_event_heat_trend");
-            writeJdbc(timelineWithDelay, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_spread_timeline");
+            writeJdbc(timeline, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_spread_timeline");
             writeJdbc(interaction, jdbcUrl, jdbcUser, jdbcPassword, "ads_interaction_summary");
             writeJdbc(keywordRank.limit(200), jdbcUrl, jdbcUser, jdbcPassword, "ads_keyword_rank");
             writeJdbc(sentiment, jdbcUrl, jdbcUser, jdbcPassword, "ads_sentiment_trend");
-            writeJdbc(sentimentResult, jdbcUrl, jdbcUser, jdbcPassword, "dwd_weibo_sentiment_result");
             writeJdbc(contentRank, jdbcUrl, jdbcUser, jdbcPassword, "ads_content_hot_rank");
             writeJdbc(noise, jdbcUrl, jdbcUser, jdbcPassword, "ads_noise_summary");
-            writeJdbc(topicTrend, jdbcUrl, jdbcUser, jdbcPassword, "ads_topic_trend");
-            writeJdbc(topicSummary, jdbcUrl, jdbcUser, jdbcPassword, "ads_topic_summary");
-            writeJdbc(topicKeyContents, jdbcUrl, jdbcUser, jdbcPassword, "ads_topic_key_content");
             writeJdbc(platformCategoryHeat, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_category_heat");
             writeJdbc(platformDailyHeat, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_daily_heat");
-            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwsToAdsAndMysqlSyncJob", "ADS", validCount, 14, "SUCCESS", null);
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwsToAdsAndMysqlSyncJob", "ADS", validCount, 10, "SUCCESS", null);
 
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "MYSQL_SYNC", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
             upsertEvent(jdbcUrl, jdbcUser, jdbcPassword, eventId, eventName, detail);
@@ -623,9 +483,7 @@ public class SocialHotspotEtlJob {
     private static void deleteEventAds(String url, String user, String password, String eventId) throws Exception {
         String[] tables = {
                 "ads_event_overview", "ads_event_heat_trend", "ads_platform_spread_timeline",
-                "ads_interaction_summary", "ads_content_hot_rank", "ads_keyword_rank",
-                "ads_sentiment_trend", "dwd_weibo_sentiment_result", "ads_noise_summary", "ads_topic_trend",
-                "ads_topic_summary", "ads_topic_key_content", "ads_platform_category_heat", "ads_platform_daily_heat"
+                "ads_interaction_summary", "ads_content_hot_rank", "ads_keyword_rank","ads_sentiment_trend", "ads_noise_summary", "ads_platform_category_heat", "ads_platform_daily_heat"
         };
         try (Connection connection = DriverManager.getConnection(url, user, password)) {
             for (String table : tables) {

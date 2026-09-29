@@ -28,21 +28,6 @@
         WHERE event_id = #{eventId}
         ORDER BY first_publish_time ASC
     </select>
-    <select id="trendHeatTrend" resultType="map">
-        SELECT *
-        FROM ads_event_heat_trend
-        WHERE event_id = #{eventId}
-          AND platform &lt;&gt; 'WEIBO'
-        ORDER BY time_bucket ASC, platform ASC
-    </select>
-
-    <select id="trendPlatformSummary" resultType="map">
-        SELECT *
-        FROM ads_platform_spread_timeline
-        WHERE event_id = #{eventId}
-          AND platform &lt;&gt; 'WEIBO'
-        ORDER BY avg_heat_index DESC, content_count DESC
-    </select>
 
     <select id="trendContentRank" resultType="map">
         SELECT *
@@ -98,28 +83,6 @@
          AND total.platform = category.platform
          AND total.time_bucket = category.time_bucket
         ORDER BY category.time_bucket ASC, category.platform ASC, category.category ASC
-    </select>
-    <select id="topicTrend" resultType="map">
-        SELECT *
-        FROM ads_topic_trend
-        WHERE event_id = #{eventId}
-        ORDER BY time_bucket ASC, burst_index DESC
-    </select>
-
-    <select id="topicSummary" resultType="map">
-        SELECT *
-        FROM ads_topic_summary
-        WHERE event_id = #{eventId}
-        ORDER BY peak_burst_index DESC, content_count DESC
-        LIMIT #{limit}
-    </select>
-
-    <select id="topicKeyContents" resultType="map">
-        SELECT *
-        FROM ads_topic_key_content
-        WHERE event_id = #{eventId}
-          AND topic_id = #{topicId}
-        ORDER BY publish_time ASC
     </select>
 
     <select id="interaction" resultType="map">
@@ -203,42 +166,6 @@
         GROUP BY TRIM(title)
         ORDER BY hot_score DESC, content_count DESC
         LIMIT #{limit}
-    </select>
-
-    <select id="propagationLinks" resultType="map">
-        SELECT parent.platform source_platform,
-               child.platform target_platform,
-               COUNT(*) link_count
-        FROM ads_content_hot_rank child
-        JOIN ads_content_hot_rank parent
-          ON parent.event_id = child.event_id
-         AND parent.content_id = child.parent_content_id
-        WHERE child.event_id = #{eventId}
-          AND NULLIF(TRIM(child.parent_content_id), '') IS NOT NULL
-        GROUP BY parent.platform, child.platform
-        ORDER BY link_count DESC
-    </select>
-
-    <select id="topicPropagationLinks" resultType="map">
-        WITH topic_platform AS (
-            SELECT event_id,
-                   platform,
-                   TRIM(title) title
-            FROM ads_content_hot_rank
-            WHERE event_id = #{eventId}
-              AND NULLIF(TRIM(title), '') IS NOT NULL
-            GROUP BY event_id, platform, TRIM(title)
-        )
-        SELECT left_topic.platform source_platform,
-               right_topic.platform target_platform,
-               COUNT(*) link_count
-        FROM topic_platform left_topic
-        JOIN topic_platform right_topic
-          ON left_topic.event_id = right_topic.event_id
-         AND left_topic.platform &lt; right_topic.platform
-         AND left_topic.title = right_topic.title
-        GROUP BY left_topic.platform, right_topic.platform
-        ORDER BY link_count DESC
     </select>
 
     <select id="latestBatch" resultType="map">

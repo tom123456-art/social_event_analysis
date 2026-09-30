@@ -180,7 +180,9 @@ public class SocialHotspotEtlJob {
             Dataset<Row> contentRank = detail
                     .withColumn("rank_no", row_number().over(rankWindow))
                     .select("event_id", "rank_no", "platform", "content_id", "content_type", "title", "clean_text", "author_name", "publish_time", "keywords", "category", "like_count", "favorite_count", "comment_count", "repost_count", "sentiment_label", "hot_score", "platform_heat_index", "source_url");
-            Dataset<Row> overview = detail.groupBy(col("event_id"), col("event_name"))
+            // ads_event_overview was pruned to the current four-column contract.
+            // Keep event_name in event_info, where it is maintained by upsertEvent.
+            Dataset<Row> overview = detail.groupBy(col("event_id"))
                     .agg(
                             count(lit(1)).alias("content_count"),
                             countDistinct(col("platform")).alias("platform_count"),

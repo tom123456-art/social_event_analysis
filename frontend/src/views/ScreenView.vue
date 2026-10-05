@@ -20,7 +20,7 @@
     <main class="screen-layout">
       <aside class="screen-column screen-column-left">
         <section class="screen-card platform-card chart-live">
-          <h3>六源热度矩阵 <small>{{ platformCount }}个平台</small></h3>
+          <h3>五源热度矩阵 <small>5个新闻平台</small></h3>
           <ChartBox size="sm" :option="platformRankOption" />
         </section>
 
@@ -259,7 +259,7 @@ const heatOption = computed(() => {
 })
 
 const platformRankOption = computed(() => {
-  const rows = [...timeline.value].sort((a, b) => Number(b.hot_score || 0) - Number(a.hot_score || 0)).slice(0, 7).reverse()
+  const rows = timeline.value.filter(item => canonicalPlatform(item.platform) !== 'WEIBO').sort((a, b) => Number(b.hot_score || 0) - Number(a.hot_score || 0)).slice(0, 5).reverse()
   return {
     backgroundColor: 'transparent', animationDuration: 800,
     tooltip: { trigger: 'item', formatter: (params: any) => `${params.name}<br/>内容：${countText(params.data?.content_count)}条<br/>热度：${heatText(params.value)}` },

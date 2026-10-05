@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS ads_content_hot_rank (
   rank_no INT,
   platform VARCHAR(50),
   content_id VARCHAR(128),
+  parent_content_id VARCHAR(128),
   content_type VARCHAR(50),
   title VARCHAR(300),
   clean_text VARCHAR(1000),

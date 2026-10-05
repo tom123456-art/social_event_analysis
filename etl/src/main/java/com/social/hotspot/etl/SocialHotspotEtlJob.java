@@ -69,7 +69,7 @@ public class SocialHotspotEtlJob {
             Dataset<Row> parsed = ensureColumns(readInput(spark, input), "_corrupt_record").cache();
             long sourceCount = parsed.count();
             long structuralDirtyCount = parsed.filter(col("_corrupt_record").isNotNull()).count();
-            Dataset<Row> raw = ensureColumns(parsed, "event_id", "event_name", "url", "source_url")
+            Dataset<Row> raw = ensureColumns(parsed, "event_id", "event_name", "url", "source_url", "parent_content_id")
                     .withColumn("event_id", coalesce(nullIfBlank(col("event_id")), lit(eventId)))
                     .withColumn("event_name", lit(eventName).substr(1, 200));
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "RawToOdsJob", "ODS", sourceCount, sourceCount, "SUCCESS", null);
@@ -179,7 +179,7 @@ public class SocialHotspotEtlJob {
             WindowSpec rankWindow = Window.partitionBy("event_id").orderBy(col("hot_score").desc());
             Dataset<Row> contentRank = detail
                     .withColumn("rank_no", row_number().over(rankWindow))
-                    .select("event_id", "rank_no", "platform", "content_id", "content_type", "title", "clean_text", "author_name", "publish_time", "keywords", "category", "like_count", "favorite_count", "comment_count", "repost_count", "sentiment_label", "hot_score", "platform_heat_index", "source_url");
+                    .select("event_id", "rank_no", "platform", "content_id", "parent_content_id", "content_type", "title", "clean_text", "author_name", "publish_time", "keywords", "category", "like_count", "favorite_count", "comment_count", "repost_count", "sentiment_label", "hot_score", "platform_heat_index", "source_url");
             // ads_event_overview was pruned to the current four-column contract.
             // Keep event_name in event_info, where it is maintained by upsertEvent.
             Dataset<Row> overview = detail.groupBy(col("event_id"))

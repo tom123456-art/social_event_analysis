@@ -5,7 +5,6 @@ DROP TABLE IF EXISTS ads_topic_summary;
 DROP TABLE IF EXISTS ads_topic_trend;
 
 ALTER TABLE ads_content_hot_rank
-  DROP COLUMN parent_content_id,
   DROP COLUMN author_id,
   DROP COLUMN crawl_time,
   DROP COLUMN forward_count,

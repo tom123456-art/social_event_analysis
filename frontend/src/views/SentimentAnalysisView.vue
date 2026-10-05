@@ -1,6 +1,6 @@
 <template>
   <div class="analysis-front sentiment-page">
-    <div class="analysis-page-head"><div><span>情感分析 · 微博评论</span><h2>微博舆情情感变化与风险观察</h2><p>仅统计平台字段归一化后包含 WEIBO 的评论记录，新闻媒体数据与互动量字段均不参与分析。</p></div><div class="analysis-actions"><el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag><el-select v-else v-model="eventId" style="width:280px" @change="load"><el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" /></el-select><el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button></div></div>
+    <div class="analysis-page-head"><div><span>情感分析 · 微博评论</span><h2>微博舆情情感变化与风险观察</h2><p>仅统计平台字段归一化后包含 WEIBO 的评论记录，新闻媒体数据与互动量字段均不参与分析。</p></div><div class="analysis-actions"><el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag><el-select v-else v-model="eventId" style="width:280px" @change="load"><el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" /></el-select><el-button class="database-refresh-button" type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button></div></div>
     <MetricGrid :items="metrics" />
     <div class="grid two sentiment-top-grid">
       <div class="analysis-card trend-card"><div class="card-title"><span>情感趋势 <small>按日聚合，观察情绪结构变化</small></span><el-radio-group v-model="trendRange" size="small"><el-radio-button label="3">3天</el-radio-button><el-radio-button label="7">7天</el-radio-button><el-radio-button label="30">30天</el-radio-button></el-radio-group></div><ChartBox :option="trendOption" /></div>
@@ -18,7 +18,7 @@ import ChartBox from '../components/ChartBox.vue'
 import MetricGrid from '../components/MetricGrid.vue'
 import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-const events=ref<any[]>([]),eventId=ref('public_rss_latest'),sentimentRows=ref<any[]>([]),refreshing=ref(false),page=ref(1),pageSize=8,sentimentFilter=ref('all'),keywordQuery=ref(''),trendRange=ref('7')
+const events=ref<any[]>([]),eventId=ref('public_rss_latest'),sentimentRows=ref<any[]>([]),refreshing=ref(false),page=ref(1),pageSize=5,sentimentFilter=ref('all'),keywordQuery=ref(''),trendRange=ref('7')
 const NEWS=new Set(['SOHU_NEWS','TENCENT_NEWS','NETEASE_NEWS','SINA_NEWS','THE_PAPER']),currentEventName=computed(()=>events.value.find(item=>item.event_id===eventId.value)?.event_name||'社会媒体热点事件传播分析'),isWeibo=(v:any)=>String(v||'').trim().toUpperCase().includes('WEIBO'),label=(v:any)=>['positive','neutral','negative'].includes(String(v))?String(v):'neutral',name=(v:string)=>v==='positive'?'正面':v==='negative'?'负面':'中性',sentimentName=name,fullTime=(v:any)=>v?String(v).replace('T',' ').replace(/\.\d+$/,'').slice(0,19):'-',date=(v:any)=>fullTime(v).slice(0,10),time=(v:any)=>Date.parse(String(v||'').replace('T',' '))||0,percent=(v:any)=>`${Number(v||0).toFixed(1)}%`,tokens=(v:any)=>[...new Set(String(v||'').split(/[,，、/\\#\s]+/).map(x=>x.trim()).filter(x=>x.length>1&&!/^(关键词|话题)$/.test(x)))],displayKeywords=(v:any)=>tokens(v).slice(0,3).join('、')||'-'
 const weiboRows=computed(()=>sentimentRows.value.filter(row=>isWeibo(row.platform)&&!NEWS.has(String(row.platform||'').trim().toUpperCase())))
 const dailyTrendRows=computed(()=>{const grouped=new Map<string,any>();weiboRows.value.forEach(row=>{const day=date(row.publish_time);if(!day||day==='-')return;const key=`${day}::${label(row.sentiment_label)}`;const item=grouped.get(key)||{time_bucket:day,sentiment_label:label(row.sentiment_label),sentiment_count:0};item.sentiment_count++;grouped.set(key,item)});return [...grouped.values()].sort((a,b)=>String(a.time_bucket).localeCompare(String(b.time_bucket)))})
@@ -41,6 +41,24 @@ async function refreshData(){refreshing.value=true;try{clearGetCache();await loa
 onMounted(async()=>{events.value=await getData('/events').catch(()=>[]);eventId.value=events.value.find(item=>item.event_id==='public_rss_latest')?.event_id||events.value[0]?.event_id||eventId.value;await load().catch(()=>ElMessage.error('读取情感分析失败'))})
 useDatabaseAutoRefresh(load)
 </script>
+<style scoped>
+.sentiment-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.sentiment-page > .analysis-page-head,
+.sentiment-page > .g4,
+.sentiment-page > .sentiment-top-grid { grid-column: 1 / -1; }
+.sentiment-page > .sentiment-middle-grid,
+.sentiment-page > .sentiment-bottom-grid { display: contents; }
+.sentiment-middle-grid > .heat-card { grid-column: 1; grid-row: 4; }
+.sentiment-middle-grid > .recommendation-card { display: none; }
+.sentiment-bottom-grid > .analysis-card { grid-column: 2; grid-row: 4; min-height: 510px; }
+@media (max-width: 1100px) {
+  .sentiment-page { display: block; }
+  .sentiment-page > .sentiment-middle-grid,
+  .sentiment-page > .sentiment-bottom-grid { display: grid; }
+  .sentiment-middle-grid > .heat-card,
+  .sentiment-bottom-grid > .analysis-card { grid-column: 1; grid-row: auto; }
+}
+</style>
 <style scoped>
 .sentiment-top-grid,.sentiment-middle-grid,.sentiment-bottom-grid{margin-top:12px}.analysis-card>.chart{min-height:280px}.trend-card .card-title{height:auto;min-height:28px}.card-title>span{display:flex;align-items:baseline;gap:8px}.card-title small{color:#69778d;font-size:12px;font-weight:500}.recommendation-panel{display:grid;gap:12px;padding:8px 2px}.recommendation-meta{display:flex;justify-content:space-between;gap:10px;color:#52627a;font-size:12px}.recommendation-meta b{color:#15803d}.recommendation-panel h3{margin:0;color:#172033;font-size:17px;line-height:1.45}.recommendation-panel p{margin:0;display:-webkit-box;overflow:hidden;color:#52627a;line-height:1.75;-webkit-box-orient:vertical;-webkit-line-clamp:3}.recommendation-reason{padding:9px 10px;border-left:3px solid #86efac;background:#f0fdf4;color:#166534;font-size:12px;line-height:1.6}.recommendation-stats{display:flex;flex-wrap:wrap;gap:8px}.recommendation-stats span{padding:4px 7px;border:1px solid #bbf7d0;border-radius:999px;background:#f0fdf4;color:#166534;font-size:12px}.table-filters{display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px}.sentiment-detail-table{table-layout:fixed}.sentiment-detail-table th:nth-child(1){width:145px}.sentiment-detail-table th:nth-child(2){width:68px}.sentiment-detail-table th:nth-child(3){width:150px}.content-cell,.keywords-cell{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sentiment-pill{display:inline-flex;padding:3px 7px;border-radius:999px;font-size:11px}.sentiment-pill.positive{color:#166534;background:#dcfce7}.sentiment-pill.neutral{color:#475569;background:#f1f5f9}.sentiment-pill.negative{color:#991b1b;background:#fee2e2}.insight-list .insight-action{background:#f8fafc;border-left:3px solid #94a3b8}@media(max-width:1100px){.analysis-card>.chart{min-height:250px}.card-title{height:auto;align-items:flex-start}.trend-card .card-title{flex-direction:column;gap:8px}.trend-card .card-title .el-radio-group{align-self:flex-end}}
 </style>

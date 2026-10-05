@@ -1,5 +1,5 @@
 <template>
-  <div ref="chartEl" class="chart" :class="size"></div>
+  <div ref="chartEl" class="chart" :class="size" role="img"></div>
 </template>
 
 <script setup lang="ts">

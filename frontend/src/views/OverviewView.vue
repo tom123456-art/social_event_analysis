@@ -10,7 +10,7 @@
             <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
           </el-select>
           <el-input v-model="keyword" placeholder="搜索标题、正文、关键词" clearable />
-          <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
+          <el-button class="database-refresh-button" type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
           <el-button @click="router.push('/contents')">查看明细</el-button>
         </div>
         <div class="portal-actions">
@@ -144,7 +144,9 @@ const totalContentCount = computed(() => Number(dashboard.value.overview?.conten
 const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件融合分析')
 const sourceCount = computed(() => Number(dashboard.value.overview?.platform_count || new Set(displayContents.value.map(item => canonicalPlatform(item.platform)).filter(Boolean)).size))
 const platformOptions = computed(() => [...new Set(displayContents.value.map(item => canonicalPlatform(item.platform)).filter(Boolean))])
-const categoryOptions = computed(() => [...new Set(displayContents.value.map(item => item.category || 'general').filter(Boolean))])
+// Keep all seven portal filters visible even when the current preview page
+// does not contain a row for every category.
+const categoryOptions = ['finance', 'politics', 'technology', 'sports', 'culture', 'society', 'general']
 const platformCount = computed(() => Number(dashboard.value.overview?.platform_count || platformOptions.value.length || 0))
 const dataSourceLabel = computed(() => totalContentCount.value ? 'MySQL ADS 清洗后数据' : '暂无数据库内容')
 const categoryRank = computed<any[]>(() => dashboard.value.categoryRank || [])

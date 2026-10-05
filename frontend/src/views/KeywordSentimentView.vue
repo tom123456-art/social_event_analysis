@@ -11,6 +11,7 @@
         <el-select v-else v-model="eventId" style="width:280px" @change="load">
           <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
         </el-select>
+        <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
       </div>
     </div>
 
@@ -152,7 +153,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'
-import { getData } from '../api/client'
+import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
 
 type Granularity = 'day' | 'week'
@@ -166,6 +167,7 @@ const STOPWORDS = new Set(['没有', '为什么', '就是', '不是', '这个', 
 
 const events = ref<any[]>([])
 const eventId = ref('public_rss_latest')
+const refreshing = ref(false)
 const rows = ref<any[]>([])
 const selectedTopic = ref('')
 const trendGranularity = ref<Granularity>('week')
@@ -389,19 +391,23 @@ const keywordQuadrantOption = computed(() => {
         return `<b>${topic.name}</b><br/>内容供给：<b>${topic.content_count}</b> 篇<br/>需求效率：<b>${formatNumber(topic.demand_efficiency)}</b> / 篇<br/>覆盖作者：<b>${topic.author_count}</b><br/>所属簇：${topic.cluster_label}`
       }
     },
-    grid: { left: 64, right: 44, top: 54, bottom: 58 },
+    grid: { left: 78, right: 24, top: 54, bottom: 76, containLabel: true },
     xAxis: {
       type: 'value',
       name: '内容供给（篇）',
-      nameTextStyle: { color: '#334155', fontWeight: 700, padding: [8, 0, 0, 0] },
+      nameLocation: 'middle',
+      nameGap: 34,
+      nameTextStyle: { color: '#334155', fontWeight: 700 },
       max: Math.ceil(maxSupply * 1.15),
-      axisLabel: { color: '#475569' },
+      axisLabel: { color: '#475569', margin: 10 },
       splitLine: { lineStyle: { color: '#e2e8f0' } }
     },
     yAxis: {
       type: 'value',
       name: '需求效率（平均互动）',
-      nameTextStyle: { color: '#334155', fontWeight: 700, padding: [0, 0, 8, 0] },
+      nameLocation: 'middle',
+      nameGap: 52,
+      nameTextStyle: { color: '#334155', fontWeight: 700 },
       max: Math.ceil(maxDemand * 1.15),
       axisLabel: { color: '#475569', formatter: (value: number) => formatNumber(value) },
       splitLine: { lineStyle: { color: '#e2e8f0' } }
@@ -454,6 +460,19 @@ const emptyTopicRows = computed(() => Math.max(0, pageSize - pagedTopics.value.l
 
 watch([tableQuery, tableCategory, tableSort], () => { keywordPage.value = 1 })
 useDatabaseAutoRefresh(load)
+
+async function refreshData() {
+  refreshing.value = true
+  try {
+    clearGetCache()
+    await load()
+    ElMessage.success('已读取最新数据库快照')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '读取数据库失败')
+  } finally {
+    refreshing.value = false
+  }
+}
 
 async function load() {
   rows.value = await getData(`/events/${eventId.value}/keyword-analysis`).catch(async () => {

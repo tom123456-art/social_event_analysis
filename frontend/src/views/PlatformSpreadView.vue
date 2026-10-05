@@ -11,7 +11,7 @@
         <el-select v-else v-model="eventId" style="width:280px" @change="load">
           <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
         </el-select>
-        <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据</el-button>
+        <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
       </div>
     </div>
 

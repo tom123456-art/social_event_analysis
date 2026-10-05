@@ -9,9 +9,14 @@ public interface AnalyticsService {
 
     Map<String, Object> dashboard(String eventId);
 
+    List<Map<String, Object>> trendContentRankByRange(String eventId, String startDate, String endDate);
+
     List<Map<String, Object>> keywordAnalysis(String eventId);
 
     List<Map<String, Object>> sentimentAnalysis(String eventId);
+
+    Map<String, Object> contentPage(String eventId, String query, String platform,
+                                    String sentiment, String category, int page, int pageSize);
 
     Map<String, Object> adminOverview();
 

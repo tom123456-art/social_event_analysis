@@ -96,6 +96,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
+    public List<Map<String, Object>> trendContentRankByRange(String eventId, String startDate, String endDate) {
+        if (startDate == null || endDate == null || startDate.isBlank() || endDate.isBlank()
+                || startDate.compareTo(endDate) > 0) {
+            return List.of();
+        }
+        return enrichContentRows(mapper.trendContentRankByRange(eventId, startDate, endDate, 3000));
+    }
+
+    @Override
     public List<Map<String, Object>> keywordAnalysis(String eventId) {
         return enrichContentRows(mapper.keywordAnalysisRows(eventId, 10_000));
     }
@@ -103,6 +112,34 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public List<Map<String, Object>> sentimentAnalysis(String eventId) {
         return mapper.sentimentAnalysisRows(eventId);
+    }
+
+    @Override
+    public Map<String, Object> contentPage(String eventId, String query, String platform,
+                                            String sentiment, String category, int page, int pageSize) {
+        int safePage = Math.max(1, page);
+        int safePageSize = Math.max(1, Math.min(pageSize, 100));
+        String normalizedQuery = normalizeFilter(query);
+        String normalizedPlatform = normalizeFilter(platform);
+        String normalizedSentiment = normalizeFilter(sentiment);
+        String normalizedCategory = normalizeFilter(category);
+        int offset = (safePage - 1) * safePageSize;
+        List<Map<String, Object>> rows = mapper.contentPage(eventId, normalizedQuery, normalizedPlatform,
+                normalizedSentiment, normalizedCategory, offset, safePageSize);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("rows", enrichContentRows(rows));
+        result.put("total", mapper.contentCount(eventId, normalizedQuery, normalizedPlatform,
+                normalizedSentiment, normalizedCategory));
+        result.put("page", safePage);
+        result.put("pageSize", safePageSize);
+        return result;
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null || value.isBlank() || "全部".equals(value) || "all".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     /**

@@ -38,6 +38,18 @@
         LIMIT #{limit}
     </select>
 
+    <select id="trendContentRankByRange" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+          AND publish_time IS NOT NULL
+          AND publish_time &gt;= CONCAT(#{startDate}, ' 00:00:00')
+          AND publish_time &lt; DATE_ADD(CONCAT(#{endDate}, ' 00:00:00'), INTERVAL 1 DAY)
+        ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        LIMIT #{limit}
+    </select>
+
     <select id="platformDailyHeat" resultType="map">
         SELECT *
         FROM ads_platform_daily_heat
@@ -121,14 +133,61 @@
         WHERE event_id = #{eventId}
         ORDER BY rank_no ASC
         LIMIT #{limit}
+    </select>    <select id="realPublicContents" resultType="map">
+        WITH ranked_contents AS (
+            SELECT content.*,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY COALESCE(NULLIF(TRIM(category), ''), '综合')
+                       ORDER BY publish_time DESC, id DESC
+                   ) AS category_row_no
+            FROM ads_content_hot_rank content
+            WHERE event_id = #{eventId}
+        )
+        SELECT *
+        FROM ranked_contents
+        WHERE category_row_no &lt;= #{limit}
+        ORDER BY publish_time DESC, id DESC
     </select>
 
-    <select id="realPublicContents" resultType="map">
+    <sql id="contentPageFilters">
+        WHERE event_id = #{eventId}
+        <if test="query != null and query != ''">
+            AND (title LIKE CONCAT('%', #{query}, '%')
+                 OR clean_text LIKE CONCAT('%', #{query}, '%')
+                 OR author_name LIKE CONCAT('%', #{query}, '%'))
+        </if>
+        <if test="platform != null and platform != ''">
+            AND platform = #{platform}
+        </if>
+        <if test="sentiment != null and sentiment != ''">
+            AND sentiment_label = #{sentiment}
+        </if>
+        <if test="category != null and category != ''">
+            AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
+            <choose>
+                <when test="category == 'finance'">'财经'</when>
+                <when test="category == 'politics'">'政治'</when>
+                <when test="category == 'technology'">'科技'</when>
+                <when test="category == 'sports'">'体育'</when>
+                <when test="category == 'culture'">'文娱'</when>
+                <when test="category == 'society'">'社会'</when>
+                <otherwise>'综合'</otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="contentPage" resultType="map">
         SELECT *
         FROM ads_content_hot_rank
-        WHERE event_id = #{eventId}
+        <include refid="contentPageFilters" />
         ORDER BY publish_time DESC, id DESC
-        LIMIT #{limit}
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="contentCount" resultType="long">
+        SELECT COUNT(*)
+        FROM ads_content_hot_rank
+        <include refid="contentPageFilters" />
     </select>
 
     <select id="keywordAnalysisRows" resultType="map">

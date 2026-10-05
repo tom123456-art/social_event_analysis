@@ -47,6 +47,11 @@ public class AnalyticsController {
             "hot_rank", "location", "user_age_group", "user_gender", "keywords", "source_url", "image_url", "category"
     );
     private static final List<String> CRAWLER_RAW_COLUMNS = Arrays.asList(
+            "event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type", "title", "content_text",
+            "author_name", "publish_time", "crawl_time", "like_count", "comment_count", "repost_count",
+            "favorite_count", "hot_rank", "keywords", "source_url", "image_url", "category"
+    );
+    private static final List<String> LEGACY_CRAWLER_RAW_COLUMNS = Arrays.asList(
             "event_id", "event_name", "platform", "content_id", "content_type", "title", "content_text",
             "author_name", "publish_time", "crawl_time", "like_count", "comment_count", "repost_count",
             "favorite_count", "hot_rank", "keywords", "source_url", "image_url", "category"
@@ -86,9 +91,29 @@ public class AnalyticsController {
         return ApiResponse.ok(service.keywordAnalysis(eventId));
     }
 
+    @GetMapping("/events/{eventId}/trend-content-rank")
+    public ApiResponse<List<Map<String, Object>>> trendContentRankByRange(
+            @PathVariable("eventId") String eventId,
+            @RequestParam("startDate") String startDate,
+            @RequestParam("endDate") String endDate) {
+        return ApiResponse.ok(service.trendContentRankByRange(eventId, startDate, endDate));
+    }
+
     @GetMapping("/events/{eventId}/sentiment-analysis")
     public ApiResponse<List<Map<String, Object>>> sentimentAnalysis(@PathVariable("eventId") String eventId) {
         return ApiResponse.ok(service.sentimentAnalysis(eventId));
+    }
+
+    @GetMapping("/events/{eventId}/content-page")
+    public ApiResponse<Map<String, Object>> contentPage(
+            @PathVariable("eventId") String eventId,
+            @RequestParam(name = "query", required = false) String query,
+            @RequestParam(name = "platform", required = false) String platform,
+            @RequestParam(name = "sentiment", required = false) String sentiment,
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "page", defaultValue = "1") int page,
+            @RequestParam(name = "pageSize", defaultValue = "5") int pageSize) {
+        return ApiResponse.ok(service.contentPage(eventId, query, platform, sentiment, category, page, pageSize));
     }
 
     @GetMapping("/admin/overview")
@@ -266,7 +291,8 @@ public class AnalyticsController {
     private boolean isSupportedRawSchema(List<String> columns) {
         return columns.equals(RAW_COLUMNS)
                 || columns.equals(LEGACY_RAW_COLUMNS)
-                || columns.equals(CRAWLER_RAW_COLUMNS);
+                || columns.equals(CRAWLER_RAW_COLUMNS)
+                || columns.equals(LEGACY_CRAWLER_RAW_COLUMNS);
     }
 
     private Map<String, Object> rawCsvPreview(int limit) throws Exception {

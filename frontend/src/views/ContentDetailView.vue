@@ -10,7 +10,6 @@
         <el-select v-else v-model="eventId" style="width:280px" @change="load">
           <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
         </el-select>
-        <el-button type="primary" @click="() => load(true)">刷新</el-button>
       </div>
     </div>
 
@@ -30,11 +29,11 @@
         <el-option label="全部类型" value="全部" />
         <el-option v-for="item in categories" :key="item" :label="categoryName({ category: item })" :value="item" />
       </el-select>
-      <el-button type="primary" @click="page = 1">查询</el-button>
+      <el-button type="primary" @click="page = 1; load(true)">查询</el-button>
       <el-button @click="reset">重置</el-button>
     </div>
 
-    <div class="analysis-card table-card content-table-card">
+    <div v-loading="loading" class="analysis-card table-card content-table-card">
       <div class="card-title">内容明细列表 <span>ads_content_hot_rank</span></div>
       <table class="table fixed-rows">
         <thead><tr><th>排名</th><th>平台</th><th>类型</th><th>内容分类</th><th>标题/正文</th><th>作者</th><th>发布时间</th><th>情感</th><th>热度</th><th style="width:90px">操作</th></tr></thead>
@@ -54,7 +53,7 @@
           <tr v-for="i in emptyRows" :key="`content-empty-${i}`"><td colspan="10"></td></tr>
         </tbody>
       </table>
-      <el-pagination class="table-pagination" v-model:current-page="page" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredRows.length" />
+      <el-pagination class="table-pagination" v-model:current-page="page" :page-size="pageSize" layout="total, prev, pager, next" :total="total" @current-change="load" />
     </div>
 
     <el-dialog v-model="detailVisible" title="内容传播样本详情" width="720px">
@@ -86,28 +85,34 @@ const platform = ref('全部')
 const sentiment = ref('全部')
 const category = ref('全部')
 const page = ref(1)
-const pageSize = 10
+const pageSize = 5
+const total = ref(0)
+const loading = ref(false)
 const detailVisible = ref(false)
 const current = reactive<any>({})
 const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件融合分析')
 
-const platforms = computed(() => [...new Set(rows.value.map(item => item.platform).filter(Boolean))])
-const categories = computed(() => [...new Set(rows.value.map(item => item.category || 'general').filter(Boolean))])
-const filteredRows = computed(() => rows.value.filter(row => {
-  const text = `${row.title || ''}${row.clean_text || ''}${row.author_name || ''}`
-  return (!query.value || text.includes(query.value))
-    && (platform.value === '全部' || row.platform === platform.value)
-    && (sentiment.value === '全部' || row.sentiment_label === sentiment.value)
-    && (category.value === '全部' || (row.category || 'general') === category.value)
-}))
-const pagedRows = computed(() => filteredRows.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+const platforms = ['DOUYIN', 'WEIBO', 'BILIBILI', 'XIAOHONGSHU', 'NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER', 'OWN_SITE']
+const categories = ['finance', 'politics', 'technology', 'sports', 'culture', 'society', 'general']
+const pagedRows = computed(() => rows.value)
 const emptyRows = computed(() => Math.max(0, pageSize - pagedRows.value.length))
 
 async function load(force = false) {
-  const data = await getData(`/events/${eventId.value}/dashboard`, force)
-  rows.value = data.realPublicContents || []
+  loading.value = true
+  try {
+    const params = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize) })
+    if (query.value.trim()) params.set('query', query.value.trim())
+    if (platform.value !== '全部') params.set('platform', platform.value)
+    if (sentiment.value !== '全部') params.set('sentiment', sentiment.value)
+    if (category.value !== '全部') params.set('category', category.value)
+    const data = await getData(`/events/${eventId.value}/content-page?${params.toString()}`, force)
+    rows.value = data.rows || []
+    total.value = Number(data.total || 0)
+  } finally {
+    loading.value = false
+  }
 }
-function reset() { query.value = ''; platform.value = '全部'; sentiment.value = '全部'; category.value = '全部'; page.value = 1 }
+function reset() { query.value = ''; platform.value = '全部'; sentiment.value = '全部'; category.value = '全部'; page.value = 1; load(true) }
 function openDetail(row: any) { Object.assign(current, row); detailVisible.value = true }
 function numberText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0) }
 function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }

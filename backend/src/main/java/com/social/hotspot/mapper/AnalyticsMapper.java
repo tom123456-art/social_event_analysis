@@ -19,6 +19,11 @@ public interface AnalyticsMapper {
 
     List<Map<String, Object>> trendContentRank(@Param("eventId") String eventId, @Param("limit") int limit);
 
+    List<Map<String, Object>> trendContentRankByRange(@Param("eventId") String eventId,
+                                                       @Param("startDate") String startDate,
+                                                       @Param("endDate") String endDate,
+                                                       @Param("limit") int limit);
+
     List<Map<String, Object>> platformCategoryHeat(@Param("eventId") String eventId);
 
     List<Map<String, Object>> platformCategoryHourlyHeat(@Param("eventId") String eventId);
@@ -36,6 +41,20 @@ public interface AnalyticsMapper {
     List<Map<String, Object>> contentRank(@Param("eventId") String eventId, @Param("limit") int limit);
 
     List<Map<String, Object>> realPublicContents(@Param("eventId") String eventId, @Param("limit") int limit);
+
+    List<Map<String, Object>> contentPage(@Param("eventId") String eventId,
+                                           @Param("query") String query,
+                                           @Param("platform") String platform,
+                                           @Param("sentiment") String sentiment,
+                                           @Param("category") String category,
+                                           @Param("offset") int offset,
+                                           @Param("pageSize") int pageSize);
+
+    long contentCount(@Param("eventId") String eventId,
+                      @Param("query") String query,
+                      @Param("platform") String platform,
+                      @Param("sentiment") String sentiment,
+                      @Param("category") String category);
 
     List<Map<String, Object>> keywordAnalysisRows(@Param("eventId") String eventId, @Param("limit") int limit);
 

@@ -11,7 +11,7 @@
         <el-select v-else v-model="eventId" style="width:260px" @change="load">
           <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
         </el-select>
-        <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据</el-button>
+        <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
       </div>
     </div>
 
@@ -29,6 +29,7 @@
         start-placeholder="开始日期"
         end-placeholder="结束日期"
         :clearable="false"
+        @change="loadTrendContentRank"
       />
     </div>
 
@@ -112,6 +113,7 @@ const platformColors: Record<string, string> = {
 const events = ref<any[]>([])
 const eventId = ref('public_rss_latest')
 const data = ref<any>({})
+const trendContentRows = ref<any[]>([])
 const refreshing = ref(false)
 const selectedPlatform = ref('ALL')
 const dateRange = ref<string[]>([])
@@ -171,7 +173,7 @@ const summaryRows = computed(() => visiblePlatforms.value.map(platform => {
 }).filter(Boolean).sort((a: any, b: any) => b.average_heat_index - a.average_heat_index) as any[])
 const hotEventGroups = computed(() => visiblePlatforms.value.map(platform => {
   const [start, end] = dateRange.value
-  const items = (data.value.trendContentRank || [])
+  const items = trendContentRows.value
     .filter((row: any) => String(row.platform || '') === platform
       && (!start || !end || (dateText(row.publish_time) >= start && dateText(row.publish_time) <= end)))
     .map((row: any) => ({
@@ -330,6 +332,18 @@ const categoryChartOption = computed(() => selectedPlatform.value === 'ALL' ? ca
 async function load() {
   data.value = await getData(`/events/${eventId.value}/dashboard`)
   setDefaultDateRange()
+  await loadTrendContentRank()
+}
+async function loadTrendContentRank() {
+  const [start, end] = dateRange.value
+  if (!start || !end) {
+    trendContentRows.value = []
+    return
+  }
+  trendContentRows.value = await getData(
+    `/events/${eventId.value}/trend-content-rank?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`,
+    true
+  )
 }
 function setDefaultDateRange() {
   const dates = availableDates.value

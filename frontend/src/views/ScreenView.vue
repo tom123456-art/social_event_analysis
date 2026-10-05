@@ -57,7 +57,7 @@
               <span>峰值 <b>{{ formatTime(peakPoint.time) }}</b></span>
             </div>
           </div>
-          <ChartBox :option="heatOption" />
+          <ChartBox :key="heatRefreshKey" :option="heatOption" />
         </section>
 
         <div class="screen-center-bottom">
@@ -138,7 +138,9 @@ const router = useRouter()
 const data = ref<any>({})
 const dateText = ref('')
 const timeText = ref('')
+const heatRefreshKey = ref(0)
 let clockTimer: number | undefined
+let heatRefreshTimer: number | undefined
 let dataSignature = ''
 
 const overview = computed(() => data.value.overview || {})
@@ -404,6 +406,11 @@ async function load() {
   }
 }
 
+async function refreshHeatPulse() {
+  await load()
+  heatRefreshKey.value += 1
+}
+
 function tick() {
   const current = new Date()
   dateText.value = current.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
@@ -468,9 +475,11 @@ onMounted(() => {
   tick()
   load()
   clockTimer = window.setInterval(tick, 1000)
+  heatRefreshTimer = window.setInterval(() => void refreshHeatPulse(), 5000)
 })
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer)
+  if (heatRefreshTimer) clearInterval(heatRefreshTimer)
 })
 
 useDatabaseAutoRefresh(load)

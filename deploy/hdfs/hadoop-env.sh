@@ -1,0 +1,4 @@
+export JAVA_HOME=/opt/software/jdk-21
+export HADOOP_HEAPSIZE_MAX=512
+export HDFS_NAMENODE_OPTS=-Xmx512m
+export HDFS_DATANODE_OPTS=-Xmx256m

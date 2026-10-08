@@ -48,9 +48,10 @@ useDatabaseAutoRefresh(load)
 .sentiment-page > .sentiment-top-grid { grid-column: 1 / -1; }
 .sentiment-page > .sentiment-middle-grid,
 .sentiment-page > .sentiment-bottom-grid { display: contents; }
-.sentiment-middle-grid > .heat-card { grid-column: 1; grid-row: 4; }
+.sentiment-middle-grid > .heat-card { grid-column: 1; grid-row: 4; min-height: 360px; }
+.sentiment-middle-grid > .heat-card > .chart { height: 280px; min-height: 280px; }
 .sentiment-middle-grid > .recommendation-card { display: none; }
-.sentiment-bottom-grid > .analysis-card { grid-column: 2; grid-row: 4; min-height: 510px; }
+.sentiment-bottom-grid > .analysis-card { grid-column: 2; grid-row: 4; min-height: 360px; }
 @media (max-width: 1100px) {
   .sentiment-page { display: block; }
   .sentiment-page > .sentiment-middle-grid,

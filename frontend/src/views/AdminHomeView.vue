@@ -165,13 +165,13 @@ const metrics = computed(() => [
 ])
 
 const runtime = computed(() => [
-  { label: 'ETL执行节点', value: '192.168.154.131' },
-  { label: 'Spark模式', value: 'VM local[1]' },
-  { label: '虚拟机仓库', value: '/opt/apps/social-hotspot-analytics/warehouse' },
-  { label: '计算框架', value: 'Spark 4.1.2' },
-  { label: '后端服务', value: 'SpringBoot 18080' },
+  { label: 'ETL执行节点', value: '192.168.154.121' },
+  { label: 'Spark模式', value: 'Standalone 2 Workers' },
+  { label: '虚拟机仓库', value: 'HDFS /social-hotspot-analytics' },
+  { label: '计算框架', value: 'Spark + HDFS + Hive' },
+  { label: '后端服务', value: 'SpringBoot 8080' },
   { label: '前端服务', value: 'Vue 5174' },
-  { label: '结果库', value: 'VM MySQL 192.168.154.131:3306' },
+  { label: '结果库', value: 'VM MySQL 192.168.154.121:3306' },
   { label: '当前状态', value: latestBatch.value?.status || '-' }
 ])
 

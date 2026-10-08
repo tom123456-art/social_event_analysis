@@ -1,0 +1,16 @@
+[Unit]
+Description=HDFS DataNode
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment=HADOOP_HOME=/opt/bigdata/hadoop-client
+Environment=HADOOP_CONF_DIR=/opt/bigdata/hadoop-client/etc/hadoop
+ExecStart=/opt/bigdata/hadoop-client/bin/hdfs datanode
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

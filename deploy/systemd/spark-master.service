@@ -1,0 +1,16 @@
+[Unit]
+Description=Spark Master
+Wants=network-online.target
+After=network-online.target hdfs-namenode.service
+
+[Service]
+Type=simple
+User=root
+Environment=SPARK_HOME=/opt/bigdata/spark
+Environment=HADOOP_CONF_DIR=/opt/bigdata/hadoop-client/etc/hadoop
+ExecStart=/opt/bigdata/spark/bin/spark-class org.apache.spark.deploy.master.Master --host 192.168.154.121 --port 7077 --webui-port 8080
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

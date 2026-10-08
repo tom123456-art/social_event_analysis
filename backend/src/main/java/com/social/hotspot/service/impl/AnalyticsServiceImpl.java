@@ -1,5 +1,7 @@
 package com.social.hotspot.service.impl;
 
+import com.social.hotspot.cache.AnalyticsCache;
+
 import com.social.hotspot.mapper.AnalyticsMapper;
 import com.social.hotspot.service.AnalyticsService;
 import org.springframework.stereotype.Service;
@@ -42,10 +44,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                                       LocalDateTime peakTime, double peakAttention) {
     }
     private final AnalyticsMapper mapper;
+    private final AnalyticsCache analyticsCache;
     private final TransactionTemplate transactionTemplate;
 
-    public AnalyticsServiceImpl(AnalyticsMapper mapper, PlatformTransactionManager transactionManager) {
+    public AnalyticsServiceImpl(AnalyticsMapper mapper, AnalyticsCache analyticsCache,
+                                PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
+        this.analyticsCache = analyticsCache;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -56,6 +61,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     @Override
     public Map<String, Object> dashboard(String eventId) {
+        Map<String, Object> cached = analyticsCache.getDashboard(eventId);
+        if (cached != null) return cached;
         List<Map<String, Object>> heatTrend = aggregateHeatTrend(mapper.heatTrend(eventId));
         List<Map<String, Object>> platformTimeline = aggregatePlatformTimeline(mapper.platformTimeline(eventId));
         // Dashboard views only render a small top-content subset. Returning the
@@ -92,6 +99,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         data.put("topicRank", mapper.topicRank(eventId, 30));
         data.put("noiseSummary", aggregateNoise(mapper.noiseSummary(eventId)));
         data.put("latestBatch", mapper.latestBatch(eventId));
+        analyticsCache.putDashboard(eventId, data);
         return data;
     }
 

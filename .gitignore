@@ -19,7 +19,11 @@ tmp/
 *.bak
 *.bak-*
 data/crawler/*.csv
+data/crawler/.*.etl-checkpoint.properties
 tools/*.exe
 
 # Local backend runtime model copy
+etl/models/Erlangshen-Roberta-330M-Sentiment/.cache/
+etl/models/Erlangshen-Roberta-330M-Sentiment/*.bin
+etl/models/Erlangshen-Roberta-330M-Sentiment/*.safetensors
 backend/etl/

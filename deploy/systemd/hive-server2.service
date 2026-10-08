@@ -1,0 +1,16 @@
+[Unit]
+Description=HiveServer2
+Wants=network-online.target
+After=network-online.target hive-metastore.service
+
+[Service]
+Type=simple
+User=root
+Environment=HADOOP_HOME=/opt/bigdata/hadoop-client
+Environment=HADOOP_CONF_DIR=/opt/bigdata/hadoop-client/etc/hadoop
+ExecStart=/opt/bigdata/hive/bin/hive --service hiveserver2
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

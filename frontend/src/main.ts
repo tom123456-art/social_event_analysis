@@ -19,6 +19,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 // 未预期的页面脚本错误不直接暴露技术细节，统一给出可理解的中文提示。
 window.addEventListener('error', (event) => {
+  if (event.message?.includes('ResizeObserver')) return
   if (event.error) ElMessage.error('页面处理出现异常，请刷新后重试。')
 })
 

@@ -5,8 +5,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.expressions.Window;
 import org.apache.spark.sql.expressions.WindowSpec;
 import org.apache.spark.storage.StorageLevel;
@@ -32,6 +30,7 @@ public class SocialHotspotEtlJob {
     public static void main(String[] args) throws Exception {
         Map<String, String> params = parseArgs(args);
         String input = required(params, "input");
+        String sentimentInput = required(params, "sentiment-input");
         String eventId = required(params, "event-id");
         String requestedEventName = params.getOrDefault("event-name", "社交媒体热点事件传播分析");
         String eventName = "public_rss_latest".equals(eventId)
@@ -42,25 +41,21 @@ public class SocialHotspotEtlJob {
         String jdbcUser = params.getOrDefault("jdbc-user", "root");
         String jdbcPassword = params.getOrDefault("jdbc-password", System.getenv().getOrDefault("DB_PASSWORD", ""));
         String warehouseOutput = params.get("warehouse-output");
-        String sentimentModel = params.getOrDefault("sentiment-model",
-                System.getenv().getOrDefault("HANLP_SENTIMENT_MODEL", "weibo-sentiment.bin"));
-        String sentimentModelName = fileName(sentimentModel);
-        double sentimentNeutralThreshold = doubleParam(params, "sentiment-neutral-threshold", 0.62D);
-        double sentimentNeutralMargin = doubleParam(params, "sentiment-neutral-margin", 0.15D);
+        String etlMode = params.getOrDefault("etl-mode", "full").trim().toLowerCase();
+        boolean incremental = "incremental".equals(etlMode);
+        String baseDetail = params.get("base-detail");
+        if (incremental && (warehouseOutput == null || warehouseOutput.isBlank()
+                || baseDetail == null || baseDetail.isBlank())) {
+            throw new IllegalArgumentException("Incremental ETL requires --warehouse-output and --base-detail");
+        }
 
         SparkSession spark = SparkSession.builder()
                 .appName("social-hotspot-etl-" + batchId)
                 .config("spark.sql.session.timeZone", "Asia/Shanghai")
                 .config("spark.sql.ansi.enabled", "false")
+                .config("spark.sql.shuffle.partitions", "8")
+                .config("spark.default.parallelism", "4")
                 .getOrCreate();
-        if (new java.io.File(sentimentModel).isFile()) {
-            spark.sparkContext().addFile(sentimentModel);
-        }
-        UserDefinedFunction hanlpSentiment = udf(
-                (String text) -> HanlpSentimentAnalyzer.analyzeEncoded(text, sentimentModelName,
-                        sentimentNeutralThreshold, sentimentNeutralMargin),
-                DataTypes.StringType
-        );
 
         LocalDateTime startedAt = LocalDateTime.now();
         upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "ODS", startedAt, null, null, 0, 0, 0, 0);
@@ -88,6 +83,7 @@ public class SocialHotspotEtlJob {
             Dataset<Row> qualityCandidates = normalized
                     .filter(col("event_id").isNotNull())
                     .filter(col("platform").isin("TENCENT_NEWS", "NETEASE_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER", "WEIBO"))
+                    .filter(not(col("platform").equalTo("WEIBO")).or(length(regexp_replace(col("content_text"), "[^\\p{IsHan}A-Za-z0-9]", "")).geq(1)))
                     .filter(not(col("is_structurally_invalid")))
                     .filter(col("publish_time").isNotNull())
                     .filter(length(meaningfulChars).geq(4))
@@ -102,34 +98,67 @@ public class SocialHotspotEtlJob {
             long duplicateCount = ranked.filter(col("_dedupe_rank").gt(1)).count();
             Dataset<Row> valid = ranked.filter(col("_dedupe_rank").equalTo(1)).drop("_dedupe_rank", "has_invalid_numeric",
                     "is_structurally_invalid", "has_invalid_content_id", "is_potentially_truncated", "text_normalized");
-            Dataset<Row> sentimentAnalyzed = applyHanlpSentiment(valid, hanlpSentiment);
-            Dataset<Row> detail = buildPlatformRelativeHeat(sentimentAnalyzed).persist(StorageLevel.MEMORY_AND_DISK());
-            long validCount = detail.count();
-            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityUniqueness", "DWD", candidateCount, validCount, "SUCCESS", null);
-            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "OdsToDwdCleanJob", "DWD", sourceCount, validCount, "SUCCESS", null);
+            Dataset<Row> sentimentAnalyzed = applySentimentResults(valid, readSentimentInput(spark, sentimentInput));
+            long missingSentimentCount = sentimentAnalyzed
+                    .filter(col("platform").equalTo("WEIBO").and(col("sentiment_label").isNull()))
+                    .count();
+            if (missingSentimentCount > 0) {
+                throw new IllegalStateException("Missing Erlangshen results for " + missingSentimentCount + " Weibo records");
+            }
+            sentimentAnalyzed = sentimentAnalyzed
+                    .withColumn("sentiment_label", coalesce(col("sentiment_label"), lit("neutral")))
+                    .withColumn("sentiment_positive_score", coalesce(col("sentiment_positive_score"), lit(0D)))
+                    .withColumn("sentiment_neutral_score", coalesce(col("sentiment_neutral_score"), lit(1D)))
+                    .withColumn("sentiment_negative_score", coalesce(col("sentiment_negative_score"), lit(0D)))
+                    .persist(StorageLevel.MEMORY_AND_DISK());
+            long processedValidCount = sentimentAnalyzed.count();
+            Dataset<Row> completeCore = sentimentAnalyzed;
+            if (incremental) {
+                Dataset<Row> previous = alignToSchema(spark.read().parquet(baseDetail), sentimentAnalyzed);
+                Dataset<Row> combined = previous.unionByName(sentimentAnalyzed, true);
+                WindowSpec mergeWindow = Window.partitionBy("event_id", "platform", "content_id", "content_type")
+                        .orderBy(col("crawl_time").desc_nulls_last(), col("publish_time").desc_nulls_last());
+                Dataset<Row> merged = combined.withColumn("_merge_rank", row_number().over(mergeWindow));
+                long mergeDuplicates = merged.filter(col("_merge_rank").gt(1)).count();
+                duplicateCount += mergeDuplicates;
+                completeCore = merged.filter(col("_merge_rank").equalTo(1)).drop("_merge_rank");
+            }
+            Dataset<Row> detail = buildPlatformRelativeHeat(completeCore).persist(StorageLevel.MEMORY_AND_DISK());
+            long fullValidCount = detail.count();
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityUniqueness", "DWD", candidateCount, processedValidCount, "SUCCESS", null);
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "OdsToDwdCleanJob", "DWD", sourceCount, processedValidCount, "SUCCESS", null);
             if (warehouseOutput != null && !warehouseOutput.isBlank()) {
-                detail.write().mode(SaveMode.Overwrite).parquet(warehouseOutput + "/dwd/dwd_social_content_detail/batch_id=" + batchId);
+                writeWarehouseDwd(warehouseOutput, batchId, detail);
             }
 
             // Replace the committed ADS snapshot only after the input has passed
             // validation. A malformed CSV must not erase the last good result.
-            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWS", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWS", startedAt, null, null, sourceCount, processedValidCount, dirtyCount, duplicateCount);
             deleteEventAds(jdbcUrl, jdbcUser, jdbcPassword, eventId);
             Dataset<Row> heatTrend = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"))
                     .agg(
                             count(lit(1)).alias("content_count"),
                             round(sum(col("hot_score")), 2).alias("hot_score")
                     );
+            Dataset<Row> warehouseHeatTrend = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"))
+                    .agg(
+                            count(lit(1)).alias("content_count"),
+                            sum(col("interaction_count")).cast("long").alias("interaction_count"),
+                            round(sum(col("hot_score")), 2).alias("hot_score")
+                    );
 
-            Dataset<Row> platformDailyHeat = detail
+            Dataset<Row> platformDailyHeatAll = detail
                     .filter(col("platform").isin("TENCENT_NEWS", "NETEASE_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER"))
                     .withColumn("heat_day", to_date(col("publish_time")))
                     .groupBy(col("event_id"), col("platform"), col("heat_day"))
                     .agg(
                             count(lit(1)).alias("content_count"),
                             round(avg(col("platform_heat_index")), 2).alias("average_heat_index"),
-                            sum(when(col("platform_heat_index").geq(80), 1).otherwise(0)).alias("high_heat_content_count")
-                    )
+                            round(max(col("platform_heat_index")), 2).alias("peak_content_heat_index"),
+                            sum(when(col("platform_heat_index").geq(80), 1).otherwise(0)).alias("high_heat_content_count"),
+                            first(col("signal_mode"), true).alias("heat_algorithm")
+                    );
+            Dataset<Row> platformDailyHeat = platformDailyHeatAll
                     .select(col("event_id"), col("platform"), col("heat_day").alias("time_bucket"), col("content_count"),
                             col("average_heat_index"), col("high_heat_content_count"));
 
@@ -153,12 +182,14 @@ public class SocialHotspotEtlJob {
                     .withColumn("category_day", to_date(col("publish_time")));
             Dataset<Row> platformDailyTotal = platformCategoryBase.groupBy(col("event_id"), col("platform"), col("category_day"))
                     .agg(count(lit(1)).alias("platform_content_count"));
-            Dataset<Row> platformCategoryHeat = platformCategoryBase
+            Dataset<Row> platformCategoryHeatAll = platformCategoryBase
                     .groupBy(col("event_id"), col("platform"), col("category_day"), col("category_label"))
                     .agg(count(lit(1)).alias("content_count"), round(avg(col("platform_heat_index")), 2).alias("average_relative_heat_index"))
                     .join(platformDailyTotal, new String[]{"event_id", "platform", "category_day"}, "inner")
                     .withColumn("coverage_share", col("content_count").cast("double").divide(col("platform_content_count")).multiply(100))
                     .withColumn("composite_attention_index", round(sqrt(col("coverage_share").multiply(coalesce(col("average_relative_heat_index"), lit(0D)))), 2))
+                    .withColumn("signal_mode", lit("PLATFORM_RELATIVE_HEAT"));
+            Dataset<Row> platformCategoryHeat = platformCategoryHeatAll
                     .select(col("event_id"), col("platform"), col("category_day").alias("time_bucket"), col("category_label").alias("category"),
                             col("content_count"), col("composite_attention_index"));
             Dataset<Row> sentiment = detail.groupBy(col("event_id"), col("time_bucket"), col("platform"), col("sentiment_label"))
@@ -194,8 +225,11 @@ public class SocialHotspotEtlJob {
                             count(lit(1)).alias("content_count")
                     )
                     .withColumn("duplicate_count", lit(duplicateCount));
-            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwdToDwsAggregateJob", "DWS", validCount, heatTrend.count(), "SUCCESS", null);
-            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "ADS", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
+            if (warehouseOutput != null && !warehouseOutput.isBlank()) {
+                writeWarehouseAds(warehouseOutput, detail, warehouseHeatTrend, platformDailyHeatAll, platformCategoryHeatAll);
+            }
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwdToDwsAggregateJob", "DWS", fullValidCount, heatTrend.count(), "SUCCESS", null);
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "ADS", startedAt, null, null, sourceCount, processedValidCount, dirtyCount, duplicateCount);
             writeJdbc(overview, jdbcUrl, jdbcUser, jdbcPassword, "ads_event_overview");
             writeJdbc(heatTrend, jdbcUrl, jdbcUser, jdbcPassword, "ads_event_heat_trend");
             writeJdbc(timeline, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_spread_timeline");
@@ -206,12 +240,12 @@ public class SocialHotspotEtlJob {
             writeJdbc(noise, jdbcUrl, jdbcUser, jdbcPassword, "ads_noise_summary");
             writeJdbc(platformCategoryHeat, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_category_heat");
             writeJdbc(platformDailyHeat, jdbcUrl, jdbcUser, jdbcPassword, "ads_platform_daily_heat");
-            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwsToAdsAndMysqlSyncJob", "ADS", validCount, 10, "SUCCESS", null);
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DwsToAdsAndMysqlSyncJob", "ADS", fullValidCount, 10, "SUCCESS", null);
 
-            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "MYSQL_SYNC", startedAt, null, null, sourceCount, validCount, dirtyCount, duplicateCount);
+            upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "MYSQL_SYNC", startedAt, null, null, sourceCount, processedValidCount, dirtyCount, duplicateCount);
             upsertEvent(jdbcUrl, jdbcUser, jdbcPassword, eventId, eventName, detail);
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "SUCCESS", "MYSQL_SYNC",
-                    startedAt, LocalDateTime.now(), null, sourceCount, validCount, dirtyCount, duplicateCount);
+                    startedAt, LocalDateTime.now(), null, sourceCount, processedValidCount, dirtyCount, duplicateCount);
         } catch (Exception ex) {
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "FAILED", "FAILED",
                     startedAt, LocalDateTime.now(), truncate(ex.getMessage(), 1000), 0, 0, 0, 0);
@@ -230,6 +264,92 @@ public class SocialHotspotEtlJob {
                 .option("escape", Character.toString((char) 34)).option("mode", "PERMISSIVE")
                 .option("columnNameOfCorruptRecord", "_corrupt_record").csv(input);
     }
+
+    private static void writeWarehouseAds(String warehouseOutput, Dataset<Row> detail, Dataset<Row> heatTrend,
+                                          Dataset<Row> platformDailyHeat, Dataset<Row> platformCategoryHeat) {
+        String adsRoot = warehouseOutput + "/ads/";
+        heatTrend.write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_event_heat_trend");
+        platformDailyHeat.select(
+                        col("event_id"), col("platform"), col("heat_day").alias("time_bucket"), col("content_count"),
+                        col("average_heat_index"), col("peak_content_heat_index"), col("high_heat_content_count"), col("heat_algorithm"))
+                .write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_platform_daily_heat");
+        platformCategoryHeat.select(
+                        col("event_id"), col("platform"), col("category_day").alias("time_bucket"), col("category_label").alias("category"),
+                        col("content_count"), col("platform_content_count"), col("coverage_share"), col("average_relative_heat_index"),
+                        col("composite_attention_index"), col("signal_mode"))
+                .write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_platform_category_heat");
+
+        Dataset<Row> topicBase = detail
+                .withColumn("topic_name", trim(topicSeedExpr()))
+                .filter(length(col("topic_name")).geq(2))
+                .withColumn("topic_id", sha2(concat_ws("||", col("event_id"), col("topic_name")), 256))
+                .withColumn("topic_day", to_date(col("publish_time")));
+        Dataset<Row> topicTrend = topicBase.groupBy(col("event_id"), col("topic_id"), col("topic_name"), col("category"), col("topic_day"))
+                .agg(
+                        count(lit(1)).alias("content_count"),
+                        countDistinct(col("platform")).alias("platform_count")
+                )
+                .withColumn("burst_index", round(col("content_count").cast("double")
+                        .multiply(log(col("platform_count").plus(1D)).divide(log(lit(2D)))), 2))
+                .select(col("event_id"), col("topic_id"), col("topic_name"), col("category"), col("topic_day").alias("time_bucket"),
+                        col("content_count"), col("platform_count"), col("burst_index"));
+        topicTrend.write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_topic_trend");
+
+        Dataset<Row> topicSummaryBase = topicBase.groupBy(col("event_id"), col("topic_id"), col("topic_name"), col("category"))
+                .agg(
+                        min(col("publish_time")).alias("first_publish_time"),
+                        max(col("publish_time")).alias("latest_publish_time"),
+                        count(lit(1)).alias("content_count"),
+                        countDistinct(col("platform")).alias("platform_count")
+                );
+        WindowSpec topicPeakWindow = Window.partitionBy("event_id", "topic_id").orderBy(col("content_count").desc(), col("time_bucket").asc());
+        Dataset<Row> topicPeak = topicTrend
+                .withColumn("_peak_rank", row_number().over(topicPeakWindow))
+                .filter(col("_peak_rank").equalTo(1))
+                .select(col("event_id"), col("topic_id"), col("time_bucket").alias("peak_time"),
+                        col("content_count").alias("peak_daily_count"), col("burst_index").alias("peak_burst_index"));
+        topicSummaryBase.join(topicPeak, new String[]{"event_id", "topic_id"}, "inner")
+                .withColumn("duration_days", datediff(col("latest_publish_time"), col("first_publish_time")).plus(1).cast("int"))
+                .withColumn("current_stage", lit("COMPLETED"))
+                .select("event_id", "topic_id", "topic_name", "category", "first_publish_time", "peak_time", "latest_publish_time",
+                        "content_count", "platform_count", "duration_days", "peak_daily_count", "peak_burst_index", "current_stage")
+                .write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_topic_summary");
+
+        Dataset<Row> firstContent = topicBase.withColumn("_rank", row_number().over(Window.partitionBy("event_id", "topic_id").orderBy(col("publish_time").asc())))
+                .filter(col("_rank").equalTo(1)).withColumn("event_role", lit("FIRST"));
+        Dataset<Row> peakContent = topicBase.withColumn("_rank", row_number().over(Window.partitionBy("event_id", "topic_id").orderBy(col("hot_score").desc(), col("publish_time").asc())))
+                .filter(col("_rank").equalTo(1)).withColumn("event_role", lit("PEAK"));
+        Dataset<Row> latestContent = topicBase.withColumn("_rank", row_number().over(Window.partitionBy("event_id", "topic_id").orderBy(col("publish_time").desc())))
+                .filter(col("_rank").equalTo(1)).withColumn("event_role", lit("LATEST"));
+        firstContent.unionByName(peakContent).unionByName(latestContent)
+                .select("event_id", "topic_id", "event_role", "publish_time", "platform", "content_id", "title", "clean_text", "source_url")
+                .write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_topic_key_content");
+    }
+
+    private static void writeWarehouseDwd(String warehouseOutput, String batchId, Dataset<Row> detail) {
+        detail.select(
+                        "event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type", "title", "clean_text",
+                        "author_id", "author_name", "publish_time", "crawl_time", "like_count", "comment_count", "repost_count",
+                        "favorite_count", "view_count", "hot_rank", "keywords", "time_bucket", "interaction_count", "sentiment_label",
+                        "is_noise", "hot_score", "share_count", "forward_count", "location", "user_age_group", "user_gender",
+                        "source_url", "image_url", "category", "batch_id", "sentiment_positive_score",
+                        "sentiment_neutral_score", "sentiment_negative_score")
+                .write().mode(SaveMode.Overwrite).parquet(warehouseOutput + "/dwd/dwd_social_content_detail/batch_id=" + batchId);
+    }
+
+    /** Projects a prior DWD snapshot onto the current cleaned-row schema before unioning a delta. */
+    private static Dataset<Row> alignToSchema(Dataset<Row> data, Dataset<Row> schemaSource) {
+        org.apache.spark.sql.types.StructField[] fields = schemaSource.schema().fields();
+        Column[] projection = new Column[fields.length];
+        for (int index = 0; index < fields.length; index++) {
+            org.apache.spark.sql.types.StructField field = fields[index];
+            projection[index] = hasColumn(data, field.name())
+                    ? col(field.name()).cast(field.dataType()).alias(field.name())
+                    : lit(null).cast(field.dataType()).alias(field.name());
+        }
+        return data.select(projection);
+    }
+
     private static Dataset<Row> ensureColumns(Dataset<Row> data, String... names) {
         Dataset<Row> result = data;
         for (String name : names) {
@@ -250,6 +370,7 @@ public class SocialHotspotEtlJob {
                         normalizeContentType(safeCol(raw, "content_type")).alias("content_type"),
                         cleanText(coalesce(nullIfBlank(safeCol(raw, "title")), lit(""))).substr(1, 300).alias("title"),
                         cleanText(coalesce(nullIfBlank(safeCol(raw, "content_text")), nullIfBlank(safeCol(raw, "title")), lit(""))).alias("clean_text"),
+                        cleanText(coalesce(nullIfBlank(safeCol(raw, "content_text")), lit(""))).alias("content_text"),
                         nullIfBlank(safeCol(raw, "author_id")).substr(1, 128).alias("author_id"),
                         cleanText(coalesce(nullIfBlank(safeCol(raw, "author_name")), lit(""))).substr(1, 100).alias("author_name"),
                         coalesce(parseTimestamp(safeCol(raw, "publish_time")), parseTimestamp(safeCol(raw, "crawl_time"))).alias("publish_time"),
@@ -388,17 +509,32 @@ public class SocialHotspotEtlJob {
         return to_timestamp(canonical, "yyyy-MM-dd HH:mm:ss");
     }
 
-    private static Dataset<Row> applyHanlpSentiment(Dataset<Row> data, UserDefinedFunction analyzer) {
-        Column encoded = when(col("platform").equalTo("WEIBO"), analyzer.apply(col("clean_text")))
-                .otherwise(lit("neutral|0.000000|1.000000|0.000000"));
-        Dataset<Row> analyzed = data.withColumn("_sentiment_result", encoded)
-                .withColumn("_sentiment_parts", split(col("_sentiment_result"), "\\|"));
-        return analyzed
-                .withColumn("sentiment_label", element_at(col("_sentiment_parts"), 1))
-                .withColumn("sentiment_positive_score", element_at(col("_sentiment_parts"), 2).cast("double"))
-                .withColumn("sentiment_neutral_score", element_at(col("_sentiment_parts"), 3).cast("double"))
-                .withColumn("sentiment_negative_score", element_at(col("_sentiment_parts"), 4).cast("double"))
-                .drop("_sentiment_result", "_sentiment_parts");
+    private static Dataset<Row> readSentimentInput(SparkSession spark, String input) {
+        return spark.read().option("header", "true").option("encoding", "UTF-8")
+                .option("mode", "FAILFAST").csv(input)
+                .select(
+                        upper(trim(col("platform"))).alias("_sentiment_platform"),
+                        trim(col("content_id")).alias("_sentiment_content_id"),
+                        lower(trim(col("sentiment_label"))).alias("_sentiment_label"),
+                        col("sentiment_positive_score").cast("double").alias("_sentiment_positive_score"),
+                        col("sentiment_neutral_score").cast("double").alias("_sentiment_neutral_score"),
+                        col("sentiment_negative_score").cast("double").alias("_sentiment_negative_score")
+                )
+                .filter(col("_sentiment_label").isin("positive", "neutral", "negative"))
+                .dropDuplicates("_sentiment_platform", "_sentiment_content_id");
+    }
+
+    private static Dataset<Row> applySentimentResults(Dataset<Row> data, Dataset<Row> sentiments) {
+        return data.join(sentiments,
+                        data.col("platform").equalTo(sentiments.col("_sentiment_platform"))
+                                .and(data.col("content_id").equalTo(sentiments.col("_sentiment_content_id"))),
+                        "left")
+                .drop("sentiment_label")
+                .withColumnRenamed("_sentiment_label", "sentiment_label")
+                .withColumnRenamed("_sentiment_positive_score", "sentiment_positive_score")
+                .withColumnRenamed("_sentiment_neutral_score", "sentiment_neutral_score")
+                .withColumnRenamed("_sentiment_negative_score", "sentiment_negative_score")
+                .drop("_sentiment_platform", "_sentiment_content_id");
     }
 
     private static Dataset<Row> buildPlatformRelativeHeat(Dataset<Row> valid) {
@@ -454,24 +590,6 @@ public class SocialHotspotEtlJob {
         Column keywordSeed = concat_ws(" / ", slice(split(keywordText, ","), 1, 2));
         Column titleSeed = regexp_replace(coalesce(nullIfBlank(col("title")), lit("")), "[\\p{Punct}\\s]+", "").substr(1, 24);
         return when(length(keywordSeed).geq(2), keywordSeed).otherwise(titleSeed);
-    }
-
-    private static double doubleParam(Map<String, String> params, String key, double defaultValue) {
-        String value = params.get(key);
-        if (value == null || value.isBlank()) return defaultValue;
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("数值参数格式不正确：--" + key + "=" + value, ex);
-        }
-    }
-
-    private static String fileName(String path) {
-        String normalized = path == null ? "" : path.replace('\\', '/');
-        int slash = normalized.lastIndexOf('/');
-        String name = slash >= 0 ? normalized.substring(slash + 1) : normalized;
-        int fragment = name.indexOf('#');
-        return fragment >= 0 ? name.substring(fragment + 1) : name;
     }
 
     private static void writeJdbc(Dataset<Row> data, String url, String user, String password, String table) {

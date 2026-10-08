@@ -1,39 +1,26 @@
-# HanLP Weibo Sentiment Model
+# Erlangshen Sentiment Model
 
-The Spark ETL no longer uses keyword matching for `WEIBO` records. It executes
-HanLP `NaiveBayesClassifier` inference in the executor-side UDF and writes one
-result per Weibo record to `dwd_weibo_sentiment_result`.
+`Erlangshen-Roberta-330M-Sentiment` runs only on the ETL host that has the
+local Python environment and GPU. It is intentionally not copied to the Spark
+VMs because the model is larger than 2 GB and the VMs have limited memory.
 
-## Train the model
+The backend runs `etl/scripts/infer_sentiment.py` locally against the complete
+CSV or its appended delta. The script writes a small UTF-8 sidecar containing:
 
-The supplied `pos60000.txt` and `neg60000.txt` corpus files are
-GB18030-encoded, with one Weibo record per line. Train directly from the two
-files; they must not be treated as two whole-document samples.
-
-```bash
-java -cp social-hotspot-etl-1.0.0-SNAPSHOT.jar \
-  com.social.hotspot.etl.HanlpSentimentModelTrainer \
-  --positive-file /opt/apps/social-hotspot-analytics/sentiment-corpus/pos60000.txt \
-  --negative-file /opt/apps/social-hotspot-analytics/sentiment-corpus/neg60000.txt \
-  --encoding GB18030 \
-  --output /opt/apps/social-hotspot-analytics/etl/models/weibo-sentiment.bin
+```text
+platform,content_id,sentiment_label,sentiment_positive_score,sentiment_neutral_score,sentiment_negative_score
 ```
 
-This produces a positive/negative model. The deployed version also adds a domain-calibrated neutral set extracted from factual, waiting-for-update, and non-committal Weibo comments, producing a three-class model. The ETL preserves the existing
-three-label database contract by emitting `neutral` only for low-confidence or
-near-tie predictions. You can provide `--neutral-file` later if manually
-labeled neutral comments become available.
+Only the source CSV and sidecar are uploaded to HDFS. Spark joins the sidecar
+by `platform + content_id`; the original CSV schema is unchanged.
 
-## Run the ETL
+Required local files:
 
-Pass the model to Spark with `--files`, then pass its distributed file name to
-the job. The provided `deploy/scripts/run-vm-etl.sh` does this automatically.
-
-```bash
-spark-submit --files /models/weibo-sentiment.bin#weibo-sentiment.bin ... \
-  --sentiment-model weibo-sentiment.bin
+```text
+etl/models/Erlangshen-Roberta-330M-Sentiment/config.json
+etl/models/Erlangshen-Roberta-330M-Sentiment/vocab.txt
+etl/models/Erlangshen-Roberta-330M-Sentiment/pytorch_model.bin
 ```
 
-`VM_ETL_SENTIMENT_MODEL` must point to the local model binary when the ETL is
-started from the web application. The backend uploads that file to the VM and
-adds it to the Spark submission.
+Configure the local Python executable with `VM_ETL_SENTIMENT_PYTHON` and the
+model directory with `VM_ETL_SENTIMENT_MODEL`. The default batch size is 32.

@@ -217,7 +217,7 @@ const heatTrendOption = computed(() => ({
   legend: { top: 0, type: 'scroll', data: [...visiblePlatforms.value.map(platformName), ...(selectedPlatform.value === 'ALL' ? ['总体热度'] : [])] },
   grid: { left: 54, right: 20, top: 44, bottom: 36 },
   xAxis: { type: 'category', boundaryGap: false, data: heatDates.value, axisLabel: { color: '#64748b', hideOverlap: true } },
-  yAxis: { type: 'value', min: 0, max: 100, name: '指数', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
+  yAxis: { type: 'value', alignTicks: false, min: 0, max: 100, name: '指数', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
   series: [
     ...visiblePlatforms.value.map(platform => ({
       name: platformName(platform), type: 'line', smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { width: 2.5 },
@@ -233,7 +233,7 @@ const platformPeakOption = computed(() => ({
     return `${params[0]?.name || ''}<br/>日均热度：<b>${fixed(params[0]?.value)}</b><br/>峰值日期：${row?.peak_day || '-'}<br/>峰值：<b>${fixed(row?.peak_heat_index)}</b>`
   }},
   grid: { left: 88, right: 32, top: 20, bottom: 24 },
-  xAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
+  xAxis: { type: 'value', alignTicks: false, min: 0, max: 100, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
   yAxis: { type: 'category', inverse: true, data: summaryRows.value.map(row => platformName(row.platform)), axisLabel: { color: '#475569' } },
   series: [{ type: 'bar', barMaxWidth: 24, label: { show: true, position: 'right', color: '#475569', formatter: (params: any) => fixed(params.value) }, data: summaryRows.value.map(row => ({ value: Number(row.average_heat_index.toFixed(2)), itemStyle: { color: platformColor(row.platform) } })) }]
 }))
@@ -292,7 +292,7 @@ const categoryTrendOption = computed(() => ({
   legend: { top: 0, type: 'scroll', data: CATEGORY_LABELS },
   grid: { left: 54, right: 20, top: 44, bottom: 36 },
   xAxis: { type: 'category', boundaryGap: false, data: categoryDates.value, axisLabel: { color: '#64748b', hideOverlap: true } },
-  yAxis: { type: 'value', min: 0, max: 100, name: '类别热度', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
+  yAxis: { type: 'value', alignTicks: false, min: 0, max: 100, name: '类别热度', nameTextStyle: { color: '#64748b' }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
   series: categorySeriesRows.value.map(row => ({ name: row.category, type: 'line', connectNulls: false, smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { width: 2.2, color: CATEGORY_COLORS[row.category], type: row.status === 'stable' ? 'dashed' : 'solid' }, itemStyle: { color: CATEGORY_COLORS[row.category] }, data: row.values.map(value => value === null ? null : Number(value.toFixed(2))) }))
 }))
 function periodCategoryScore(platform: string, category: string) {

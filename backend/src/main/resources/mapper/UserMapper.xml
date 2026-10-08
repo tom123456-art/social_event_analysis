@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.UserMapper">
+    <select id="users" resultType="map">SELECT * FROM app_user ORDER BY id ASC</select>
+    <select id="userById" resultType="map">SELECT * FROM app_user WHERE id = #{id}</select>
+    <insert id="insertUser" useGeneratedKeys="true" keyProperty="item.id">
+        INSERT INTO app_user (username, nickname, phone, email, role, status, bio)
+        VALUES (#{item.username}, #{item.nickname}, #{item.phone}, #{item.email}, #{item.role}, #{item.status}, #{item.bio})
+    </insert>
+    <update id="updateUser">
+        UPDATE app_user SET nickname = #{item.nickname}, phone = #{item.phone}, email = #{item.email},
+            role = #{item.role}, status = #{item.status}, bio = #{item.bio} WHERE id = #{id}
+    </update>
+    <delete id="deleteUser">DELETE FROM app_user WHERE id = #{id} AND username &lt;&gt; 'admin'</delete>
+    <select id="userByUsername" resultType="map">SELECT * FROM app_user WHERE username = #{username} LIMIT 1</select>
+</mapper>

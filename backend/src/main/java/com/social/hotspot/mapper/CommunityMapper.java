@@ -7,38 +7,15 @@ import java.util.List;
 import java.util.Map;
 
 @Mapper
-/** 业务数据访问接口：声明用户、互动和投稿的数据库操作方法。 */
-public interface BusinessMapper {
-    List<Map<String, Object>> users();
-
-    Map<String, Object> userById(@Param("id") Long id);
-
-    int insertUser(@Param("item") Map<String, Object> item);
-
-    int updateUser(@Param("id") Long id, @Param("item") Map<String, Object> item);
-
-    int deleteUser(@Param("id") Long id);
-
-    Map<String, Object> userByUsername(@Param("username") String username);
-
+public interface CommunityMapper {
     List<Map<String, Object>> interactions(@Param("limit") int limit);
-
     List<Map<String, Object>> userInteractions(@Param("username") String username, @Param("limit") int limit);
-
     int insertInteraction(@Param("item") Map<String, Object> item);
-
     int deleteInteraction(@Param("id") Long id);
-
     List<Map<String, Object>> submissions(@Param("limit") int limit);
-
     List<Map<String, Object>> userSubmissions(@Param("username") String username, @Param("limit") int limit);
-
     int insertSubmission(@Param("item") Map<String, Object> item);
-
     int updateSubmissionStatus(@Param("id") Long id, @Param("status") String status);
-
     int deleteSubmission(@Param("id") Long id);
-
     List<Map<String, Object>> contents(@Param("eventId") String eventId, @Param("limit") int limit);
-
 }

@@ -5,7 +5,7 @@
         <h2>ETL任务管理</h2>
       </div>
       <div class="head-actions">
-        <el-button type="primary" :loading="etlRunning" :disabled="uploadLoading || etlRunning" @click="runCurrentEtl">运行当前 Raw ETL</el-button>
+        <el-button type="primary" :loading="etlRunning" :disabled="uploadLoading || etlRunning" @click="runCurrentEtl">运行 Raw 增量 ETL</el-button>
         <el-button type="primary" @click="load">刷新批次</el-button>
       </div>
     </div>
@@ -209,7 +209,9 @@ async function runCurrentEtl() {
     updateProgress({ status: 'SUCCESS', current_stage: 'MYSQL_SYNC', batch_id: result.batch_id })
     selectedBatch.value = result.batch_id
     notifyDatabaseSynced()
-    ElMessage.success(`当前 Raw CSV ETL 已完成，批次 ${result.batch_id}`)
+    if (result.no_changes) ElMessage.info('Raw CSV 没有新增完整记录，无需执行 ETL')
+    else if (result.etl_mode === 'FULL_BASELINE') ElMessage.success(`增量基线已建立，批次 ${result.batch_id}`)
+    else ElMessage.success(`Raw 增量 ETL 已完成，批次 ${result.batch_id}`)
     await load()
     await select(result.batch_id)
   } catch (error: any) {

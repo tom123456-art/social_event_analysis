@@ -1,16 +1,16 @@
 #!/bin/bash
 set -e
 
-# Spark 与项目在虚拟机中的部署目录，以及本次任务使用的 CSV 和 HanLP 模型。
-
+# The large Erlangshen model stays on the Windows ETL host. This VM script
+# only consumes the CSV and the small sidecar produced by local inference.
 SPARK_HOME=/opt/bigdata/spark
 APP_HOME=/opt/apps/social-hotspot-analytics
 BATCH_ID=$(date +%Y%m%d%H%M%S)
 RAW_INPUT="$APP_HOME/data/crawler/social_event_real.csv"
-SENTIMENT_MODEL="${SENTIMENT_MODEL:-$APP_HOME/etl/models/weibo-sentiment.bin}"
+SENTIMENT_INPUT="${SENTIMENT_INPUT:-$APP_HOME/data/crawler/sentiment_result.csv}"
 
-if [ ! -f "$SENTIMENT_MODEL" ]; then
-  echo "未找到 HanLP 情感模型：$SENTIMENT_MODEL" >&2
+if [ ! -f "$SENTIMENT_INPUT" ]; then
+  echo "未找到本批次情感分析结果：$SENTIMENT_INPUT" >&2
   exit 1
 fi
 
@@ -21,10 +21,10 @@ cd "$SPARK_HOME/bin"
   --driver-memory 768m \
   "$APP_HOME/etl/target/social-hotspot-etl-1.0.0-SNAPSHOT.jar" \
   --input "file://$RAW_INPUT" \
+  --sentiment-input "file://$SENTIMENT_INPUT" \
   --event-id public_rss_latest \
   --event-name "Social Media Hotspot Event Propagation Analysis" \
   --batch-id "$BATCH_ID" \
   --jdbc-url "jdbc:mysql://192.168.154.121:3306/social_hotspot_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false" \
   --jdbc-user root \
-  --jdbc-password "${DB_PASSWORD:?请先设置 DB_PASSWORD 环境变量}" \
-  --sentiment-model "$SENTIMENT_MODEL"
+  --jdbc-password "${DB_PASSWORD:?请先设置 DB_PASSWORD 环境变量}"

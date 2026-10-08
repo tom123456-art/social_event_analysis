@@ -1,0 +1,16 @@
+[Unit]
+Description=Spark Worker
+Wants=network-online.target
+After=network-online.target hdfs-datanode.service
+
+[Service]
+Type=simple
+User=root
+Environment=SPARK_HOME=/opt/bigdata/spark
+Environment=HADOOP_CONF_DIR=/opt/bigdata/hadoop-client/etc/hadoop
+ExecStart=/opt/bigdata/spark/bin/spark-class org.apache.spark.deploy.worker.Worker --webui-port 8081 spark://192.168.154.121:7077
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

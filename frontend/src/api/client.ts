@@ -7,7 +7,8 @@ export const api = axios.create({
 })
 
 // 缓存相同的 GET 请求，避免同一页面同时重复读取数据库。
-const getCache = new Map<string, Promise<unknown>>()
+const GET_CACHE_TTL_MS = 15_000
+const getCache = new Map<string, { request: Promise<unknown>; expiresAt: number }>()
 
 // 数据发生变化后清理缓存，确保下一次读取到最新结果。
 export function clearGetCache() {
@@ -52,15 +53,15 @@ function unwrap<T>(response: any): T {
 export async function getData<T = any>(url: string, force = false): Promise<T> {
   if (force) getCache.delete(url)
 
-  let request = getCache.get(url)
-  if (!request) {
-    request = api.get(url).then(response => unwrap<T>(response))
-    getCache.set(url, request)
-    request.catch(() => {
-      if (getCache.get(url) === request) getCache.delete(url)
-    })
-  }
+  const cached = getCache.get(url)
+  if (cached && cached.expiresAt > Date.now()) return cached.request as Promise<T>
+  if (cached) getCache.delete(url)
 
+  const request = api.get(url).then(response => unwrap<T>(response))
+  getCache.set(url, { request, expiresAt: Date.now() + GET_CACHE_TTL_MS })
+  request.catch(() => {
+    if (getCache.get(url)?.request === request) getCache.delete(url)
+  })
   return request as Promise<T>
 }
 

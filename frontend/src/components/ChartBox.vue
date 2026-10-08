@@ -20,19 +20,32 @@ let resizeObserver: ResizeObserver | undefined
 
 function resize() {
   if (!chart) return
-  chart.resize({ animation: { duration: 0 } })
+  try {
+    chart.resize({ animation: { duration: 0 } })
+  } catch (error) {
+    console.error('ECharts resize failed', error)
+  }
 }
 
 function render() {
   if (!chartEl.value) return
-  chart ||= echarts.init(chartEl.value)
+  try {
+    chart ||= echarts.init(chartEl.value)
+  } catch (error) {
+    console.error('ECharts init failed', error)
+    return
+  }
   if (renderFrame) window.cancelAnimationFrame(renderFrame)
   renderFrame = window.requestAnimationFrame(() => {
     renderFrame = undefined
     if (!chart || !chartEl.value) return
-    chart.setOption(props.option, true, true)
-    chart.off('click')
-    chart.on('click', params => emit('chartClick', params))
+    try {
+      chart.setOption(props.option, true, true)
+      chart.off('click')
+      chart.on('click', params => emit('chartClick', params))
+    } catch (error) {
+      console.error('ECharts render failed', error)
+    }
   })
 }
 

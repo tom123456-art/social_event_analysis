@@ -45,3 +45,38 @@ test('template compiles and evidence dialog appears only once', () => {
   assert.equal(source.includes('events.length'), false)
   assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename: 'SentimentAnalysisView.vue', id: 'sentiment-test' }).errors, [])
 })
+
+test('sentiment views show two model classes without a synthetic neutral probability', () => {
+  assert.doesNotMatch(source, /只看中性|中性评论|正面 \/ 中性 \/ 负面/)
+  assert.doesNotMatch(source, /sentiment_neutral_score/)
+  assert.match(source, /\['positive', 'negative'\]/)
+  assert.match(source, /占比不代表全部原始内容/)
+})
+
+test('negative peak displays the actual daily negative count and percentage', () => {
+  assert.match(source, /negativePeak\.negative/)
+  assert.match(source, /percent\(negativePeak\.negativeRate\)/)
+  assert.doesNotMatch(source, /negativePeak\.(count|rate)\b/)
+})
+
+test('sentiment trend fixes positive to green and negative to red for lines and markers', () => {
+  const chartContext = vm.createContext({
+    computed: fn => ({ value: fn() }),
+    trendDays: { value: ['2026-09-30'] },
+    dailyWeibo: { value: [{ date: '2026-09-30', positive: 12, negative: 3 }] },
+    sentimentName: key => key === 'positive' ? '正面' : '负面'
+  })
+  const chartSource = [
+    source.match(/^const SENTIMENT_COLORS.*$/m)[0],
+    source.match(/^const weiboTrendOption.*$/m)[0],
+    'globalThis.option = weiboTrendOption.value'
+  ].join('\n')
+  vm.runInContext(ts.transpileModule(chartSource, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, chartContext)
+  const [positive, negative] = chartContext.option.series
+  assert.equal(positive.lineStyle.color, '#16a34a')
+  assert.equal(positive.itemStyle.color, '#16a34a')
+  assert.equal(negative.lineStyle.color, '#dc2626')
+  assert.equal(negative.itemStyle.color, '#dc2626')
+  assert.equal(positive.data[0], 12)
+  assert.equal(negative.data[0], 3)
+})

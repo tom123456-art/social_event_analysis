@@ -208,7 +208,7 @@ function numberText(value: any) {
 }
 
 function labelText(value: string) {
-  return value === 'positive' ? '正向' : value === 'negative' ? '负向' : '中性'
+  return value === 'positive' ? '正向' : value === 'negative' ? '负向' : '未分类'
 }
 
 onMounted(() => load().catch(() => ElMessage.error('读取后台首页失败')))

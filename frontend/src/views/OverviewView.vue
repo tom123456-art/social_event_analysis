@@ -254,7 +254,7 @@ function categoryName(row: any) {
   return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合'
 }
 function sentimentName(value: string) {
-  return value === 'positive' ? '正向情绪' : value === 'negative' ? '负向情绪' : '中性情绪'
+  return value === 'positive' ? '正向情绪' : value === 'negative' ? '负向情绪' : '未分类'
 }
 function openSource(row: any) {
   const url = sourceUrl(row)

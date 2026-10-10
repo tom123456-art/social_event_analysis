@@ -112,7 +112,7 @@
         </section>
 
         <section class="screen-card sentiment-card chart-live">
-          <h3>平台情绪结构 <small>正向 / 中性 / 负向</small></h3>
+          <h3>平台情绪结构 <small>正向 / 负向 · 过滤后样本</small></h3>
           <ChartBox size="sm" :option="sentimentOption" />
         </section>
 
@@ -347,14 +347,14 @@ const sentimentOption = computed(() => {
   const grouped = new Map<string, Record<string, number>>()
   sentiment.value.forEach(item => {
     const platform = canonicalPlatform(item.platform)
-    const row = grouped.get(platform) || { positive: 0, neutral: 0, negative: 0 }
-    const label = String(item.sentiment_label || 'neutral').toLowerCase()
+    const row = grouped.get(platform) || { positive: 0, negative: 0 }
+    const label = String(item.sentiment_label || '').toLowerCase()
+    if (!['positive', 'negative'].includes(label)) return
     row[label] = (row[label] || 0) + Number(item.sentiment_count || 0)
     grouped.set(platform, row)
   })
   const seriesConfig = [
     { key: 'positive', name: '正向', color: '#34d399' },
-    { key: 'neutral', name: '中性', color: '#60a5fa' },
     { key: 'negative', name: '负向', color: '#fb7185' }
   ]
   return {
@@ -368,7 +368,7 @@ const sentimentOption = computed(() => {
       name: config.name, type: 'bar', stack: 'sentiment', barWidth: 7,
       itemStyle: { color: config.color, borderColor: '#071522', borderWidth: .5 },
       data: platforms.map(platform => {
-        const row = grouped.get(platform) || { positive: 0, neutral: 0, negative: 0 }
+        const row = grouped.get(platform) || { positive: 0, negative: 0 }
         const total = Object.values(row).reduce((sum, value) => sum + Number(value || 0), 0)
         const count = Number(row[config.key] || 0)
         return { value: total ? count / total * 100 : 0, count }

@@ -19,7 +19,6 @@
       <el-select v-model="sentiment" style="width:150px">
         <el-option label="全部情感" value="全部" />
         <el-option label="正向" value="positive" />
-        <el-option label="中性" value="neutral" />
         <el-option label="负向" value="negative" />
       </el-select>
       <el-select v-model="category" style="width:150px">
@@ -114,7 +113,7 @@ function openDetail(row: any) { Object.assign(current, row); detailVisible.value
 function numberText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0) }
 function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }
 function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道' } as Record<string, string>)[value] || value || '-' }
-function sentimentName(value: string) { return value === 'positive' ? '正向' : value === 'negative' ? '负向' : '中性' }
+function sentimentName(value: string) { return value === 'positive' ? '正向' : value === 'negative' ? '负向' : '未分类' }
 function categoryName(row: any) { return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合' }
 
 onMounted(async () => {

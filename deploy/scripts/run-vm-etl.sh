@@ -19,12 +19,13 @@ cd "$SPARK_HOME/bin"
   --class com.social.hotspot.etl.SocialHotspotEtlJob \
   --master spark://192.168.154.121:7077 \
   --driver-memory 768m \
-  "$APP_HOME/server/etl/target/social-hotspot-etl-1.0.0-SNAPSHOT.jar" \
+  "$APP_HOME/server/etl/target/etl-1.0.0-SNAPSHOT.jar" \
   --input "file://$RAW_INPUT" \
   --sentiment-input "file://$SENTIMENT_INPUT" \
   --event-id public_rss_latest \
   --event-name "Social Media Hotspot Event Propagation Analysis" \
   --batch-id "$BATCH_ID" \
+  --sentiment-min-confidence "${SENTIMENT_MIN_CONFIDENCE:-0.90}" \
   --jdbc-url "jdbc:mysql://192.168.154.121:3306/social_hotspot_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false" \
   --jdbc-user root \
   --jdbc-password "${DB_PASSWORD:?请先设置 DB_PASSWORD 环境变量}"

@@ -1,0 +1,7 @@
+{
+  "version": "TEXT_QUALITY_V2",
+  "explicitDamagePattern": "\ufffd|\u951f\u65a4\u62f7|\u00c3\u00a9",
+  "mixedDamagePattern": "[\u4e00-\u9fff][\u00c0-\u024f][?]|[?][\u00c0-\u024f][\u4e00-\u9fff]|[\u4e00-\u9fff][A-Za-z][?]{2,}[\u4e00-\u9fff]|[\u4e00-\u9fff][?]+[A-Za-z][\u4e00-\u9fff]",
+  "missingCharactersPattern": "[\u4e00-\u9fff][?]{2,}(?=[\u4e00-\u9fff])",
+  "minimumMissingFragments": 2
+}

@@ -1,6 +1,8 @@
 # Java / Maven
 target/
 *.class
+__pycache__/
+*.pyc
 
 # Frontend dependencies and build output
 frontend/node_modules/

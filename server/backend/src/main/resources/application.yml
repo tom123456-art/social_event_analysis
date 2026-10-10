@@ -63,4 +63,5 @@ vm:
     sentiment-python: ${VM_ETL_SENTIMENT_PYTHON:D:/BigData/PythonEnv/python.exe}
     sentiment-script: ${VM_ETL_SENTIMENT_SCRIPT:server/etl/scripts/infer_sentiment.py}
     sentiment-batch-size: ${VM_ETL_SENTIMENT_BATCH_SIZE:128}
+    sentiment-min-confidence: ${VM_ETL_SENTIMENT_MIN_CONFIDENCE:0.90}
     timeout-seconds: ${VM_ETL_TIMEOUT_SECONDS:14400}

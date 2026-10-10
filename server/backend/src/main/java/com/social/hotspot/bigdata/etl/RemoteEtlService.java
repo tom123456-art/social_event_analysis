@@ -64,6 +64,8 @@ public class RemoteEtlService {
     private String sentimentScript;
     @Value("${vm.etl.sentiment-batch-size:32}")
     private int sentimentBatchSize;
+    @Value("${vm.etl.sentiment-min-confidence:0.90}")
+    private double sentimentMinConfidence;
     @Value("${vm.etl.timeout-seconds:1800}")
     private int timeoutSeconds;
 
@@ -136,6 +138,7 @@ public class RemoteEtlService {
     }
 
     private Map<String, Object> runRemote(Path localCsv, String etlMode, String baseDetail) throws Exception {
+        validateSentimentThreshold();
         if (!enabled) {
             throw new IllegalStateException("远程 Spark ETL 未启用，请检查 VM_ETL_ENABLED 配置。");
         }
@@ -171,13 +174,13 @@ public class RemoteEtlService {
         String remoteDeployDir = appHome + "/deploy/sql";
         String remoteCsv = remoteDataDir + "/social_event_real.csv";
         String remoteSentiment = remoteDataDir + "/sentiment_result_" + batchId + ".csv";
-        String remoteJar = remoteEtlDir + "/social-hotspot-etl-1.0.0-SNAPSHOT.jar";
+        String remoteJar = remoteEtlDir + "/etl-1.0.0-SNAPSHOT.jar";
         String remoteSchema = remoteDeployDir + "/schema.sql";
         String csvTemp = remoteCsv + ".uploading-" + batchId;
         String sentimentTemp = remoteSentiment + ".uploading";
         String jarTemp = remoteJar + ".uploading-" + batchId;
         String schemaTemp = remoteSchema + ".uploading-" + batchId;
-        Path localJar = projectRoot.resolve("server/etl/target/social-hotspot-etl-1.0.0-SNAPSHOT.jar");
+        Path localJar = projectRoot.resolve("server/etl/target/etl-1.0.0-SNAPSHOT.jar");
         Path localSchema = projectRoot.resolve("deploy/sql/schema.sql");
         if (!Files.exists(localJar)) {
             throw new IllegalStateException("未找到 ETL 构建包：" + localJar.toAbsolutePath());
@@ -231,6 +234,7 @@ public class RemoteEtlService {
                     + " --event-name " + sh(EVENT_NAME)
                     + " --batch-id " + sh(batchId)
                     + " --etl-mode " + sh(etlMode)
+                    + " --sentiment-min-confidence " + sh(Double.toString(sentimentMinConfidence))
                     + (baseDetail == null ? "" : " --base-detail " + sh(baseDetail))
                     + " --jdbc-url " + sh("jdbc:mysql://" + databaseHost + ":3306/social_hotspot_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false")
                     + " --jdbc-user root --jdbc-password \"$DB_PASSWORD\""
@@ -346,10 +350,16 @@ public class RemoteEtlService {
     }
 
     private IncrementalCheckpoint readCheckpoint(Path path) throws Exception {
+        validateSentimentThreshold();
         if (!Files.isRegularFile(path)) return null;
         Properties properties = new Properties();
         try (InputStream input = Files.newInputStream(path)) {
             properties.load(input);
+        }
+        if (!"MODEL_BINARY_V2_VALIDATED_VOCAB".equals(properties.getProperty("sentimentPolicy"))
+                || !"TEXT_QUALITY_V2".equals(properties.getProperty("textQualityPolicy"))
+                || !Double.toString(sentimentMinConfidence).equals(properties.getProperty("sentimentMinConfidence"))) {
+            return null;
         }
         String batchId = properties.getProperty("batchId", "").trim();
         String header = properties.getProperty("header", "");
@@ -365,6 +375,9 @@ public class RemoteEtlService {
         properties.setProperty("committedBytes", Long.toString(checkpoint.committedBytes()));
         properties.setProperty("batchId", checkpoint.batchId());
         properties.setProperty("header", checkpoint.header());
+        properties.setProperty("sentimentPolicy", "MODEL_BINARY_V2_VALIDATED_VOCAB");
+        properties.setProperty("textQualityPolicy", "TEXT_QUALITY_V2");
+        properties.setProperty("sentimentMinConfidence", Double.toString(sentimentMinConfidence));
         try (OutputStream output = Files.newOutputStream(temp, StandardOpenOption.TRUNCATE_EXISTING)) {
             properties.store(output, "Raw CSV incremental ETL checkpoint");
         }
@@ -381,6 +394,12 @@ public class RemoteEtlService {
             if (line == null) throw new IllegalArgumentException("Raw CSV is empty: " + csv);
             byte[] bytes = line.getBytes(StandardCharsets.ISO_8859_1);
             return new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "").trim();
+        }
+    }
+
+    private void validateSentimentThreshold() {
+        if (!Double.isFinite(sentimentMinConfidence) || sentimentMinConfidence <= 0.5D || sentimentMinConfidence > 1D) {
+            throw new IllegalArgumentException("Sentiment minimum confidence must be in (0.5, 1]");
         }
     }
 

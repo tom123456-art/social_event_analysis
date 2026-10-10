@@ -13,7 +13,7 @@ import java.util.Map;
 public class AnalyticsCache {
     private static final Logger log = LoggerFactory.getLogger(AnalyticsCache.class);
     private static final Duration TTL = Duration.ofMinutes(30);
-    private static final String PREFIX = "social-hotspot:analytics:dashboard:category-evidence-v1:";
+    private static final String PREFIX = "social-hotspot:analytics:dashboard:binary-sentiment-v1:";
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
 

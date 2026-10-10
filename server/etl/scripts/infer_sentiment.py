@@ -1,9 +1,13 @@
 import argparse
 import csv
 import importlib.metadata
+import hashlib
+import json
+import inspect
 import os
 import sys
 from pathlib import Path
+from text_quality import FIELDS, VERSION as TEXT_QUALITY_VERSION, record_rejection_reason
 
 
 # Local/offline inference works with the installed hub APIs, while the current
@@ -18,22 +22,6 @@ import torch
 from transformers import BertForSequenceClassification, BertTokenizer
 
 
-NEUTRAL_MARKERS = (
-    "观望", "等通报", "等后续", "等消息", "不急着", "先看看", "先了解",
-    "理性看待", "不站队", "不评价", "持续关注", "让子弹飞", "看情况",
-    "等事实", "等官方", "等更多细节", "后续再说", "再看看", "不急着下结论",
-    "先收藏", "已收藏", "持续跟进",
-)
-NEGATIVE_MARKERS = (
-    "气愤", "失望", "心痛", "心寒", "无语", "破防", "心累", "气死", "愤怒",
-    "难过", "恶心", "伤心", "太离谱", "无法接受", "必须严查", "严惩", "追责",
-    "不能不了了之", "必须给个说法", "不支持", "不满意", "不开心",
-)
-POSITIVE_MARKERS = (
-    "爱了", "支持", "给力", "漂亮", "稳了", "好消息", "欣慰", "点赞", "认可",
-    "期待", "希望越来越好", "好评", "太棒", "开心", "正能量", "心情好了",
-    "经济向好", "正确的做法", "该有的样子", "值得肯定", "加油",
-)
 SUPPORTED_PLATFORMS = {
     "WEIBO", "SOHU_NEWS", "TENCENT_NEWS", "NETEASE_NEWS", "SINA_NEWS", "THE_PAPER",
 }
@@ -46,23 +34,27 @@ def parse_args():
     parser.add_argument("--model", required=True)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--chunk-size", type=int, default=4096)
-    parser.add_argument("--neutral-confidence", type=float, default=0.65)
+    parser.add_argument("--resume", action="store_true", help="Resume only matching binary inference output")
     return parser.parse_args()
 
 
-def has_any(text, markers):
-    return any(marker in text for marker in markers)
+def model_label(negative, positive):
+    return "positive" if positive >= negative else "negative"
 
 
-def final_label(text, raw_label, confidence, neutral_confidence):
-    # Negative phrases go first so "不支持" cannot match "支持".
-    if has_any(text, NEGATIVE_MARKERS):
-        return "negative"
-    if has_any(text, POSITIVE_MARKERS):
-        return "positive"
-    if has_any(text, NEUTRAL_MARKERS) or confidence < neutral_confidence:
-        return "neutral"
-    return raw_label
+def load_tokenizer(model_dir):
+    vocab_path = model_dir / "vocab.txt"
+    # Some vocabulary tokens contain Unicode line separators; only LF delimits IDs.
+    vocabulary = vocab_path.read_text(encoding="utf-8").rstrip("\n").split("\n")
+    if "vocab" in inspect.signature(BertTokenizer).parameters:
+        tokenizer = BertTokenizer(vocab={token: index for index, token in enumerate(vocabulary)}, do_lower_case=True)
+    else:
+        tokenizer = BertTokenizer(vocab_file=str(vocab_path), do_lower_case=True)
+    probe = tokenizer.tokenize("\u4eca\u5929\u5fc3\u60c5\u5f88\u597d")
+    if len(tokenizer) != len(vocabulary) or not probe or all(token == tokenizer.unk_token for token in probe):
+        raise ValueError("Tokenizer vocabulary was not loaded correctly; refusing inference")
+    print(f"tokenizer_vocab_size={len(tokenizer)} tokenizer_probe={probe}", flush=True)
+    return tokenizer
 
 
 def main():
@@ -74,7 +66,7 @@ def main():
     frame = pd.read_csv(
         args.input,
         encoding="utf-8-sig",
-        usecols=lambda name: name in {"platform", "content_id", "title", "content_text"},
+        usecols=lambda name: name in {"platform", "content_id", *FIELDS},
         dtype=str,
         keep_default_na=False,
     )
@@ -89,6 +81,9 @@ def main():
         frame["title"] = ""
     frame["title"] = frame["title"].str.strip()
     frame["content_text"] = frame["content_text"].str.strip()
+    text_damage = frame.apply(record_rejection_reason, axis=1)
+    print(f"text_quality_policy={TEXT_QUALITY_VERSION} text_damage_discarded={text_damage.notna().sum()}", flush=True)
+    frame = frame[text_damage.isna()].copy()
     frame["model_text"] = frame["content_text"]
     news_mask = frame["platform"] != "WEIBO"
     frame.loc[news_mask, "model_text"] = (frame.loc[news_mask, "title"] + "。" + frame.loc[news_mask, "content_text"]).str.strip("。 ")
@@ -104,18 +99,38 @@ def main():
         "platform", "content_id", "sentiment_label", "sentiment_positive_score",
         "sentiment_neutral_score", "sentiment_negative_score",
     ]
+    metadata_path = output_path.with_suffix(output_path.suffix + ".metadata.json")
+    with open(args.input, "rb") as input_file:
+        input_hash = hashlib.file_digest(input_file, "sha256").hexdigest()
+    metadata = {
+        "policy": "MODEL_BINARY_V2_VALIDATED_VOCAB",
+        "text_quality_policy": TEXT_QUALITY_VERSION,
+        "input_sha256": input_hash,
+        "model": str(model_dir),
+        "max_length": 256,
+    }
+    if output_path.exists() and output_path.stat().st_size > 0:
+        if not args.resume or not metadata_path.exists() or json.loads(metadata_path.read_text(encoding="utf-8")) != metadata:
+            raise ValueError("Output already exists or resume metadata differs; use a new output file for fresh binary inference")
+    metadata_path.write_text(json.dumps(metadata, ensure_ascii=True, indent=2), encoding="utf-8")
     if frame.empty:
         pd.DataFrame(columns=columns).to_csv(output_path, index=False, encoding="utf-8")
         print("sentiment_rows=0")
         return
 
-    tokenizer = BertTokenizer(vocab_file=str(model_dir / "vocab.txt"), do_lower_case=True)
+    tokenizer = load_tokenizer(model_dir)
     model = BertForSequenceClassification.from_pretrained(model_dir, local_files_only=True)
+    labels = {int(key): str(value).lower() for key, value in model.config.id2label.items()}
+    if labels != {0: "negative", 1: "positive"}:
+        raise ValueError(f"Unexpected model labels: {labels}")
+    if len(tokenizer) != model.config.vocab_size:
+        raise ValueError("Model and tokenizer vocabulary sizes differ")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()
     if device.type == "cuda":
         torch.set_float32_matmul_precision("high")
     batch_size = args.batch_size if device.type == "cuda" else min(args.batch_size, 8)
+    print(f"policy=MODEL_BINARY_V2_VALIDATED_VOCAB sentiment_input_rows={len(frame)} device={device} batch_size={batch_size}", flush=True)
 
     # Persist each chunk immediately so a long run can resume after a timeout.
     completed = set()
@@ -131,21 +146,16 @@ def main():
         chunk = pending.iloc[chunk_start:chunk_start + max(1, args.chunk_size)]
         results = []
         texts = chunk["model_text"].tolist()
-        platforms = chunk["platform"].tolist()
         with torch.inference_mode():
             for start in range(0, len(texts), batch_size):
                 batch_texts = texts[start:start + batch_size]
                 encoded = tokenizer(batch_texts, padding=True, truncation=True, max_length=256, return_tensors="pt")
                 encoded = {name: value.to(device) for name, value in encoded.items()}
                 probabilities = torch.softmax(model(**encoded).logits.float(), dim=-1).cpu()
-                for offset, (text, probability) in enumerate(zip(batch_texts, probabilities)):
+                for probability in probabilities:
                     negative = float(probability[0])
                     positive = float(probability[1])
-                    raw_label = "positive" if positive >= negative else "negative"
-                    platform = platforms[start + offset]
-                    label = final_label(text, raw_label, max(positive, negative), args.neutral_confidence) if platform == "WEIBO" else (raw_label if max(positive, negative) >= args.neutral_confidence else "neutral")
-                    neutral = max(0.0, 1.0 - max(positive, negative)) if label == "neutral" else 0.0
-                    results.append((label, positive, neutral, negative))
+                    results.append((model_label(negative, positive), positive, 0.0, negative))
         output = chunk[["platform", "content_id"]].copy()
         output["sentiment_label"] = [item[0] for item in results]
         output["sentiment_positive_score"] = [round(item[1], 6) for item in results]

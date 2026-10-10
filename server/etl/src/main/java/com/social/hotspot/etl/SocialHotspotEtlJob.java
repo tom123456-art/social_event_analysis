@@ -3,6 +3,8 @@ package com.social.hotspot.etl;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.api.java.UDF1;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.expressions.Window;
@@ -44,6 +46,10 @@ public class SocialHotspotEtlJob {
         String etlMode = params.getOrDefault("etl-mode", "full").trim().toLowerCase();
         boolean incremental = "incremental".equals(etlMode);
         String baseDetail = params.get("base-detail");
+        double sentimentMinConfidence = Double.parseDouble(params.getOrDefault("sentiment-min-confidence", "0.90"));
+        if (!Double.isFinite(sentimentMinConfidence) || sentimentMinConfidence <= 0.5D || sentimentMinConfidence > 1D) {
+            throw new IllegalArgumentException("Sentiment minimum confidence must be in (0.5, 1]");
+        }
         if (incremental && (warehouseOutput == null || warehouseOutput.isBlank()
                 || baseDetail == null || baseDetail.isBlank())) {
             throw new IllegalArgumentException("Incremental ETL requires --warehouse-output and --base-detail");
@@ -67,6 +73,7 @@ public class SocialHotspotEtlJob {
             Dataset<Row> raw = ensureColumns(parsed, "event_id", "event_name", "url", "source_url", "parent_content_id")
                     .withColumn("event_id", coalesce(nullIfBlank(col("event_id")), lit(eventId)))
                     .withColumn("event_name", lit(eventName).substr(1, 200));
+            raw = raw.withColumn("text_quality_reason", textQualityReason(raw));
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "RawToOdsJob", "ODS", sourceCount, sourceCount, "SUCCESS", null);
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityStructural", "DWD", sourceCount,
                     sourceCount - structuralDirtyCount, "SUCCESS", null);
@@ -76,11 +83,21 @@ public class SocialHotspotEtlJob {
             long textRepairedCount = normalized.filter(col("text_normalized")).count();
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityTextNormalization", "DWD", sourceCount,
                     textRepairedCount, "SUCCESS", null);
+            long textRejectedCount = raw.filter(col("text_quality_reason").isNotNull()).count();
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityTextEncoding", "DWD", sourceCount,
+                    sourceCount - textRejectedCount, "SUCCESS", null);
+            System.out.println("text_quality_policy=" + TextQuality.version() + " text_damage_discarded=" + textRejectedCount);
+            if (textRejectedCount > 0 && warehouseOutput != null && !warehouseOutput.isBlank()) {
+                raw.filter(col("text_quality_reason").isNotNull()).withColumn("batch_id", lit(batchId))
+                        .write().mode(SaveMode.ErrorIfExists).parquet(warehouseOutput
+                                + "/quarantine/text_encoding/batch_id=" + batchId);
+            }
             Column meaningfulChars = regexp_replace(col("clean_text"), "[^\\p{IsHan}A-Za-z0-9]", "");
             Column compactChars = regexp_replace(col("clean_text"), "\\s+", "");
             // Optional interaction fields and keyword punctuation are repaired during normalization.
             // They should not invalidate otherwise usable news content.
             Dataset<Row> qualityCandidates = normalized
+                    .filter(col("text_quality_reason").isNull())
                     .filter(col("event_id").isNotNull())
                     .filter(col("platform").isin("TENCENT_NEWS", "NETEASE_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER", "WEIBO"))
                     .filter(not(col("platform").equalTo("WEIBO")).or(length(regexp_replace(col("content_text"), "[^\\p{IsHan}A-Za-z0-9]", "")).geq(1)))
@@ -97,7 +114,7 @@ public class SocialHotspotEtlJob {
             Dataset<Row> ranked = qualityCandidates.withColumn("_dedupe_rank", row_number().over(dedupeWindow));
             long duplicateCount = ranked.filter(col("_dedupe_rank").gt(1)).count();
             Dataset<Row> valid = ranked.filter(col("_dedupe_rank").equalTo(1)).drop("_dedupe_rank", "has_invalid_numeric",
-                    "is_structurally_invalid", "has_invalid_content_id", "is_potentially_truncated", "text_normalized");
+                    "is_structurally_invalid", "has_invalid_content_id", "is_potentially_truncated", "text_normalized", "text_quality_reason");
             Dataset<Row> sentimentAnalyzed = applySentimentResults(valid, readSentimentInput(spark, sentimentInput));
             long missingSentimentCount = sentimentAnalyzed
                     .filter(col("platform").isin("WEIBO", "SOHU_NEWS", "TENCENT_NEWS", "NETEASE_NEWS", "SINA_NEWS", "THE_PAPER")
@@ -106,26 +123,49 @@ public class SocialHotspotEtlJob {
             if (missingSentimentCount > 0) {
                 throw new IllegalStateException("Missing Erlangshen results for " + missingSentimentCount + " supported records");
             }
-            sentimentAnalyzed = sentimentAnalyzed
-                    .withColumn("sentiment_label", coalesce(col("sentiment_label"), lit("neutral")))
-                    .withColumn("sentiment_positive_score", coalesce(col("sentiment_positive_score"), lit(0D)))
-                    .withColumn("sentiment_neutral_score", coalesce(col("sentiment_neutral_score"), lit(1D)))
-                    .withColumn("sentiment_negative_score", coalesce(col("sentiment_negative_score"), lit(0D)))
+            long invalidScores = sentimentAnalyzed.filter(not(validBinarySentiment())).count();
+            if (invalidScores > 0) {
+                throw new IllegalStateException("Invalid binary model results for " + invalidScores + " records; rebuild sentiment input");
+            }
+            long beforeConfidenceFilter = candidateCount - duplicateCount;
+            Dataset<Row> scoredIncoming = sentimentAnalyzed;
+            sentimentAnalyzed = sentimentAnalyzed.filter(highConfidenceSentiment(sentimentMinConfidence))
+                    .withColumn("sentiment_neutral_score", lit(0D))
                     .persist(StorageLevel.MEMORY_AND_DISK());
             long processedValidCount = sentimentAnalyzed.count();
+            long confidenceRejectedCount = beforeConfidenceFilter - processedValidCount;
+            dirtyCount += confidenceRejectedCount;
+            logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "SentimentConfidenceFilter", "DWD",
+                    beforeConfidenceFilter, processedValidCount, "SUCCESS", null);
+            System.out.println("sentiment_min_confidence=" + sentimentMinConfidence
+                    + " retained=" + processedValidCount + " low_confidence_discarded=" + confidenceRejectedCount);
+            if (processedValidCount == 0 && !incremental) {
+                throw new IllegalStateException("No records meet sentiment confidence threshold; existing analysis was not replaced");
+            }
             Dataset<Row> completeCore = sentimentAnalyzed;
             if (incremental) {
                 Dataset<Row> previous = alignToSchema(spark.read().parquet(baseDetail), sentimentAnalyzed);
-                Dataset<Row> combined = previous.unionByName(sentimentAnalyzed, true);
+                Dataset<Row> damagedKeys = normalized.filter(col("text_quality_reason").isNotNull())
+                        .select("event_id", "platform", "content_id", "content_type").distinct();
+                previous = previous.join(damagedKeys,
+                        new String[]{"event_id", "platform", "content_id", "content_type"}, "left_anti");
+                previous = previous.filter(textQualityReason(previous).isNull());
+                // Merge before filtering so a newer low-confidence version cannot retain an old prediction.
+                Dataset<Row> combined = previous.unionByName(scoredIncoming, true);
                 WindowSpec mergeWindow = Window.partitionBy("event_id", "platform", "content_id", "content_type")
                         .orderBy(col("crawl_time").desc_nulls_last(), col("publish_time").desc_nulls_last());
                 Dataset<Row> merged = combined.withColumn("_merge_rank", row_number().over(mergeWindow));
                 long mergeDuplicates = merged.filter(col("_merge_rank").gt(1)).count();
                 duplicateCount += mergeDuplicates;
-                completeCore = merged.filter(col("_merge_rank").equalTo(1)).drop("_merge_rank");
+                completeCore = merged.filter(col("_merge_rank").equalTo(1)).drop("_merge_rank")
+                        .filter(highConfidenceSentiment(sentimentMinConfidence))
+                        .withColumn("sentiment_neutral_score", lit(0D));
             }
             Dataset<Row> detail = buildPlatformRelativeHeat(completeCore).persist(StorageLevel.MEMORY_AND_DISK());
             long fullValidCount = detail.count();
+            if (fullValidCount == 0) {
+                throw new IllegalStateException("No retained records; existing analysis was not replaced");
+            }
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityUniqueness", "DWD", candidateCount, processedValidCount, "SUCCESS", null);
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "OdsToDwdCleanJob", "DWD", sourceCount, processedValidCount, "SUCCESS", null);
             if (warehouseOutput != null && !warehouseOutput.isBlank()) {
@@ -394,6 +434,7 @@ public class SocialHotspotEtlJob {
                         safeCol(raw, "_corrupt_record").isNotNull().alias("is_structurally_invalid"),
                         not(coalesce(nullIfBlank(safeCol(raw, "content_id")), lit("")).rlike("^[A-Za-z0-9_-]{3,128}$")).alias("has_invalid_content_id"),
                         hasPotentialTruncation(raw).alias("is_potentially_truncated"),
+                        safeCol(raw, "text_quality_reason").alias("text_quality_reason"),
                         requiresTextNormalization(raw).alias("text_normalized")
                 )
                 .withColumn("time_bucket", date_trunc("hour", col("publish_time")))
@@ -508,6 +549,33 @@ public class SocialHotspotEtlJob {
                 lit(" "), lpad(hour, 2, "0"), lit(":"), minute, lit(":"),
                 when(length(second).equalTo(0), lit("00")).otherwise(second));
         return to_timestamp(canonical, "yyyy-MM-dd HH:mm:ss");
+    }
+
+    private static Column validBinarySentiment() {
+        Column positive = col("sentiment_positive_score");
+        Column negative = col("sentiment_negative_score");
+        Column expectedLabel = when(positive.geq(negative), lit("positive")).otherwise(lit("negative"));
+        return coalesce(positive.isNotNull().and(negative.isNotNull())
+                .and(not(isnan(positive))).and(not(isnan(negative)))
+                .and(positive.between(0D, 1D)).and(negative.between(0D, 1D))
+                .and(abs(positive.plus(negative).minus(1D)).leq(0.000002D))
+                .and(col("sentiment_label").equalTo(expectedLabel)), lit(false));
+    }
+
+    private static Column textQualityReason(Dataset<Row> data) {
+        String[] fields = {"title", "content_text", "author_name", "keywords", "category"};
+        Column reason = lit(null).cast("string");
+        var detect = udf((UDF1<String, String>) TextQuality::rejectionReason, DataTypes.StringType);
+        for (String field : fields) {
+            Column original = safeCol(data, field);
+            if ("content_text".equals(field) && !hasColumn(data, field)) original = safeCol(data, "clean_text");
+            reason = coalesce(reason, concat(lit(field + ":"), detect.apply(original.cast("string"))));
+        }
+        return reason;
+    }
+
+    private static Column highConfidenceSentiment(double minimum) {
+        return validBinarySentiment().and(greatest(col("sentiment_positive_score"), col("sentiment_negative_score")).geq(minimum));
     }
 
     private static Dataset<Row> readSentimentInput(SparkSession spark, String input) {

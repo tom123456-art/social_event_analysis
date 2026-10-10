@@ -278,7 +278,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
             String platform = normalizePlatform(row.get("platform"));
-            String label = String.valueOf(row.getOrDefault("sentiment_label", "neutral"));
+            String label = String.valueOf(row.getOrDefault("sentiment_label", "unknown"));
+            if (!"positive".equals(label) && !"negative".equals(label)) continue;
             String time = String.valueOf(row.getOrDefault("time_bucket", ""));
             Map<String, Object> target = grouped.computeIfAbsent(time + "::" + platform + "::" + label, key -> {
                 Map<String, Object> item = new LinkedHashMap<>();

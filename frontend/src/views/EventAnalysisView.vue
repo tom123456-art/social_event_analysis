@@ -7,10 +7,7 @@
         <p>各平台按自身可用互动字段计算内容热度，跨平台只比较平台内相对位置。</p>
       </div>
       <div class="analysis-actions">
-        <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
-        <el-select v-else v-model="eventId" style="width:260px" @change="load">
-          <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
-        </el-select>
+        <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
         <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
       </div>
     </div>
@@ -106,12 +103,12 @@ import ChartBox from '../components/ChartBox.vue'
 import MetricGrid from '../components/MetricGrid.vue'
 import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
 
 const platformColors: Record<string, string> = {
   TENCENT_NEWS: '#2563eb', NETEASE_NEWS: '#172033', SOHU_NEWS: '#d97706', SINA_NEWS: '#7c3aed', THE_PAPER: '#0f766e'
 }
-const events = ref<any[]>([])
-const eventId = ref('public_rss_latest')
+const eventId = ref(ANALYSIS_EVENT_ID)
 const data = ref<any>({})
 const trendContentRows = ref<any[]>([])
 const refreshing = ref(false)
@@ -155,7 +152,7 @@ const scopedHeatRows = computed(() => {
 })
 const heatDates = computed(() => [...new Set(scopedHeatRows.value.map(row => row.day))].sort())
 const visiblePlatforms = computed(() => selectedPlatform.value === 'ALL' ? platforms.value : [selectedPlatform.value])
-const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件传播分析')
+const currentEventName = ANALYSIS_EVENT_NAME
 
 const summaryRows = computed(() => visiblePlatforms.value.map(platform => {
   const rows = scopedHeatRows.value.filter(row => row.platform === platform)
@@ -364,8 +361,6 @@ async function refreshData() {
 }
 
 onMounted(async () => {
-  events.value = await getData('/events').catch(() => [])
-  eventId.value = events.value.find(item => item.event_id === 'public_rss_latest')?.event_id || events.value[0]?.event_id || eventId.value
   await load().catch(() => ElMessage.error('读取热点趋势失败'))
 })
 useDatabaseAutoRefresh(load)

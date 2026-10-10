@@ -5,10 +5,7 @@
         <span class="front-kicker">公开前台</span>
         <h1>{{ currentEventName }}</h1>
         <div class="portal-search">
-          <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
-          <el-select v-else v-model="eventId" @change="load">
-            <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
-          </el-select>
+          <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
           <el-input v-model="keyword" placeholder="搜索标题、正文、关键词" clearable />
           <el-button class="database-refresh-button" type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
           <el-button @click="router.push('/contents')">查看明细</el-button>
@@ -126,10 +123,10 @@ import ChartBox from '../components/ChartBox.vue'
 import MetricGrid from '../components/MetricGrid.vue'
 import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
 
 const router = useRouter()
-const events = ref<any[]>([])
-const eventId = ref('public_rss_latest')
+const eventId = ref(ANALYSIS_EVENT_ID)
 const platform = ref('全部')
 const category = ref('全部')
 const keyword = ref('')
@@ -141,7 +138,7 @@ const refreshing = ref(false)
 const realContents = computed<any[]>(() => dashboard.value.realPublicContents || [])
 const displayContents = computed<any[]>(() => realContents.value)
 const totalContentCount = computed(() => Number(dashboard.value.overview?.content_count || 0))
-const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件融合分析')
+const currentEventName = ANALYSIS_EVENT_NAME
 const sourceCount = computed(() => Number(dashboard.value.overview?.platform_count || new Set(displayContents.value.map(item => canonicalPlatform(item.platform)).filter(Boolean)).size))
 const platformOptions = computed(() => [...new Set(displayContents.value.map(item => canonicalPlatform(item.platform)).filter(Boolean))])
 // Keep all seven portal filters visible even when the current preview page
@@ -303,8 +300,6 @@ function coverGradient(row: any) {
 }
 
 onMounted(async () => {
-  events.value = await getData('/events').catch(() => [])
-  eventId.value = events.value.find(item => item.event_id === 'public_rss_latest')?.event_id || events.value[0]?.event_id || eventId.value
   await load().catch(() => ElMessage.error('读取前台热点门户失败'))
 })
 

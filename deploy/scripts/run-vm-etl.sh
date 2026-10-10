@@ -19,7 +19,7 @@ cd "$SPARK_HOME/bin"
   --class com.social.hotspot.etl.SocialHotspotEtlJob \
   --master spark://192.168.154.121:7077 \
   --driver-memory 768m \
-  "$APP_HOME/etl/target/social-hotspot-etl-1.0.0-SNAPSHOT.jar" \
+  "$APP_HOME/server/etl/target/social-hotspot-etl-1.0.0-SNAPSHOT.jar" \
   --input "file://$RAW_INPUT" \
   --sentiment-input "file://$SENTIMENT_INPUT" \
   --event-id public_rss_latest \

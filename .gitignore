@@ -9,8 +9,7 @@ frontend/.vite/
 
 # Runtime logs and local IDE files
 *.log
-logs/
-tmp/
+runtime/
 .idea/
 .vscode/
 
@@ -23,7 +22,7 @@ data/crawler/.*.etl-checkpoint.properties
 tools/*.exe
 
 # Local backend runtime model copy
-etl/models/Erlangshen-Roberta-330M-Sentiment/.cache/
-etl/models/Erlangshen-Roberta-330M-Sentiment/*.bin
-etl/models/Erlangshen-Roberta-330M-Sentiment/*.safetensors
-backend/etl/
+server/etl/models/Erlangshen-Roberta-330M-Sentiment/.cache/
+server/etl/models/Erlangshen-Roberta-330M-Sentiment/*.bin
+server/etl/models/Erlangshen-Roberta-330M-Sentiment/*.safetensors
+server/backend/etl/

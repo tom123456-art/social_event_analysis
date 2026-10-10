@@ -3,21 +3,18 @@
     <div class="analysis-page-head">
       <div>
         <span>关键词分析</span>
-        <h2>跨主题关注与采编建议</h2>
+        <h2>新闻主题与互动关注观察</h2>
         <p>以新闻内容的互动总量为热度，按关键词共现关系归并主题簇，避免同一主题重复进入 Top N。</p>
       </div>
       <div class="analysis-actions">
-        <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
-        <el-select v-else v-model="eventId" style="width:280px" @change="load">
-          <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
-        </el-select>
+        <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
         <el-button type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
       </div>
     </div>
 
     <div class="grid third">
       <section class="analysis-card keyword-cloud-card">
-        <div class="card-title">主题关键词云 <span>Top25 独立主题</span></div>
+        <div class="card-title">主题关键词云 <span>Top25 议题词簇</span></div>
         <div class="category-legend" aria-label="类别图例">
           <button v-for="category in categoryLegend" :key="category.name" type="button" :class="{ muted: hiddenCloudCategories.has(category.name) }" @click="toggleCloudCategory(category.name)">
             <i :style="{ background: category.color }"></i>{{ category.name }}
@@ -98,12 +95,21 @@
 
     <div class="grid half equal-grid" style="margin-top:12px">
       <section class="analysis-card keyword-quadrant-card">
-        <div class="card-title">话题供需效率四象限图 <span>供给为内容篇数，需求效率为单篇平均互动</span></div>
+        <div class="card-title">话题报道量与互动关注分布</div>
+        <div class="observation-filters">
+          <el-select v-model="observationPlatform" aria-label="观察平台"><el-option v-for="platform in NEWS_PLATFORMS" :key="platform" :label="platformName(platform)" :value="platform" /></el-select>
+          <el-select v-model="observationMetric" aria-label="互动指标"><el-option v-for="metric in INTERACTION_METRICS" :key="metric.field" :label="metric.label" :value="metric.field" /></el-select>
+          <el-date-picker v-model="observationRange" type="daterange" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" :clearable="false" />
+        </div>
+        <p class="observation-note">{{ observationScopeText }} · {{ observationRecords.length }} 篇新闻 · {{ observationTopics.length }} 个词簇（至少 3 篇报道）。图中各象限按报道量取前 5 个，共 {{ quadrantTopics.length }} 个。数据范围：最近 {{ rows.length }} 条新闻（上限 10000 条），非全量报道。</p>
+        <p class="observation-note">分界中位数：报道量 {{ decimal(supplyMedian) }} 篇 / 单篇{{ metricLabel }} {{ decimal(demandMedian) }} 次；基于当前范围内全部互动有效词簇。高低仅为样本内比较，不代表公众需求或风险等级。</p>
         <ChartBox class="keyword-quadrant-chart" :option="keywordQuadrantOption" @chart-click="handleQuadrantClick" />
+        <p class="observation-note">互动缺失不计入平均数；入库值为 0 的按 0 计算，历史采集若已将缺失写成 0，则无法追溯区分。{{ missingObservationTopics.length }} 个词簇无有效互动，未绘制；不同词簇可能包含同一篇新闻。</p>
+        <div class="observation-topic-list"><button v-for="topic in quadrantTopics" :key="topic.keyword" type="button" @click="openTopicEvidence(topic)"><b>{{ topic.keyword }}</b><span>{{ topic.content_count }} 篇 / {{ topic.valid_count }} 篇互动有效</span><span>{{ observationPosition(topic, supplyMedian, demandMedian) }}</span></button></div>
       </section>
 
       <section class="analysis-card table-card keyword-table-card">
-        <div class="card-title">主题关键词观察清单 <span>代表词点击后联动图表</span></div>
+        <div class="card-title">主题关键词观察清单 <span>五平台样本概览</span></div>
         <div class="keyword-table-tools">
           <el-input v-model="tableQuery" placeholder="按关键词搜索" clearable />
           <el-select v-model="tableCategory" aria-label="按类别筛选">
@@ -128,7 +134,7 @@
                   <span class="heat-heading">累计热度 <b>?</b></span>
                 </el-tooltip>
               </th>
-              <th>关注结论</th>
+              <th>当前平台时段观察</th>
             </tr>
           </thead>
           <tbody>
@@ -145,6 +151,17 @@
         <el-pagination class="table-pagination" v-model:current-page="keywordPage" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredTopics.length" />
       </section>
     </div>
+    <el-dialog v-model="evidenceVisible" :title="evidenceTopic ? `${evidenceTopic.keyword} · 新闻与计算依据` : '计算依据'" width="min(900px, 94vw)">
+      <template v-if="evidenceTopic">
+        <p>{{ evidenceScope }} · 主题词：{{ evidenceTopic.cluster_label }}</p>
+        <p>报道量 {{ evidenceTopic.content_count }} 篇；互动有效 {{ evidenceTopic.valid_count }} 篇，缺失 {{ evidenceTopic.missing_count }} 篇。</p>
+        <p v-if="evidenceTopic.valid_count">平均{{ evidenceMetricLabel }} = {{ decimal(evidenceTopic.interaction_total) }} 次 ÷ {{ evidenceTopic.valid_count }} 篇 = {{ decimal(evidenceTopic.average_interaction) }} 次/篇。</p>
+        <p v-else>无有效互动值，无法计算平均数或划分象限。</p>
+        <p>{{ evidencePosition }}；报道量中位数 {{ decimal(evidenceCountMedian) }} 篇，平均互动中位数 {{ decimal(evidenceInteractionMedian) }} 次/篇。</p>
+        <div class="topic-evidence-list"><article v-for="row in evidenceArticles" :key="row.id"><a v-if="safeSourceUrl(row.source.source_url)" :href="safeSourceUrl(row.source.source_url)" target="_blank" rel="noopener noreferrer">{{ row.source.title || row.source.content_id }}</a><b v-else>{{ row.source.title || row.source.content_id }}</b><small>{{ row.day }} · {{ evidenceMetricLabel }} {{ decimal(numericInteraction(row.source[evidenceField])) }} 次</small><span v-if="!safeSourceUrl(row.source.source_url)">未提供有效原文链接</span></article></div>
+        <el-pagination v-model:current-page="evidencePage" :page-size="10" layout="total, prev, pager, next" :total="evidenceTopic.articles.length" />
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -155,6 +172,8 @@ import { ElMessage } from 'element-plus'
 import ChartBox from '../components/ChartBox.vue'
 import { clearGetCache, getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
+import { INTERACTION_METRICS, isContextOnlyKeyword, numericInteraction, observeTopics, observationPosition, representativeTopics, topicMedian } from '../utils/topicObservation'
 
 type Granularity = 'day' | 'week'
 
@@ -163,10 +182,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   财经: '#2563eb', 政治: '#7c3aed', 文娱: '#db2777', 综合: '#64748b', 社会: '#ea580c', 体育: '#16a34a', 科技: '#0f766e'
 }
 const CATEGORY_NAMES = ['财经', '政治', '文娱', '综合', '社会', '体育', '科技']
+const TOPIC_LINE_COLORS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#16a34a', '#be123c']
 const STOPWORDS = new Set(['没有', '为什么', '就是', '不是', '这个', '发文', '感谢', '不要', '除了', '还有', '运气', '切片', '包场'])
 
-const events = ref<any[]>([])
-const eventId = ref('public_rss_latest')
+const eventId = ref(ANALYSIS_EVENT_ID)
 const refreshing = ref(false)
 const rows = ref<any[]>([])
 const selectedTopic = ref('')
@@ -177,19 +196,33 @@ const tableSort = ref('heat')
 const keywordPage = ref(1)
 const pageSize = 8
 const hiddenCloudCategories = ref(new Set<string>())
+const observationPlatform = ref('TENCENT_NEWS')
+const observationMetric = ref('like_count')
+const observationRange = ref<string[]>([])
+const evidenceVisible = ref(false)
+const evidenceTopic = ref<any>(null)
+const evidencePage = ref(1)
+const evidenceScope = ref('')
+const evidenceField = ref('like_count')
+const evidenceMetricLabel = ref('点赞')
+const evidenceCountMedian = ref<number | null>(null)
+const evidenceInteractionMedian = ref<number | null>(null)
+const evidencePosition = ref('')
+const evidenceArticles = computed(() => evidenceTopic.value?.articles.slice((evidencePage.value - 1) * 10, evidencePage.value * 10) || [])
 
-const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件融合分析')
+const currentEventName = ANALYSIS_EVENT_NAME
 const categoryNames = computed(() => CATEGORY_NAMES)
 const categoryLegend = computed(() => CATEGORY_NAMES.map(name => ({ name, color: CATEGORY_COLORS[name] })))
 
 const contentRecords = computed(() => {
   const uniqueRows = new Map<string, any>()
   rows.value.forEach((row, index) => {
-    const id = String(row.content_id || `row-${index}`)
+    const id = `${row.platform}:${row.content_id || `row-${index}`}`
     if (!uniqueRows.has(id)) uniqueRows.set(id, row)
   })
   return [...uniqueRows.values()].map((row, index) => ({
-    id: String(row.content_id || `row-${index}`),
+    id: `${row.platform}:${row.content_id || `row-${index}`}`,
+    source: row,
     platform: String(row.platform || ''),
     category: categoryName(row.category_label || row.category),
     day: dayKey(row.publish_time),
@@ -256,7 +289,7 @@ const topicClusters = computed(() => {
     const sorted = [...members].sort((left, right) => Number(rawByKeyword.get(right)?.content_count || 0) - Number(rawByKeyword.get(left)?.content_count || 0)
       || Number(rawByKeyword.get(right)?.heat_total || 0) - Number(rawByKeyword.get(left)?.heat_total || 0)
       || left.localeCompare(right))
-    return { keyword: sorted[0], members: sorted, cluster_label: sorted.slice(0, 5).join('、') }
+      return { keyword: sorted[0], members: sorted, cluster_label: sorted.slice(0, 5).join('、') }
   })
 })
 
@@ -305,7 +338,7 @@ const topicInsights = computed(() => {
   })).sort((left, right) => right.heat_total - left.heat_total || right.content_count - left.content_count)
 })
 
-const topTopics = computed(() => topicInsights.value)
+const topTopics = computed(() => topicInsights.value.filter(topic => !isContextOnlyKeyword(topic.keyword)))
 const cloudTopics = computed(() => topTopics.value.filter(topic => !hiddenCloudCategories.value.has(topic.category_top)).slice(0, 25))
 const trendTopics = computed(() => {
   const primary = topTopics.value.slice(0, 8)
@@ -319,26 +352,29 @@ const platformTopics = computed(() => topTopics.value.slice(0, 10))
 const trendBuckets = computed(() => [...new Set(contentRecords.value.map(row => bucketKey(row.day, trendGranularity.value)).filter(Boolean))].sort())
 const trendSeries = computed(() => trendTopics.value.map(topic => ({
   name: topic.keyword,
+  color: TOPIC_LINE_COLORS[topTopics.value.findIndex(item => item.keyword === topic.keyword) % TOPIC_LINE_COLORS.length],
   data: trendBuckets.value.map(bucket => bucketCount(topic, bucket, trendGranularity.value))
 })))
 const keywordTrendOption = computed(() => ({
-  color: ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#16a34a', '#be123c'],
+  color: TOPIC_LINE_COLORS,
   tooltip: { trigger: 'axis', formatter: (params: any[]) => `${params[0]?.axisValue || ''}<br/>${params.map(item => `${item.marker}${item.seriesName}：<b>${item.value}</b> 篇`).join('<br/>')}` },
   legend: { top: 0, type: 'scroll', data: trendSeries.value.map(item => item.name), textStyle: { color: '#475569' } },
   grid: { left: 44, right: 16, top: 44, bottom: 32 },
   xAxis: { type: 'category', boundaryGap: false, data: trendBuckets.value, axisLabel: { color: '#64748b', hideOverlap: true } },
   yAxis: { type: 'value', minInterval: 1, max: (value: any) => Math.max(1, Math.ceil(value.max * 1.2)), axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e5eaf1' } } },
   series: trendSeries.value.map(item => {
-    const highlighted = !selectedTopic.value || item.name === selectedTopic.value
     return {
       name: item.name,
       type: 'line',
       smooth: true,
       symbol: 'circle',
       symbolSize: selectedTopic.value === item.name ? 7 : 4,
-      z: selectedTopic.value === item.name ? 5 : 1,
-      lineStyle: { width: selectedTopic.value === item.name ? 4 : 2, opacity: highlighted ? 1 : .24 },
-      itemStyle: { opacity: highlighted ? 1 : .24 },
+      zlevel: 0,
+      z: 3,
+      lineStyle: { color: item.color, width: selectedTopic.value === item.name ? 4 : 2, opacity: 1 },
+      itemStyle: { color: item.color, opacity: 1 },
+      emphasis: { focus: 'none', lineStyle: { opacity: 1 }, itemStyle: { opacity: 1 } },
+      blur: { lineStyle: { opacity: 1 }, itemStyle: { opacity: 1 } },
       data: item.data
     }
   })
@@ -373,28 +409,39 @@ const emergingTopics = computed(() => momentumTopics.value.filter(topic => topic
 const decliningTopics = computed(() => momentumTopics.value.filter(topic => topic.previous_count > 0 && topic.growth < 0)
   .sort((left, right) => left.growth - right.growth || left.current_count - right.current_count).slice(0, 10))
 
-const quadrantTopics = computed(() => topTopics.value.slice(0, 15).map(topic => ({
-  ...topic,
-  demand_efficiency: interactionPerContent(topic)
-})))
-const supplyMedian = computed(() => median(quadrantTopics.value.map(topic => topic.content_count)))
-const demandMedian = computed(() => median(quadrantTopics.value.map(topic => topic.demand_efficiency)))
+const availableDates = computed(() => [...new Set(contentRecords.value.map(row => row.day).filter(Boolean))].sort())
+function setObservationRange() {
+  if (observationRange.value.length === 2 || !availableDates.value.length) return
+  const latest = availableDates.value.at(-1) as string
+  observationRange.value = [availableDates.value[0], latest]
+}
+const observationRecords = computed(() => {
+  const [start, end] = observationRange.value
+  return contentRecords.value.filter(row => row.platform === observationPlatform.value && (!start || !end || (row.day >= start && row.day <= end)))
+})
+const observationTopics = computed(() => observeTopics(topTopics.value, observationRecords.value, observationMetric.value).filter(topic => topic.content_count >= 3))
+const missingObservationTopics = computed(() => observationTopics.value.filter(topic => topic.average_interaction === null))
+const supplyMedian = computed(() => topicMedian(observationTopics.value.filter(topic => topic.average_interaction !== null).map(topic => topic.content_count)))
+const demandMedian = computed(() => topicMedian(observationTopics.value.map(topic => topic.average_interaction).filter((value): value is number => value !== null)))
+const quadrantTopics = computed(() => representativeTopics(observationTopics.value, supplyMedian.value, demandMedian.value))
+const metricLabel = computed(() => INTERACTION_METRICS.find(item => item.field === observationMetric.value)?.label || '互动')
+const observationScopeText = computed(() => `${platformName(observationPlatform.value)} · ${observationRange.value[0] || '-'} 至 ${observationRange.value[1] || '-'} · 单一${metricLabel.value}`)
 const keywordQuadrantOption = computed(() => {
   const topics = quadrantTopics.value
-  const maxSupply = Math.max(1, ...topics.map(topic => topic.content_count))
-  const maxDemand = Math.max(1, ...topics.map(topic => topic.demand_efficiency))
+  const maxSupply = Math.max(1, supplyMedian.value || 0, ...topics.map(topic => topic.content_count))
+  const maxDemand = Math.max(1, demandMedian.value || 0, ...topics.map(topic => topic.average_interaction || 0))
   return {
     tooltip: {
       formatter: (params: any) => {
         const topic = params.data
         if (!topic) return ''
-        return `<b>${topic.name}</b><br/>内容供给：<b>${topic.content_count}</b> 篇<br/>需求效率：<b>${formatNumber(topic.demand_efficiency)}</b> / 篇<br/>覆盖作者：<b>${topic.author_count}</b><br/>所属簇：${topic.cluster_label}`
+        return `<b>${escapeHtml(topic.name)}</b><br/>报道量：<b>${topic.content_count}</b> 篇<br/>${metricLabel.value}有效：<b>${topic.valid_count}</b> 篇<br/>平均${metricLabel.value}：<b>${decimal(topic.average_interaction)}</b> 次/篇<br/>${observationPosition(topic, supplyMedian.value, demandMedian.value)}`
       }
     },
     grid: { left: 78, right: 24, top: 54, bottom: 76, containLabel: true },
     xAxis: {
       type: 'value',
-      name: '内容供给（篇）',
+      name: '报道量（篇）',
       nameLocation: 'middle',
       nameGap: 34,
       nameTextStyle: { color: '#334155', fontWeight: 700 },
@@ -404,7 +451,7 @@ const keywordQuadrantOption = computed(() => {
     },
     yAxis: {
       type: 'value',
-      name: '需求效率（平均互动）',
+      name: `单篇${metricLabel.value}（次）`,
       nameLocation: 'middle',
       nameGap: 52,
       nameTextStyle: { color: '#334155', fontWeight: 700 },
@@ -413,25 +460,27 @@ const keywordQuadrantOption = computed(() => {
       splitLine: { lineStyle: { color: '#e2e8f0' } }
     },
     graphic: topics.length ? [
-      { type: 'text', left: '9%', top: 5, style: { text: '低供给高互动 → 加大产出', fill: '#b91c1c', fontSize: 12, fontWeight: 700 } },
-      { type: 'text', right: '7%', top: 5, style: { text: '高供给高互动 → 维持产出', fill: '#166534', fontSize: 12, fontWeight: 700 } },
-      { type: 'text', left: '9%', bottom: 3, style: { text: '低供给低互动 → 暂不投入', fill: '#64748b', fontSize: 12, fontWeight: 700 } },
-      { type: 'text', right: '7%', bottom: 3, style: { text: '高供给低互动 → 缩减产出', fill: '#b45309', fontSize: 12, fontWeight: 700 } }
-    ] : [{ type: 'text', left: 'center', top: 'middle', style: { text: '暂无可用于供需分析的主题数据', fill: '#64748b', fontSize: 14 } }],
+      { type: 'text', left: '9%', top: 5, style: { text: '报道较少 · 互动较高', fill: '#b91c1c', fontSize: 12, fontWeight: 700 } },
+      { type: 'text', right: '7%', top: 5, style: { text: '报道较多 · 互动较高', fill: '#166534', fontSize: 12, fontWeight: 700 } },
+      { type: 'text', left: '9%', bottom: 3, style: { text: '报道较少 · 互动较低', fill: '#64748b', fontSize: 12, fontWeight: 700 } },
+      { type: 'text', right: '7%', bottom: 3, style: { text: '报道较多 · 互动较低', fill: '#b45309', fontSize: 12, fontWeight: 700 } }
+    ] : [{ type: 'text', left: 'center', top: 'middle', style: { text: '当前范围暂无互动有效的主题数据', fill: '#64748b', fontSize: 14 } }],
     series: CATEGORY_NAMES.map((category, index) => ({
       name: category,
       type: 'scatter',
       data: topics.filter(topic => topic.category_top === category).map(topic => ({
         name: topic.keyword,
-        value: [topic.content_count, topic.demand_efficiency, topic.author_count],
+        value: [topic.content_count, topic.average_interaction, topic.author_count],
         content_count: topic.content_count,
-        demand_efficiency: topic.demand_efficiency,
+        average_interaction: topic.average_interaction,
+        valid_count: topic.valid_count,
         author_count: topic.author_count,
         cluster_label: topic.cluster_label
       })),
-      symbolSize: (value: number[]) => Math.max(12, Math.min(36, 10 + Math.sqrt(Math.max(1, value[2])) * 3.5)),
+      symbolSize: 14,
       itemStyle: { color: CATEGORY_COLORS[category], opacity: .78, borderColor: '#fff', borderWidth: 1 },
-      label: { show: false },
+      label: { show: true, formatter: '{b}', position: 'top', fontSize: 11 },
+      labelLayout: { hideOverlap: true },
       emphasis: { scale: true, itemStyle: { opacity: 1, borderWidth: 2 }, label: { show: true, formatter: (params: any) => params.data.name, position: 'top', color: '#0f172a', fontSize: 12, fontWeight: 700 } },
       markLine: index === 0 ? {
         silent: true,
@@ -475,18 +524,16 @@ async function refreshData() {
 }
 
 async function load() {
-  rows.value = await getData(`/events/${eventId.value}/keyword-analysis`).catch(async () => {
-    const dashboard = await getData(`/events/${eventId.value}/dashboard`)
-    return dashboard.realPublicContents || dashboard.trendContentRank || []
-  })
+  rows.value = await getData(`/events/${eventId.value}/keyword-analysis`, true)
   selectedTopic.value = ''
+  setObservationRange()
 }
 
 function splitKeywords(value: any) {
   return String(value || '').split(/[,，、/|；;\s]+/).map(item => item.trim()).filter(validKeyword)
 }
 function validKeyword(keyword: string) {
-  return keyword.length >= 2 && !STOPWORDS.has(keyword) && !/^[a-zA-Z]$/.test(keyword) && !/^\d+$/.test(keyword)
+  return keyword.length >= 2 && !STOPWORDS.has(keyword) && !isContextOnlyKeyword(keyword) && !/^[a-zA-Z]$/.test(keyword) && !/^\d+$/.test(keyword)
 }
 function interactionHeat(row: any) {
   return ['like_count', 'comment_count', 'repost_count', 'favorite_count'].reduce((total, field) => total + Number(row[field] || 0), 0)
@@ -527,21 +574,10 @@ function sparklinePoints(topic: any) {
 function growthLabel(topic: any) {
   return topic.previous_count === 0 && topic.current_count > 0 ? '新增' : `${Math.abs(Number(topic.growth || 0) * 100).toFixed(0)}%`
 }
-function interactionPerContent(topic: any) { return Number(topic.heat_total || 0) / Math.max(1, Number(topic.content_count || 0)) }
 function topicConclusion(topic: any) {
-  const demand = interactionPerContent(topic)
-  if (topic.content_count < supplyMedian.value && demand >= demandMedian.value) return '供给偏低、互动较高，建议加大产出'
-  if (topic.content_count >= supplyMedian.value && demand < demandMedian.value) return '供给偏高、互动较低，建议控制选题密度'
-  const momentum = momentumTopics.value.find(item => item.keyword === topic.keyword)
-  if (Number(momentum?.growth || 0) > 0) return '近期词频上升，建议持续跟进'
-  if (Number(momentum?.growth || 0) < 0) return '近期词频走弱，建议转入观察'
-  return '供需相对稳定，持续观察'
-}
-function median(values: number[]) {
-  const sorted = [...values].sort((left, right) => left - right)
-  if (!sorted.length) return 0
-  const middle = Math.floor(sorted.length / 2)
-  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+  const observed = observationTopics.value.find(item => item.keyword === topic.keyword)
+  if (observed) return observationPosition(observed, supplyMedian.value, demandMedian.value)
+  return '当前平台时段不足 3 篇，未参与比较'
 }
 function topKey(values: Map<string, number>) { return [...values.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0] || '综合' }
 function categoryName(value: any) {
@@ -550,9 +586,18 @@ function categoryName(value: any) {
 }
 function platformName(value: string) { return ({ SOHU_NEWS: '搜狐新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻' } as Record<string, string>)[value] || value }
 function formatNumber(value: number) { return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(Number(value || 0)) }
-function selectTopic(keyword: string) { selectedTopic.value = keyword }
+function decimal(value: unknown) { return value === null || value === undefined || !Number.isFinite(Number(value)) ? '-' : Number(value).toFixed(1) }
+function escapeHtml(value: unknown) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+function safeSourceUrl(value: unknown) { const url = String(value || ''); return /^https?:\/\//i.test(url) ? url : '' }
+function openTopicEvidence(topic: any) {
+  evidenceTopic.value = topic; evidencePage.value = 1; evidenceField.value = observationMetric.value; evidenceMetricLabel.value = metricLabel.value
+  evidenceScope.value = observationScopeText.value; evidenceCountMedian.value = supplyMedian.value; evidenceInteractionMedian.value = demandMedian.value
+  evidencePosition.value = observationPosition(topic, supplyMedian.value, demandMedian.value); evidenceVisible.value = true
+}
+function selectTopic(keyword: string) { selectedTopic.value = selectedTopic.value === keyword ? '' : keyword }
 function handleQuadrantClick(params: any) {
-  if (params?.data?.name) selectTopic(params.data.name)
+  const topic = observationTopics.value.find(item => item.keyword === params?.data?.name)
+  if (topic) { selectTopic(topic.keyword); openTopicEvidence(topic) }
 }
 function toggleCloudCategory(category: string) {
   const next = new Set(hiddenCloudCategories.value)
@@ -582,8 +627,6 @@ function cloudStyle(topic: any, index: number) {
 }
 
 onMounted(async () => {
-  events.value = await getData('/events').catch(() => [])
-  eventId.value = events.value.find(item => item.event_id === 'public_rss_latest')?.event_id || events.value[0]?.event_id || eventId.value
   await load().catch(() => ElMessage.error('读取关键词分析失败'))
 })
 </script>
@@ -629,6 +672,16 @@ onMounted(async () => {
 :global(.keyword-momentum-tooltip small) { color: #64748b; font-variant-numeric: tabular-nums; }
 .keyword-quadrant-card { grid-column: 1 / -1; min-height: 510px; display: flex; flex-direction: column; }
 .keyword-quadrant-chart { height: 442px; margin-block: auto; }
+.observation-filters { display: grid; grid-template-columns: 160px 120px minmax(240px, 1fr); gap: 10px; }
+.observation-filters :deep(.el-date-editor) { width: 100%; }
+.observation-note { margin: 8px 0; font-size: 12px; color: #52627a; line-height: 1.6; }
+.observation-topic-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.observation-topic-list button { display: grid; gap: 4px; text-align: left; border: 0; border-bottom: 1px solid #e2e8f0; background: transparent; padding: 8px; cursor: pointer; color: #475569; font-size: 12px; overflow-wrap: anywhere; }
+.observation-topic-list b { color: #0f766e; }
+.topic-evidence-list { max-height: 420px; overflow: auto; }
+.topic-evidence-list article { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; overflow-wrap: anywhere; }
+.topic-evidence-list small { color: #64748b; }
+@media (max-width: 600px) { .observation-filters { grid-template-columns: 1fr 1fr; } .observation-filters :deep(.el-date-editor) { grid-column: 1 / -1; } .observation-topic-list { grid-template-columns: 1fr; } }
 .keyword-table-card { grid-column: 1 / -1; min-height: 430px; }
 .keyword-table-tools { display: grid; grid-template-columns: minmax(0, 1.15fr) .85fr .95fr; gap: 8px; margin-bottom: 10px; }
 .keyword-observation-table th:nth-child(1) { width: 20%; }

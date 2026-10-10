@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.AnalyticsMapper">
+    <sql id="propagationCategory">
+        CASE LOWER(TRIM(category))
+            WHEN 'finance' THEN '财经' WHEN 'politics' THEN '政治' WHEN 'technology' THEN '科技'
+            WHEN 'sports' THEN '体育' WHEN 'culture' THEN '文娱' WHEN 'society' THEN '社会'
+            WHEN 'general' THEN '综合' WHEN '娱乐' THEN '文娱' WHEN '影视' THEN '文娱'
+            WHEN '音乐' THEN '文娱' WHEN '社会新闻' THEN '社会' WHEN '民生' THEN '社会'
+            WHEN '综合类' THEN '综合' ELSE TRIM(category)
+        END
+    </sql>
+    <select id="events" resultType="map">
+        SELECT event_id, event_name, description, start_time, end_time, status, created_at
+        FROM event_info
+        WHERE event_id = 'public_rss_latest' AND status = 'ACTIVE'
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="overview" resultType="map">
+        SELECT *
+        FROM ads_event_overview
+        WHERE event_id = #{eventId}
+    </select>
+
+    <select id="heatTrend" resultType="map">
+        SELECT *
+        FROM ads_event_heat_trend
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC
+    </select>
+
+    <select id="platformTimeline" resultType="map">
+        SELECT *
+        FROM ads_platform_spread_timeline
+        WHERE event_id = #{eventId}
+        ORDER BY first_publish_time ASC
+    </select>
+
+    <select id="trendContentRank" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+        ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="trendContentRankByRange" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+          AND publish_time IS NOT NULL
+          AND publish_time &gt;= CONCAT(#{startDate}, ' 00:00:00')
+          AND publish_time &lt; DATE_ADD(CONCAT(#{endDate}, ' 00:00:00'), INTERVAL 1 DAY)
+        ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="platformDailyHeat" resultType="map">
+        SELECT *
+        FROM ads_platform_daily_heat
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC, platform ASC
+    </select>
+    <select id="platformCategoryHeat" resultType="map">
+        SELECT *
+        FROM ads_platform_category_heat
+        WHERE event_id = #{eventId}
+          AND platform &lt;&gt; 'WEIBO'
+        ORDER BY time_bucket ASC, platform ASC, category ASC
+    </select>
+    <select id="platformCategoryHourlyHeat" resultType="map">
+        WITH hourly_category AS (
+            SELECT event_id,
+                   platform,
+                   DATE_FORMAT(publish_time, '%Y-%m-%d %H:00:00') AS time_bucket,
+                   <include refid="propagationCategory" /> AS category,
+                   COUNT(*) AS content_count,
+                   ROUND(AVG(COALESCE(platform_heat_index, 0)), 2) AS average_relative_heat_index
+            FROM ads_content_hot_rank
+            WHERE event_id = #{eventId}
+              AND platform IN ('TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER')
+              AND publish_time IS NOT NULL
+              AND NULLIF(TRIM(category), '') IS NOT NULL
+            GROUP BY event_id, platform, DATE_FORMAT(publish_time, '%Y-%m-%d %H:00:00'), <include refid="propagationCategory" />
+        ), hourly_total AS (
+            SELECT event_id, platform, time_bucket, SUM(content_count) AS platform_content_count
+            FROM hourly_category
+            GROUP BY event_id, platform, time_bucket
+        )
+        SELECT category.event_id,
+               category.platform,
+               category.time_bucket,
+               category.category,
+               category.content_count,
+               total.platform_content_count,
+               category.average_relative_heat_index
+        FROM hourly_category category
+        JOIN hourly_total total
+          ON total.event_id = category.event_id
+         AND total.platform = category.platform
+         AND total.time_bucket = category.time_bucket
+        ORDER BY category.time_bucket ASC, category.platform ASC, category.category ASC
+    </select>
+
+    <select id="interaction" resultType="map">
+        SELECT *
+        FROM ads_interaction_summary
+        WHERE event_id = #{eventId}
+        ORDER BY hot_score DESC
+    </select>
+
+    <select id="keywordRank" resultType="map">
+        SELECT *
+        FROM ads_keyword_rank
+        WHERE event_id = #{eventId}
+        ORDER BY word_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="sentimentTrend" resultType="map">
+        SELECT *
+        FROM ads_sentiment_trend
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC, sentiment_label ASC
+    </select>
+
+    <select id="sentimentAnalysisRows" resultType="map">
+        SELECT content_id, title, UPPER(TRIM(platform)) AS platform, publish_time, keywords, clean_text AS content_text,
+               sentiment_label, category, content_type, sentiment_positive_score, sentiment_neutral_score, sentiment_negative_score,
+               hot_score, platform_heat_index, like_count, favorite_count, comment_count, repost_count, source_url
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND UPPER(TRIM(platform)) IN ('WEIBO', 'SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+        ORDER BY publish_time ASC, id ASC
+    </select>
+
+    <select id="propagationContents" resultType="map">
+        SELECT content_id, title, clean_text, source_url, platform, publish_time, category,
+               hot_score, platform_heat_index, like_count, comment_count, repost_count, favorite_count
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform = #{platform}
+          <if test="category != null">AND <include refid="propagationCategory" /> = #{category}</if>
+          <if test="start != null">AND publish_time &gt;= #{start}</if>
+          <if test="end != null">AND publish_time &lt; #{end}</if>
+        ORDER BY publish_time ASC, platform_heat_index DESC, id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="propagationContentCount" resultType="long">
+        SELECT COUNT(*)
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform = #{platform}
+          <if test="category != null">AND <include refid="propagationCategory" /> = #{category}</if>
+          <if test="start != null">AND publish_time &gt;= #{start}</if>
+          <if test="end != null">AND publish_time &lt; #{end}</if>
+    </select>
+    <select id="contentRank" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+        ORDER BY rank_no ASC
+        LIMIT #{limit}
+    </select>    <select id="realPublicContents" resultType="map">
+        WITH ranked_contents AS (
+            SELECT content.*,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY COALESCE(NULLIF(TRIM(category), ''), '综合')
+                       ORDER BY publish_time DESC, id DESC
+                   ) AS category_row_no
+            FROM ads_content_hot_rank content
+            WHERE event_id = #{eventId}
+        )
+        SELECT *
+        FROM ranked_contents
+        WHERE category_row_no &lt;= #{limit}
+        ORDER BY publish_time DESC, id DESC
+    </select>
+
+    <sql id="contentPageFilters">
+        WHERE event_id = #{eventId}
+        <if test="query != null and query != ''">
+            AND (title LIKE CONCAT('%', #{query}, '%')
+                 OR clean_text LIKE CONCAT('%', #{query}, '%')
+                 OR author_name LIKE CONCAT('%', #{query}, '%'))
+        </if>
+        <if test="platform != null and platform != ''">
+            AND platform = #{platform}
+        </if>
+        <if test="sentiment != null and sentiment != ''">
+            AND sentiment_label = #{sentiment}
+        </if>
+        <if test="category != null and category != ''">
+            AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
+            <choose>
+                <when test="category == 'finance'">'财经'</when>
+                <when test="category == 'politics'">'政治'</when>
+                <when test="category == 'technology'">'科技'</when>
+                <when test="category == 'sports'">'体育'</when>
+                <when test="category == 'culture'">'文娱'</when>
+                <when test="category == 'society'">'社会'</when>
+                <otherwise>'综合'</otherwise>
+            </choose>
+        </if>
+    </sql>
+
+    <select id="contentPage" resultType="map">
+        SELECT *
+        FROM ads_content_hot_rank
+        <include refid="contentPageFilters" />
+        ORDER BY publish_time DESC, id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="contentCount" resultType="long">
+        SELECT COUNT(*)
+        FROM ads_content_hot_rank
+        <include refid="contentPageFilters" />
+    </select>
+
+    <select id="keywordAnalysisRows" resultType="map">
+        SELECT content_id, title, source_url, platform, publish_time, keywords, category, author_name,
+               like_count, comment_count, repost_count, favorite_count
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND platform IN ('SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          AND NULLIF(TRIM(keywords), '') IS NOT NULL
+        ORDER BY publish_time DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="topicCount" resultType="map">
+        SELECT COUNT(*) topic_count
+        FROM (
+            SELECT TRIM(title) topic
+            FROM ads_content_hot_rank
+            WHERE event_id = #{eventId}
+              AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+            GROUP BY TRIM(title)
+        ) topics
+    </select>
+
+    <select id="topicRank" resultType="map">
+        SELECT TRIM(title) topic,
+               COUNT(*) content_count,
+               COUNT(DISTINCT platform) platform_count,
+               MIN(publish_time) first_publish_time,
+               MAX(publish_time) latest_publish_time,
+               SUM(COALESCE(hot_score, 0)) hot_score
+        FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+          AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+        GROUP BY TRIM(title)
+        ORDER BY hot_score DESC, content_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="latestBatch" resultType="map">
+        SELECT *
+        FROM etl_batch
+        WHERE event_id = #{eventId}
+        ORDER BY started_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="noiseSummary" resultType="map">
+        SELECT *
+        FROM ads_noise_summary
+        WHERE event_id = #{eventId}
+        ORDER BY time_bucket ASC
+    </select>
+
+    <select id="batches" resultType="map">
+        SELECT *
+        FROM etl_batch
+        ORDER BY started_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="taskLogs" resultType="map">
+        SELECT *
+        FROM etl_task_log
+        WHERE batch_id = #{batchId}
+        ORDER BY started_at ASC
+    </select>
+
+    <select id="eventCount" resultType="map">
+        SELECT COUNT(*) event_count
+        FROM event_info
+    </select>
+</mapper>

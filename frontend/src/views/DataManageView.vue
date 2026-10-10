@@ -5,10 +5,7 @@
         <h2>数据管理</h2>
       </div>
       <div class="head-actions">
-        <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
-        <el-select v-else v-model="eventId" style="width:260px" @change="load">
-          <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
-        </el-select>
+        <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
       </div>
     </div>
 
@@ -101,11 +98,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteData, getData, getErrorMessage, putData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
 
 const router = useRouter()
 const activeTab = ref('content')
-const events = ref<any[]>([])
-const eventId = ref('public_rss_latest')
+const eventId = ref(ANALYSIS_EVENT_ID)
 const query = ref('')
 const contents = ref<any[]>([])
 const submissions = ref<any[]>([])
@@ -116,7 +113,7 @@ const interactionPage = ref(1)
 const pageSize = 8
 const loading = ref(false)
 const loadError = ref('')
-const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件融合分析')
+const currentEventName = ANALYSIS_EVENT_NAME
 
 const filteredContents = computed(() => {
   const text = query.value.trim()
@@ -188,8 +185,6 @@ async function removeInteraction(row: any) {
 function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }
 
 onMounted(async () => {
-  events.value = await getData('/events').catch(() => [])
-  eventId.value = events.value.find(item => item.event_id === 'public_rss_latest')?.event_id || events.value[0]?.event_id || eventId.value
   await load()
 })
 

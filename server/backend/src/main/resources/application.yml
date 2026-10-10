@@ -1,0 +1,66 @@
+# 后端 HTTP 服务与上传文件大小限制。
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    max-swallow-size: 512MB
+
+# Spring 文件上传和数据库连接配置；默认值可由环境变量覆盖。
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:2s}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+  servlet:
+    multipart:
+      max-file-size: 512MB
+      max-request-size: 512MB
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:192.168.154.121}:${DB_PORT:3306}/${DB_NAME:social_hotspot_analytics}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:${VM_ETL_DATABASE_PASSWORD:123456}}
+    hikari:
+      # Remote MySQL may close idle TCP connections before Hikari's default lifetime.
+      # Recycle connections before the database/network timeout and keep the pool warm.
+      max-lifetime: ${DB_HIKARI_MAX_LIFETIME:300000}
+      idle-timeout: ${DB_HIKARI_IDLE_TIMEOUT:120000}
+      keepalive-time: ${DB_HIKARI_KEEPALIVE_TIME:60000}
+      connection-timeout: ${DB_HIKARI_CONNECTION_TIMEOUT:30000}
+      validation-timeout: ${DB_HIKARI_VALIDATION_TIMEOUT:5000}
+
+# MyBatis 映射文件位置及字段映射策略。
+mybatis:
+  mapper-locations: classpath:/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: false
+
+# 应用日志级别，排查问题时可临时调整为 debug。
+logging:
+  level:
+    com.social.hotspot: info
+
+
+# 虚拟机 Spark ETL 配置：负责上传 CSV、模型并执行远程分析任务。
+vm:
+  etl:
+    enabled: ${VM_ETL_ENABLED:true}
+    host: ${VM_ETL_HOST:192.168.154.121}
+    port: ${VM_ETL_PORT:22}
+    username: ${VM_ETL_USERNAME:root}
+    ssh-password: ${VM_ETL_SSH_PASSWORD:123456}
+    database-password: ${VM_ETL_DATABASE_PASSWORD:${DB_PASSWORD:123456}}
+    database-host: ${VM_ETL_DATABASE_HOST:192.168.154.121}
+    worker-hosts: ${VM_ETL_WORKER_HOSTS:192.168.154.121,192.168.154.122,192.168.154.123}
+    app-home: ${VM_ETL_APP_HOME:/opt/apps/social-hotspot-analytics}
+    spark-submit: ${VM_ETL_SPARK_SUBMIT:/opt/bigdata/spark/bin/spark-submit}
+    spark-master: ${VM_ETL_SPARK_MASTER:spark://192.168.154.121:7077}
+    hdfs-root: ${VM_ETL_HDFS_ROOT:hdfs://192.168.154.121:8020/social-hotspot-analytics}
+    warehouse-output: ${VM_ETL_WAREHOUSE_OUTPUT:hdfs://192.168.154.121:8020/social-hotspot-analytics/warehouse}
+    sentiment-model: ${VM_ETL_SENTIMENT_MODEL:server/etl/models/Erlangshen-Roberta-330M-Sentiment}
+    sentiment-python: ${VM_ETL_SENTIMENT_PYTHON:D:/BigData/PythonEnv/python.exe}
+    sentiment-script: ${VM_ETL_SENTIMENT_SCRIPT:server/etl/scripts/infer_sentiment.py}
+    sentiment-batch-size: ${VM_ETL_SENTIMENT_BATCH_SIZE:128}
+    timeout-seconds: ${VM_ETL_TIMEOUT_SECONDS:14400}

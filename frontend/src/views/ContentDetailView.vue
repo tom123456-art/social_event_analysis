@@ -6,10 +6,7 @@
         <h2>原始内容查询与传播样本追溯</h2>
       </div>
       <div class="analysis-actions">
-        <el-tag v-if="events.length <= 1" class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
-        <el-select v-else v-model="eventId" style="width:280px" @change="load">
-          <el-option v-for="event in events" :key="event.event_id" :label="event.event_name" :value="event.event_id" />
-        </el-select>
+        <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
       </div>
     </div>
 
@@ -76,9 +73,9 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getData } from '../api/client'
 import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
 
-const events = ref<any[]>([])
-const eventId = ref('public_rss_latest')
+const eventId = ref(ANALYSIS_EVENT_ID)
 const rows = ref<any[]>([])
 const query = ref('')
 const platform = ref('全部')
@@ -90,7 +87,7 @@ const total = ref(0)
 const loading = ref(false)
 const detailVisible = ref(false)
 const current = reactive<any>({})
-const currentEventName = computed(() => events.value.find(item => item.event_id === eventId.value)?.event_name || '社交媒体热点事件融合分析')
+const currentEventName = ANALYSIS_EVENT_NAME
 
 const platforms = ['DOUYIN', 'WEIBO', 'BILIBILI', 'XIAOHONGSHU', 'NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER', 'OWN_SITE']
 const categories = ['finance', 'politics', 'technology', 'sports', 'culture', 'society', 'general']
@@ -121,8 +118,6 @@ function sentimentName(value: string) { return value === 'positive' ? '正向' :
 function categoryName(row: any) { return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合' }
 
 onMounted(async () => {
-  events.value = await getData('/events').catch(() => [])
-  eventId.value = events.value.find(item => item.event_id === 'public_rss_latest')?.event_id || events.value[0]?.event_id || eventId.value
   await load().catch(() => ElMessage.error('读取内容明细失败'))
 })
 useDatabaseAutoRefresh(() => load(true), 5000)

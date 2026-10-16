@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS ads_content_hot_rank (
   comment_count BIGINT,
   repost_count BIGINT,
   sentiment_label VARCHAR(20),
+  sentiment_source VARCHAR(20) DEFAULT 'MODEL',
   sentiment_positive_score DOUBLE DEFAULT 0,
   sentiment_neutral_score DOUBLE DEFAULT 1,
   sentiment_negative_score DOUBLE DEFAULT 0,

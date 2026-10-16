@@ -1,4 +1,5 @@
 package com.social.hotspot.etl;
+import com.social.hotspot.etl.cleaning.TextDamageDetector;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.spark.sql.RowFactory;
@@ -15,7 +16,7 @@ public class TextQualityRegression {
         try (var input = TextQualityRegression.class.getResourceAsStream("/text-quality-cases.json")) {
             for (var test : new ObjectMapper().readTree(input)) {
                 String text = test.get("text").isNull() ? null : test.get("text").asText();
-                if ((TextQuality.rejectionReason(text) != null) != test.get("reject").asBoolean()) {
+                if ((TextDamageDetector.rejectionReason(text) != null) != test.get("reject").asBoolean()) {
                     throw new AssertionError("Wrong text quality decision: " + text);
                 }
             }
@@ -31,7 +32,7 @@ public class TextQualityRegression {
                     RowFactory.create("正常标题", "卫健?T门已经介入调查", "作者", "医学", "社会"),
                     RowFactory.create("正常标题", "AI治疗与DNA编辑😊", "作者", "医学", "社会")
             ), schema);
-            var method = SocialHotspotEtlJob.class.getDeclaredMethod("textQualityReason", Dataset.class);
+            var method = com.social.hotspot.etl.cleaning.RecordQualityExpressions.class.getDeclaredMethod("textQualityReason", Dataset.class);
             method.setAccessible(true);
             Column reason = (Column) method.invoke(null, rows);
             List<Row> result = rows.withColumn("reason", reason).collectAsList();

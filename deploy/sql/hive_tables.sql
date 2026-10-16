@@ -21,8 +21,10 @@ CREATE EXTERNAL TABLE IF NOT EXISTS social_ods.ods_social_content_raw (
   repost_count STRING,
   favorite_count STRING,
   view_count STRING,
-  hot_rank STRING,
-  keywords STRING
+  keywords STRING,
+  source_url STRING,
+  image_url STRING,
+  category STRING
 )
 PARTITIONED BY (batch_id STRING)
 ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
@@ -31,7 +33,8 @@ WITH SERDEPROPERTIES (
   "quoteChar" = "\""
 )
 STORED AS TEXTFILE
-LOCATION '/social-hotspot-analytics/raw/social_event';
+LOCATION '/social-hotspot-analytics/raw/social_event'
+TBLPROPERTIES ('skip.header.line.count'='1');
 
 CREATE EXTERNAL TABLE IF NOT EXISTS social_dwd.dwd_social_content_detail (
   event_id STRING,
@@ -51,13 +54,29 @@ CREATE EXTERNAL TABLE IF NOT EXISTS social_dwd.dwd_social_content_detail (
   repost_count BIGINT,
   favorite_count BIGINT,
   view_count BIGINT,
-  hot_rank INT,
   keywords STRING,
   time_bucket TIMESTAMP,
   interaction_count BIGINT,
   sentiment_label STRING,
   is_noise BOOLEAN,
-  hot_score DOUBLE
+  hot_score DOUBLE,
+  share_count BIGINT,
+  forward_count BIGINT,
+  location STRING,
+  user_age_group STRING,
+  user_gender STRING,
+  source_url STRING,
+  image_url STRING,
+  category STRING,
+  sentiment_source STRING,
+  sentiment_positive_score DOUBLE,
+  sentiment_neutral_score DOUBLE,
+  sentiment_negative_score DOUBLE,
+  content_text STRING,
+  platform_heat_index DOUBLE,
+  signal_mode STRING,
+  has_heat_signal BOOLEAN,
+  interaction_signal_count INT
 )
 PARTITIONED BY (batch_id STRING)
 STORED AS PARQUET
@@ -144,3 +163,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS social_ads.ads_topic_key_content (
 )
 STORED AS PARQUET
 LOCATION '/social-hotspot-analytics/warehouse/ads/ads_topic_key_content';
+
+-- DWS schemas are generated from the actual Spark summary schemas for each batch.
+-- Execute warehouse/manifests/batch_id=<batch>/dws.sql to create the 12 external
+-- tables and register that batch. The backend performs this after every ETL.

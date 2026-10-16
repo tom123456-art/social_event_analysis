@@ -1,4 +1,5 @@
 package com.social.hotspot.etl;
+import com.social.hotspot.etl.cleaning.TextDamageDetector;
 
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
@@ -17,7 +18,7 @@ public class GlobalTextQualityVerification {
             long retainedCount = detail.count();
             if (rejectedCount != Long.parseLong(args[2])) throw new AssertionError("Wrong quarantine count");
             if (retainedCount != Long.parseLong(args[3])) throw new AssertionError("Wrong DWD count");
-            var detect = functions.udf((org.apache.spark.sql.api.java.UDF1<String, String>) TextQuality::rejectionReason,
+            var detect = functions.udf((org.apache.spark.sql.api.java.UDF1<String, String>) TextDamageDetector::rejectionReason,
                     org.apache.spark.sql.types.DataTypes.StringType);
             for (String field : new String[]{"title", "clean_text", "author_name", "keywords", "category"}) {
                 if (detail.filter(detect.apply(functions.col(field)).isNotNull()).count() != 0) {

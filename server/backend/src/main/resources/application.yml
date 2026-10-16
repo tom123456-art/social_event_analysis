@@ -33,7 +33,7 @@ spring:
 
 # MyBatis 映射文件位置及字段映射策略。
 mybatis:
-  mapper-locations: classpath:/mapper/*.xml
+  mapper-locations: classpath:/mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: false
 
@@ -59,9 +59,9 @@ vm:
     spark-master: ${VM_ETL_SPARK_MASTER:spark://192.168.154.121:7077}
     hdfs-root: ${VM_ETL_HDFS_ROOT:hdfs://192.168.154.121:8020/social-hotspot-analytics}
     warehouse-output: ${VM_ETL_WAREHOUSE_OUTPUT:hdfs://192.168.154.121:8020/social-hotspot-analytics/warehouse}
-    sentiment-model: ${VM_ETL_SENTIMENT_MODEL:server/etl/models/Erlangshen-Roberta-330M-Sentiment}
+    sentiment-model: ${VM_ETL_SENTIMENT_MODEL:resources/models/Erlangshen-Roberta-330M-Sentiment}
     sentiment-python: ${VM_ETL_SENTIMENT_PYTHON:D:/BigData/PythonEnv/python.exe}
-    sentiment-script: ${VM_ETL_SENTIMENT_SCRIPT:server/etl/scripts/infer_sentiment.py}
+    sentiment-script: ${VM_ETL_SENTIMENT_SCRIPT:server/python/src/hotspot_etl/cli/sentiment_inference.py}
     sentiment-batch-size: ${VM_ETL_SENTIMENT_BATCH_SIZE:128}
-    sentiment-min-confidence: ${VM_ETL_SENTIMENT_MIN_CONFIDENCE:0.90}
+    sentiment-min-confidence: ${VM_ETL_SENTIMENT_MIN_CONFIDENCE:0.95}
     timeout-seconds: ${VM_ETL_TIMEOUT_SECONDS:14400}

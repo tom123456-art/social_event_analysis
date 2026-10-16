@@ -131,11 +131,12 @@
 
     <select id="sentimentAnalysisRows" resultType="map">
         SELECT content_id, title, UPPER(TRIM(platform)) AS platform, publish_time, keywords, clean_text AS content_text,
-               sentiment_label, category, content_type, sentiment_positive_score, sentiment_neutral_score, sentiment_negative_score,
+               sentiment_label, sentiment_source, category, content_type, sentiment_positive_score, sentiment_neutral_score, sentiment_negative_score,
                hot_score, platform_heat_index, like_count, favorite_count, comment_count, repost_count, source_url
         FROM ads_content_hot_rank
         WHERE event_id = #{eventId}
           AND UPPER(TRIM(platform)) IN ('WEIBO', 'SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          AND sentiment_label IN ('positive', 'negative')
         ORDER BY publish_time ASC, id ASC
     </select>
 

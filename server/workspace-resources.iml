@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="WEB_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <content url="file://$MODULE_DIR$/../frontend">
+      <excludeFolder url="file://$MODULE_DIR$/../frontend/node_modules" />
+      <excludeFolder url="file://$MODULE_DIR$/../frontend/dist" />
+    </content>
+    <content url="file://$MODULE_DIR$/../resources">
+      <excludeFolder url="file://$MODULE_DIR$/../resources/models" />
+    </content>
+    <content url="file://$MODULE_DIR$/../docs" />
+    <content url="file://$MODULE_DIR$/../deploy" />
+    <content url="file://$MODULE_DIR$/../maintenance" />
+    <content url="file://$MODULE_DIR$/../scripts" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

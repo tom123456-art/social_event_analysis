@@ -4,13 +4,13 @@ import sys
 import unittest
 
 ETL = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ETL / "scripts"))
-from text_quality import rejection_reason, record_rejection_reason
+sys.path.insert(0, str(ETL / "src"))
+from hotspot_etl.quality.text_quality import rejection_reason, record_rejection_reason
 
 
 class TextQualityTests(unittest.TestCase):
     def test_shared_cases_reject_damage_but_preserve_normal_text(self):
-        cases = json.loads((ETL / "src/test/resources/text-quality-cases.json").read_text(encoding="utf-8"))
+        cases = json.loads((ETL.parents[1] / "resources/fixtures/text-quality-cases.json").read_text(encoding="utf-8"))
         for case in cases:
             with self.subTest(text=case["text"]):
                 self.assertEqual(rejection_reason(case["text"]) is not None, case["reject"])

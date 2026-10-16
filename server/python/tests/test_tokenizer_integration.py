@@ -5,15 +5,15 @@ import sys
 
 
 ETL = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ETL / "scripts"))
-SPEC = importlib.util.spec_from_file_location("sentiment_inference", ETL / "scripts" / "infer_sentiment.py")
+sys.path.insert(0, str(ETL / "src"))
+SPEC = importlib.util.spec_from_file_location("sentiment_inference", ETL / "src" / "hotspot_etl" / "inference" / "sentiment_inference.py")
 INFERENCE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(INFERENCE)
 
 
 class TokenizerIntegrationTests(unittest.TestCase):
     def test_installed_tokenizer_loads_actual_model_vocab_and_ids(self):
-        model = ETL / "models" / "Erlangshen-Roberta-330M-Sentiment"
+        model = ETL.parents[1] / "resources" / "models" / "Erlangshen-Roberta-330M-Sentiment"
         if not (model / "vocab.txt").exists():
             self.skipTest("Local model vocabulary is not installed")
         tokenizer = INFERENCE.load_tokenizer(model)

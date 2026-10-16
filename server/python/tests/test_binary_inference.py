@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 
-SOURCE = Path(__file__).resolve().parents[1] / "scripts" / "infer_sentiment.py"
+SOURCE = Path(__file__).resolve().parents[1] / "src" / "hotspot_etl" / "inference" / "sentiment_inference.py"
 TREE = ast.parse(SOURCE.read_text(encoding="utf-8"))
 SCOPE = {}
 FUNCTION = next(node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name == "model_label")
@@ -29,6 +29,9 @@ class BinaryInferenceTests(unittest.TestCase):
         self.assertIn('"input_sha256": input_hash', source)
         self.assertIn("not args.resume", source)
         self.assertIn('labels != {0: "negative", 1: "positive"}', source)
+        self.assertIn('"sentiment_gate_policy": SENTIMENT_GATE_POLICY', source)
+        self.assertIn('"sentiment_gate_sha256"', source)
+        self.assertIn('output["sentiment_status"] = "SKIPPED"', source)
 
     def test_tokenizer_validates_vocab_and_known_chinese_tokens(self):
         source = SOURCE.read_text(encoding="utf-8")

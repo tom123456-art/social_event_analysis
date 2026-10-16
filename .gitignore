@@ -1,4 +1,6 @@
 # Java / Maven
+.venv/
+*.egg-info/
 target/
 *.class
 __pycache__/
@@ -24,7 +26,7 @@ data/crawler/.*.etl-checkpoint.properties
 tools/*.exe
 
 # Local backend runtime model copy
-server/etl/models/Erlangshen-Roberta-330M-Sentiment/.cache/
-server/etl/models/Erlangshen-Roberta-330M-Sentiment/*.bin
-server/etl/models/Erlangshen-Roberta-330M-Sentiment/*.safetensors
+resources/models/Erlangshen-Roberta-330M-Sentiment/.cache/
+resources/models/Erlangshen-Roberta-330M-Sentiment/*.bin
+resources/models/Erlangshen-Roberta-330M-Sentiment/*.safetensors
 server/backend/etl/

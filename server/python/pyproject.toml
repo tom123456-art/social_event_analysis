@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hotspot-etl"
+version = "1.0.0"
+description = "Local inference and quality review for the Spark hotspot pipeline"
+requires-python = ">=3.10"
+dependencies = ["pandas", "torch", "transformers", "huggingface-hub>=1.3,<2"]
+
+[project.scripts]
+hotspot-infer = "hotspot_etl.inference.sentiment_inference:main"
+hotspot-review = "hotspot_etl.review.review_records:main"
+hotspot-audit = "hotspot_etl.cli.audit_sentiment_gate:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

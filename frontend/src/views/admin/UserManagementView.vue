@@ -10,14 +10,14 @@
     <div class="grid user-manage-layout">
       <div class="grid">
         <div class="card table-card user-table-card">
-          <div class="card-title">用户列表 <span>app_user</span></div>
+          <div class="card-title">用户列表 <span>账号资料</span></div>
           <div class="toolbar inline">
             <el-input v-model="query" placeholder="搜索账号、昵称、角色" style="width:300px" clearable />
             <el-button type="primary" @click="userPage = 1">查询</el-button>
             <el-button @click="query = ''; userPage = 1">重置</el-button>
           </div>
           <table class="table fixed-rows">
-            <thead><tr><th>ID</th><th>账号</th><th>昵称</th><th>手机</th><th>邮箱</th><th>角色</th><th>状态</th><th style="width:150px">操作</th></tr></thead>
+            <thead><tr><th>编号</th><th>账号</th><th>昵称</th><th>手机</th><th>邮箱</th><th>角色</th><th>状态</th><th style="width:150px">操作</th></tr></thead>
             <tbody>
               <tr v-for="user in pagedUsers" :key="user.id">
                 <td>{{ user.id }}</td>
@@ -25,8 +25,8 @@
                 <td>{{ user.nickname }}</td>
                 <td>{{ user.phone }}</td>
                 <td>{{ user.email }}</td>
-                <td>{{ user.role }}</td>
-                <td><span class="tag" :class="user.status === 'ENABLED' ? 'green' : 'gray'">{{ user.status }}</span></td>
+                <td>{{ roleName(user.role) }}</td>
+                <td><span class="tag" :class="user.status === 'ENABLED' ? 'green' : 'gray'">{{ statusName(user.status) }}</span></td>
                 <td>
                   <el-button link type="primary" @click="openUser(user)">编辑</el-button>
                   <el-button link type="danger" @click="removeUser(user)">删除</el-button>
@@ -65,6 +65,7 @@
     <el-dialog v-model="userDialog" :title="draft.id ? '编辑用户' : '新增用户'" width="620px">
       <el-form label-width="82px">
         <el-form-item label="账号"><el-input v-model="draft.username" :disabled="Boolean(draft.id)" /></el-form-item>
+        <el-form-item :label="draft.id ? '重设密码' : '初始密码'"><el-input v-model="draft.password" type="password" show-password autocomplete="new-password" :placeholder="draft.id ? '留空保持原密码' : '八至六十四位字符'" /></el-form-item>
         <el-form-item label="昵称"><el-input v-model="draft.nickname" /></el-form-item>
         <div class="form-grid">
           <el-form-item label="手机"><el-input v-model="draft.phone" /></el-form-item>
@@ -88,7 +89,8 @@
 // 用户管理页：维护账号、角色和启用状态。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteData, getData, getErrorMessage, postData, putData } from '../api/client'
+import { deleteData, getData, getErrorMessage, postData, putData } from '../../api/client'
+import { roleName, statusName } from '../../utils/userText'
 
 const users = ref<any[]>([])
 const query = ref('')
@@ -103,7 +105,7 @@ const operationLogs = ref<any[]>([])
 const filteredUsers = computed(() => {
   const text = query.value.trim()
   if (!text) return users.value
-  return users.value.filter(item => `${item.username}${item.nickname}${item.role}${item.status}`.includes(text))
+  return users.value.filter(item => `${item.username}${item.nickname}${roleName(item.role)}${statusName(item.status)}`.includes(text))
 })
 const pagedUsers = computed(() => filteredUsers.value.slice((userPage.value - 1) * pageSize, userPage.value * pageSize))
 const emptyUserRows = computed(() => Math.max(0, pageSize - pagedUsers.value.length))
@@ -118,12 +120,17 @@ async function load() {
   pushLog('用户数据已刷新')
 }
 function openUser(user?: any) {
-  Object.assign(draft, user || { username: '', nickname: '', phone: '', email: '', role: 'USER', status: 'ENABLED', bio: '' })
+  for (const key of Object.keys(draft)) delete draft[key]
+  Object.assign(draft, user || { username: '', nickname: '', phone: '', email: '', role: 'USER', status: 'ENABLED', bio: '' }, { password: '' })
   userDialog.value = true
 }
 async function saveUser() {
   if (!draft.username || !draft.nickname) {
     ElMessage.warning('请填写账号和昵称')
+    return
+  }
+  if ((!draft.id || draft.password) && (!draft.password || draft.password.length < 8 || draft.password.length > 64 || new TextEncoder().encode(draft.password).length > 72)) {
+    ElMessage.warning('请设置至少八位的初始密码')
     return
   }
   try {
@@ -139,7 +146,7 @@ async function saveUser() {
 }
 async function removeUser(user: any) {
   if (user.username === 'admin') {
-    ElMessage.warning('admin账号不能删除')
+    ElMessage.warning('系统管理员账号不能删除')
     return
   }
   try {

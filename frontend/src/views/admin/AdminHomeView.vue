@@ -17,7 +17,7 @@
       <div class="card-title">数据来源说明 <span>数据库快照</span></div>
         <div class="source-box">
           <b>当前数据来自外部 Python 采集与 ETL</b>
-          <p>外部 Python 采集器负责生成 social_event_real.csv；本系统负责接收 Raw CSV、执行 ETL，并向前台提供分析结果。</p>
+          <p>外部采集器生成原始数据文件；本系统接收文件并完成清洗、汇总，向前台提供分析结果。</p>
           <div class="source-grid">
             <div><span>源文件</span><strong>social_event_real.csv</strong></div>
             <div><span>虚拟机仓库</span><strong>/opt/apps/social-hotspot-analytics/warehouse</strong></div>
@@ -40,29 +40,29 @@
 
     <div class="grid admin-bottom" style="margin-top:12px">
       <div class="card table-card">
-        <div class="card-title">最近ETL批次 <span>etl_batch</span></div>
+        <div class="card-title">最近处理批次 <span>批次记录</span></div>
         <table class="table fixed-rows">
           <thead><tr><th>批次号</th><th>事件</th><th>源路径</th><th>阶段</th><th>源记录</th><th>有效</th><th>状态</th></tr></thead>
           <tbody>
             <tr v-for="batch in pagedBatches" :key="batch.batch_id">
               <td>{{ batch.batch_id }}</td>
-              <td>{{ batch.event_id }}</td>
+              <td>{{ eventName(batch.event_id) }}</td>
               <td>{{ batch.source_path }}</td>
-              <td>{{ batch.current_stage }}</td>
+              <td>{{ stageName(batch.current_stage) }}</td>
               <td>{{ batch.source_count }}</td>
               <td>{{ batch.valid_count }}</td>
-              <td><span class="tag" :class="batch.status === 'SUCCESS' ? 'green' : 'red'">{{ batch.status }}</span></td>
+              <td><span class="tag" :class="batch.status === 'SUCCESS' ? 'green' : 'red'">{{ statusName(batch.status) }}</span></td>
             </tr>
             <tr v-for="i in emptyBatchRows" :key="`batch-empty-${i}`"><td colspan="7"></td></tr>
           </tbody>
         </table>
         <el-pagination class="table-pagination" v-model:current-page="batchPage" :page-size="pageSize" layout="total, prev, pager, next" :total="batches.length" />
         <div class="stage-strip">
-          <div>ODS采集</div>
-          <div>DWD清洗</div>
-          <div>DWS聚合</div>
-          <div>ADS统计</div>
-          <div>MySQL同步</div>
+          <div>原始接入</div>
+          <div>明细清洗</div>
+          <div>指标汇总</div>
+          <div>应用统计</div>
+          <div>数据库同步</div>
         </div>
       </div>
 
@@ -79,13 +79,13 @@
 
     <div class="grid admin-extra equal-grid" style="margin-top:12px">
       <div class="card table-card">
-        <div class="card-title">高热内容审核 <span>Top 6</span></div>
+        <div class="card-title">高热内容审核 <span>前六条</span></div>
         <table class="table fixed-rows">
           <thead><tr><th>排名</th><th>平台</th><th>内容标题</th><th>情感</th><th>热度</th></tr></thead>
           <tbody>
             <tr v-for="row in pagedContentRank" :key="row.content_id">
               <td>{{ row.rank_no }}</td>
-              <td>{{ row.platform }}</td>
+              <td>{{ platformName(row.platform) }}</td>
               <td>{{ row.title || row.clean_text }}</td>
               <td>{{ labelText(row.sentiment_label) }}</td>
               <td>{{ numberText(row.hot_score) }}</td>
@@ -97,10 +97,10 @@
       </div>
 
       <div class="card table-card">
-        <div class="card-title">数据质量巡检 <span>noise_summary</span></div>
+        <div class="card-title">数据质量巡检 <span>噪声与重复汇总</span></div>
         <div class="quality-list">
           <div v-for="(row, index) in pagedNoiseSummary" :key="`${row.platform}-${index}`">
-            <span>{{ row.platform }}</span>
+            <span>{{ platformName(row.platform) }}</span>
             <b>{{ row.content_count }}条内容</b>
             <em>噪声 {{ row.noise_count }} / 重复 {{ row.duplicate_count }}</em>
           </div>
@@ -117,7 +117,7 @@
           <el-button @click="router.push('/admin/users')">用户管理</el-button>
           <el-button type="primary" @click="router.push('/screen')">打开大屏</el-button>
         </div>
-        <div class="source-note">管理动作顺序：使用独立 Python 采集器生成 Raw CSV；在 ETL 任务中上传并执行数据处理，前台与大屏读取最新分析结果。</div>
+        <div class="source-note">先由采集器生成原始文件，再上传并执行数据处理，前台与大屏读取最新分析结果。</div>
       </div>
     </div>
   </div>
@@ -128,10 +128,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import ChartBox from '../components/ChartBox.vue'
-import MetricGrid from '../components/MetricGrid.vue'
-import { clearGetCache, getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import ChartBox from '../../components/common/ChartBox.vue'
+import MetricGrid from '../../components/common/MetricGrid.vue'
+import { clearGetCache, getData } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { statusName, stageName, platformName, eventName } from '../../utils/userText'
 
 const router = useRouter()
 const admin = ref<any>({})
@@ -157,22 +158,22 @@ const emptyContentRows = computed(() => Math.max(0, pageSize - pagedContentRank.
 const emptyNoiseRows = computed(() => Math.max(0, pageSize - pagedNoiseSummary.value.length))
 
 const metrics = computed(() => [
-  { label: '统一分析事件容器', value: eventCount.value, sub: 'event_info：public_rss_latest' },
+  { label: '统一分析事件容器', value: eventCount.value, sub: '当前热点分析数据集' },
   { label: '热点主题', value: Number(admin.value.topicCount?.topic_count || 0), sub: '按标题聚合' },
   { label: '源记录数', value: latestBatch.value?.source_count || 0, sub: 'CSV输入' },
   { label: '有效记录', value: latestBatch.value?.valid_count || 0, sub: 'Spark清洗后' },
-  { label: '关键词结果', value: dashboard.value.keywordRank?.length || 0, sub: 'ads_keyword_rank' }
+  { label: '关键词结果', value: dashboard.value.keywordRank?.length || 0, sub: '关键词排名结果' }
 ])
 
 const runtime = computed(() => [
   { label: 'ETL执行节点', value: '192.168.154.121' },
-  { label: 'Spark模式', value: 'Standalone 2 Workers' },
+  { label: '计算模式', value: '独立集群，两个工作节点' },
   { label: '虚拟机仓库', value: 'HDFS /social-hotspot-analytics' },
   { label: '计算框架', value: 'Spark + HDFS + Hive' },
   { label: '后端服务', value: 'SpringBoot 8080' },
   { label: '前端服务', value: 'Vue 5174' },
-  { label: '结果库', value: 'VM MySQL 192.168.154.121:3306' },
-  { label: '当前状态', value: latestBatch.value?.status || '-' }
+  { label: '结果库', value: '虚拟机数据库 192.168.154.121:3306' },
+  { label: '当前状态', value: statusName(latestBatch.value?.status) }
 ])
 
 const successOption = computed(() => ({
@@ -187,7 +188,7 @@ const platformOption = computed(() => ({
   tooltip: { trigger: 'axis' },
   grid: { left: 58, right: 12, top: 18, bottom: 28 },
   xAxis: { type: 'value' },
-  yAxis: { type: 'category', data: platformSummary.value.map(item => item.platform), inverse: true },
+  yAxis: { type: 'category', data: platformSummary.value.map(item => platformName(item.platform)), inverse: true },
   series: [{ type: 'bar', data: platformSummary.value.map(item => Number(item.hot_score || 0)), itemStyle: { color: '#2f6feb' } }]
 }))
 

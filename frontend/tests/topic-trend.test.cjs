@@ -5,7 +5,7 @@ const { test } = require('node:test')
 const vm = require('node:vm')
 const ts = require('typescript')
 
-const source = readFileSync(path.join(__dirname, '../src/views/KeywordSentimentView.vue'), 'utf8')
+const source = readFileSync(path.join(__dirname, '../src/views/analysis/KeywordAnalysisView.vue'), 'utf8')
 const code = source.slice(source.indexOf('const trendSeries ='), source.indexOf('const keywordPlatformOption ='))
 const palette = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#16a34a', '#be123c']
 function options(selected, names) {

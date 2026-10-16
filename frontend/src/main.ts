@@ -3,6 +3,8 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import { ElMessage } from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import { getErrorMessage } from './api/client'
 import 'element-plus/dist/index.css'
 import './styles/main.css'
 import App from './App.vue'
@@ -10,9 +12,7 @@ import router from './router'
 
 // 兜底展示遗漏处理的异步异常，避免点击操作失败后页面没有任何反馈。
 window.addEventListener('unhandledrejection', (event) => {
-  const message = event.reason instanceof Error && /[\u4e00-\u9fff]/.test(event.reason.message)
-    ? event.reason.message
-    : '操作失败，请稍后重试。'
+  const message = getErrorMessage(event.reason, '操作失败，请稍后重试。')
   ElMessage.error(message)
   event.preventDefault()
 })
@@ -23,4 +23,9 @@ window.addEventListener('error', (event) => {
   if (event.error) ElMessage.error('页面处理出现异常，请刷新后重试。')
 })
 
-createApp(App).use(createPinia()).use(router).use(ElementPlus).mount('#app')
+const app = createApp(App)
+app.config.errorHandler = (error) => {
+  console.error('页面处理失败', error)
+  ElMessage.error(getErrorMessage(error, '页面处理出现异常，请刷新后重试。'))
+}
+app.use(createPinia()).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')

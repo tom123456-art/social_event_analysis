@@ -18,7 +18,7 @@
         </div>
       </div>
       <div class="portal-media">
-        <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80" alt="社交媒体数据观察" />
+        <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80" alt="网络媒体数据观察" />
         <div>
           <b>{{ platformCount }} 个传播平台</b>
           <span>MySQL ADS 最新提交快照</span>
@@ -69,7 +69,7 @@
               </div>
             </div>
           </article>
-          <div v-if="!pagedRank.length" class="empty">暂无数据库内容，请先使用独立 Python 采集器生成 Raw CSV，再执行 ETL。</div>
+          <div v-if="!pagedRank.length" class="empty">暂无内容，请先由采集器生成原始数据文件，再上传并执行数据处理。</div>
         </div>
         <el-pagination class="table-pagination" v-model:current-page="rankPage" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredRank.length" />
       </main>
@@ -92,7 +92,7 @@
         </div>
 
         <div class="analysis-card">
-          <div class="card-title">热点分类 <span>累计热度 Top 8</span></div>
+          <div class="card-title">热点分类 <span>累计热度前八名</span></div>
           <div v-if="categoryRank.length" class="category-rank-list">
             <button v-for="item in categoryRank.slice(0, 8)" :key="item.category" type="button" @click="category = item.category">
               <span class="category-badge" :class="`category-${item.category}`">{{ item.category_label }}</span>
@@ -104,7 +104,7 @@
         </div>
 
         <div class="analysis-card">
-          <div class="card-title">关键词热度 <span>Top 12</span></div>
+          <div class="card-title">关键词热度 <span>前十二名</span></div>
           <div class="keyword-pills compact">
             <span v-for="word in keywords.slice(0, 12)" :key="word.keyword">{{ word.keyword }}</span>
           </div>
@@ -119,11 +119,11 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import ChartBox from '../components/ChartBox.vue'
-import MetricGrid from '../components/MetricGrid.vue'
-import { clearGetCache, getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
+import ChartBox from '../../components/common/ChartBox.vue'
+import MetricGrid from '../../components/common/MetricGrid.vue'
+import { clearGetCache, getData, getErrorMessage } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 const router = useRouter()
 const eventId = ref(ANALYSIS_EVENT_ID)
@@ -230,7 +230,7 @@ async function refreshData() {
     await load()
     ElMessage.success('已读取最新数据库快照')
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.message || error?.message || '读取数据库失败')
+    ElMessage.error(getErrorMessage(error, '读取数据库失败，请稍后重试。'))
   } finally {
     refreshing.value = false
   }
@@ -241,7 +241,7 @@ function numberText(value: any) {
   return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0)
 }
 function platformName(value: string) {
-  return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', news: '新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道', weibo: '微博', douyin: '抖音' } as Record<string, string>)[value] || value
+  return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', news: '新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道', weibo: '微博', douyin: '抖音' } as Record<string, string>)[value] || '其他平台'
 }
 function canonicalPlatform(value: any) {
   const text = String(value || '').trim()
@@ -254,7 +254,7 @@ function categoryName(row: any) {
   return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合'
 }
 function sentimentName(value: string) {
-  return value === 'positive' ? '正向情绪' : value === 'negative' ? '负向情绪' : '未分类'
+  return value === 'positive' ? '正向情绪' : value === 'negative' ? '负向情绪' : value === 'neutral' ? '中性情绪' : '未分类'
 }
 function openSource(row: any) {
   const url = sourceUrl(row)

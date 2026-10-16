@@ -7,29 +7,29 @@
       </button>
 
       <div class="screen-head-copy">
-        <div class="screen-kicker"><i></i>多源公开舆情监测 <b>{{ platformCount }} SOURCES ONLINE</b></div>
-        <h1>社交媒体热点事件传播态势大屏</h1>
+        <div class="screen-kicker"><i></i>多源公开舆情监测 <b>{{ platformCount }} 个数据来源</b></div>
+        <h1 title="网络媒体热点事件传播态势与舆情分析系统">网络媒体传播态势与舆情大屏</h1>
       </div>
 
       <div class="screen-head-status">
-        <div class="screen-sync"><i></i><span>数据同步正常<small>ETL 完成后刷新</small></span></div>
+        <button class="screen-sync screen-etl-link" type="button" title="打开 ETL 管理" @click="router.push('/admin/etl')"><i></i><span>ETL 数据同步<small>ETL 完成后刷新</small></span></button>
         <div class="screen-clock"><small>{{ dateText }}</small><strong>{{ timeText }}</strong></div>
       </div>
     </header>
 
     <main class="screen-layout">
       <aside class="screen-column screen-column-left">
-        <section class="screen-card platform-card chart-live">
-          <h3>五源热度矩阵 <small>5个新闻平台</small></h3>
+        <section class="screen-card platform-card chart-live screen-explainable" @click="openExplanation('platform')">
+          <h3>五源热度矩阵 <small>5个新闻平台</small><button class="screen-info" type="button" title="查看五源热度计算依据" aria-label="查看五源热度计算依据" @click.stop="openExplanation('platform')"><el-icon><InfoFilled /></el-icon></button></h3>
           <ChartBox size="sm" :option="platformRankOption" />
         </section>
 
-        <section class="screen-card source-card chart-live">
-          <h3>数据质量概览 <small>{{ countText(sourceCount) }}条 Raw</small></h3>
+        <section class="screen-card source-card chart-live screen-explainable" title="打开 ETL 管理" @click="router.push('/admin/etl')">
+          <h3>数据质量概览 <small>{{ countText(sourceCount) }} 条原始记录</small></h3>
           <div class="screen-quality">
             <div class="screen-quality-summary">
               <div><strong>{{ cleanRate }}%</strong><span>ETL 有效率</span></div>
-              <em :class="{ warning: latestBatch?.status && latestBatch.status !== 'SUCCESS' }">{{ latestBatch?.status || 'SUCCESS' }}</em>
+              <em :class="{ warning: latestBatch?.status && latestBatch.status !== 'SUCCESS' }">{{ statusName(latestBatch?.status) }}</em>
             </div>
             <div class="screen-quality-list">
               <div v-for="metric in sourceMetrics" :key="metric.label">
@@ -37,20 +37,20 @@
                 <div class="screen-quality-track"><i :style="{ width: metric.ratio + '%' }"></i></div>
               </div>
             </div>
-            <div class="screen-quality-footer"><span>最近 ETL：{{ batchTime }}</span><span>统一 CSV</span></div>
+            <div class="screen-quality-footer"><span>最近 ETL：{{ batchTime }}</span><button class="screen-etl-detail" type="button" @click.stop="router.push('/admin/etl')">ETL 管理 <el-icon><TopRight /></el-icon></button></div>
           </div>
         </section>
 
-        <section class="screen-card category-card chart-live">
-          <h3>热点类型构成 <small>{{ categoryRank.length }}类主题</small></h3>
+        <section class="screen-card category-card chart-live screen-explainable" @click="openExplanation('category')">
+          <h3>热点类型构成 <small>{{ categoryRank.length }}类主题</small><button class="screen-info" type="button" title="查看热点类型计算依据" aria-label="查看热点类型计算依据" @click.stop="openExplanation('category')"><el-icon><InfoFilled /></el-icon></button></h3>
           <ChartBox size="sm" :option="categoryOption" />
         </section>
       </aside>
 
       <section class="screen-center">
-        <section class="screen-card hero-chart chart-live">
+        <section class="screen-card hero-chart chart-live screen-explainable" @click="openExplanation('heat')">
           <div class="screen-panel-head">
-            <h3>传播热度脉冲 <small>时段新增热度 / 内容量</small></h3>
+            <h3>传播热度脉冲 <small>时段新增热度 / 内容量</small><button class="screen-info" type="button" title="查看传播热度计算依据" aria-label="查看传播热度计算依据" @click.stop="openExplanation('heat')"><el-icon><InfoFilled /></el-icon></button></h3>
             <div class="screen-hero-metrics">
               <span>总热度 <b>{{ heatText(overview.hot_score) }}</b></span>
               <span>内容 <b>{{ countText(overview.content_count) }}</b></span>
@@ -61,13 +61,13 @@
         </section>
 
         <div class="screen-center-bottom">
-          <section class="screen-card spread-card chart-live">
-            <h3>跨平台时序 <small>无父级关系不推断因果</small></h3>
+          <section class="screen-card spread-card chart-live screen-explainable" @click="openExplanation('spread')">
+            <h3>跨平台时序 <small>无父级关系不推断因果</small><button class="screen-info" type="button" title="查看跨平台时序计算依据" aria-label="查看跨平台时序计算依据" @click.stop="openExplanation('spread')"><el-icon><InfoFilled /></el-icon></button></h3>
             <ChartBox size="md" :option="spreadOption" />
           </section>
 
-          <section class="screen-card keyword-card chart-live">
-            <h3>关键词情报矩阵 <small>词频 / 主导平台</small></h3>
+          <section class="screen-card keyword-card chart-live screen-explainable" @click="openExplanation('keyword')">
+            <h3>关键词情报矩阵 <small>词频 / 来源平台</small><button class="screen-info" type="button" title="查看关键词计算依据" aria-label="查看关键词计算依据" @click.stop="openExplanation('keyword')"><el-icon><InfoFilled /></el-icon></button></h3>
             <div class="screen-keywords">
               <div
                 v-for="(word, index) in keywordRows"
@@ -87,54 +87,135 @@
       </section>
 
       <aside class="screen-column screen-column-right">
-        <section class="screen-card rank-card chart-live">
-          <h3>高热内容排行 <small>TOP {{ rankRows.length }}</small></h3>
+        <section class="screen-card rank-card chart-live screen-explainable" @click="openExplanation('rank')">
+          <h3>高热内容排行 <small>前 {{ rankRows.length }} 条</small><button class="screen-info" type="button" title="查看内容排行计算依据" aria-label="查看内容排行计算依据" @click.stop="openExplanation('rank')"><el-icon><InfoFilled /></el-icon></button></h3>
           <div class="screen-rank">
             <div v-for="(row, index) in rankRows" :key="row.content_id">
               <b>{{ String(index + 1).padStart(2, '0') }}</b>
-              <span><small :style="{ color: platformColor(row.platform) }">{{ platformName(row.platform) }}</small><strong>{{ row.title || row.clean_text }}</strong></span>
+              <span><small :style="{ color: platformColor(row.platform) }">{{ platformName(row.platform) }}</small><strong><a v-if="newsUrl(row.source_url)" :href="newsUrl(row.source_url)" target="_blank" rel="noopener noreferrer" :title="row.title || row.clean_text" @click.stop>{{ row.title || row.clean_text }}</a><template v-else>{{ row.title || row.clean_text }}</template></strong></span>
               <em>{{ heatText(row.hot_score) }}</em>
             </div>
           </div>
         </section>
 
-        <section class="screen-card ticker-card chart-live">
-          <h3>实时内容流 <small>按发布时间</small></h3>
+        <section class="screen-card ticker-card screen-explainable" @click="openExplanation('content')">
+          <h3>内容流 <small>按发布时间</small><button class="screen-info" type="button" title="查看内容流数据依据" aria-label="查看内容流数据依据" @click.stop="openExplanation('content')"><el-icon><InfoFilled /></el-icon></button></h3>
           <div class="screen-ticker">
             <div>
               <p v-for="(row, index) in tickerRows" :key="String(row.content_id) + '-' + index">
                 <span :style="{ color: platformColor(row.platform) }">{{ platformName(row.platform) }}</span>
                 <time>{{ formatTime(row.publish_time) }}</time>
-                <b>{{ row.title || row.clean_text }}</b>
+                <b><a v-if="newsUrl(row.source_url)" :href="newsUrl(row.source_url)" target="_blank" rel="noopener noreferrer" :title="row.title || row.clean_text" @click.stop>{{ row.title || row.clean_text }}</a><template v-else>{{ row.title || row.clean_text }}</template></b>
               </p>
             </div>
           </div>
         </section>
 
-        <section class="screen-card sentiment-card chart-live">
-          <h3>平台情绪结构 <small>正向 / 负向 · 过滤后样本</small></h3>
+        <section class="screen-card sentiment-card chart-live screen-explainable" @click="openExplanation('sentiment')">
+          <h3>平台情绪结构 <small>正向 / 负向 · 过滤后样本</small><button class="screen-info" type="button" title="查看情绪结构计算依据" aria-label="查看情绪结构计算依据" @click.stop="openExplanation('sentiment')"><el-icon><InfoFilled /></el-icon></button></h3>
           <ChartBox size="sm" :option="sentimentOption" />
         </section>
 
-        <section class="screen-card peak-card chart-live">
-          <h3>峰值传播强度 <small>{{ formatTime(peakPoint.time) }}</small></h3>
+        <section class="screen-card peak-card chart-live screen-explainable" @click="openExplanation('peak')">
+          <h3>峰值传播强度 <small>{{ formatTime(peakPoint.time) }}</small><button class="screen-info" type="button" title="查看峰值强度计算依据" aria-label="查看峰值强度计算依据" @click.stop="openExplanation('peak')"><el-icon><InfoFilled /></el-icon></button></h3>
           <ChartBox size="sm" :option="speedOption" />
         </section>
       </aside>
     </main>
+    <el-dialog v-model="explanationVisible" class="screen-metric-dialog" modal-class="screen-metric-overlay" :title="activeExplanation.title" width="min(520px, calc(100vw - 32px))" top="15vh" append-to-body>
+      <div class="screen-metric-kicker">计算依据</div>
+      <section class="screen-metric-section"><h4>数据前提</h4><p>{{ activeExplanation.basis }}</p></section>
+      <section class="screen-metric-section"><h4>生成过程</h4><ol><li v-for="step in activeExplanation.steps" :key="step">{{ step }}</li></ol></section>
+      <div class="screen-metric-note"><el-icon><InfoFilled /></el-icon><p>{{ activeExplanation.limit }}</p></div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 // 大屏页：以可视化方式展示事件传播和情感概览。
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, TopRight } from '@element-plus/icons-vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import ChartBox from '../components/ChartBox.vue'
-import { getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
+import ChartBox from '../../components/common/ChartBox.vue'
+import { getData } from '../../api/client'
+import { statusName } from '../../utils/userText'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
 
 const router = useRouter()
+// 说明与当前大屏的筛选、截取和统计口径保持一致，不将样本结果解释为全量事实。
+const explanations = {
+  platform: {
+    title: '五源热度矩阵',
+    basis: 'ETL 将清洗后的内容按事件、平台汇总，发布到 MySQL 平台时序表。',
+    steps: ['单篇热度：在同一事件、同一平台内，对支持且正值覆盖率达到 1% 的互动字段计算百分位，再等权平均；没有有效信号时为 0。', '平台热度：累加该平台内容的 hot_score；大屏排除微博，按累计热度取前 5 个平台。'],
+    limit: '这是平台内相对热度的累计值，受内容量影响，不等于阅读量，也不是跨平台统一的绝对影响力。'
+  },
+  category: {
+    title: '热点类型构成',
+    basis: '后端从已发布内容中按原始类别各取最新最多 300 条，补充类别标签；没有内容样本时回退到高热排行样本。',
+    steps: ['按类别标签分组，分别累计内容条数与单篇 hot_score。', '按类别累计热度降序排列，大屏显示前 7 类；悬浮提示同时显示真实热度与条数。'],
+    limit: '这是接口返回样本的类别结构，不是全库类别占比；零热度条形保留最小可见宽度，但数值仍为 0。'
+  },
+  heat: {
+    title: '传播热度脉冲',
+    basis: '读取 ETL 按时间桶、平台生成的热度汇总，时间依据为内容发布时间。',
+    steps: ['将相同时间桶的各平台内容量、热度分别求和，按时间升序保留最近 18 个时间桶。', '柱形表示该时段内容条数，折线表示该时段单篇热度之和；最大折线值标记为峰值。'],
+    limit: '新增指该发布时间桶内的内容，不是页面刷新后新抓取的数据；顶部总热度、内容数来自事件总览，范围大于图内的 18 个时段。'
+  },
+  spread: {
+    title: '跨平台时序',
+    basis: '清洗后的有效内容需有平台和发布时间，ETL 为各平台汇总最早发布时间、内容条数与累计热度。',
+    steps: ['以后端汇总结果中最早的发布时间为基准，计算各平台首次出现的分钟差。', '大屏合并平台别名，按延迟排序取前 8 个节点，以热点事件为根节点展示。'],
+    limit: '首发只表示现有数据中最早出现，不证明原创；连线表示事件与平台的归属，不证明平台之间的转载或传播因果。'
+  },
+  keyword: {
+    title: '关键词情报矩阵',
+    basis: 'ETL 优先使用 keywords 字段，缺失时使用清洗文本，按分隔符和空白拆分后过滤词长与停用词。',
+    steps: ['按词统计出现次数，按词频降序查询前 30 项；页面再过滤通用词和不合适的词长，展示前 10 项。', '词条颜色使用聚合结果的情绪标签，旁边平台使用聚合时取到的来源平台。'],
+    limit: '词频是拆分后出现次数，不是文章去重数；来源平台与颜色标签取聚合中的一个值，不代表出现最多的平台或多数情绪。'
+  },
+  rank: {
+    title: '高热内容排行',
+    basis: 'ETL 对已清洗内容按单篇 hot_score 降序编号，后端读取排名靠前的 20 条。',
+    steps: ['单篇 hot_score 为同平台有效互动信号的百分位均值，通常在 0 至 100 之间，无有效信号记为 0。', '页面在这 20 条中按热度、发布时间降序排列，再按内容 ID（缺失时用标题）去重，最多展示 6 条。'],
+    limit: '排名反映当前 ETL 数据中的相对互动热度，不是实时新闻榜；有有效原文地址的标题可打开新闻来源。'
+  },
+  content: {
+    title: '内容流',
+    basis: '内容来自 MySQL 已发布的 ETL 结果；接口按原始类别各取最新最多 300 条。',
+    steps: ['页面将返回内容按发布时间倒序排列，展示最新 10 条；较多条目通过复制一组实现循环滚动。', '页面每 5 秒触发刷新检查，请求还受 15 秒前端缓存及后端缓存影响；新闻内容取自已发布结果，标题链接读取 source_url。'],
+    limit: '这不是实时采集或实时推送流；循环重复的条目不算新增，没有有效原文地址的内容不会生成链接。'
+  },
+  sentiment: {
+    title: '平台情绪结构',
+    basis: 'ETL 发布有效情绪标签的分时段样本统计，大屏仅使用 positive、negative 两类结果。',
+    steps: ['合并平台别名，将各时段正向、负向 sentiment_count 分别累加。', '平台正向占比 = 正向样本数 ÷（正向 + 负向）× 100%；负向占比同理，没有样本时为 0。'],
+    limit: '分母是已纳入统计的正负向样本，不是全部新闻；中性、未识别及未入统计的样本不参与占比。'
+  },
+  peak: {
+    title: '峰值传播强度',
+    basis: '与传播热度脉冲使用相同数据：按时间合并各平台后，取最近 18 个时间桶。',
+    steps: ['取这 18 个时间桶中最大的热度合计，并显示对应时间及该桶内容条数。', '仪表上限 = max(100, ceil(峰值 × 1.2 ÷ 100) × 100)，给峰值保留显示空间。'],
+    limit: '它是展示窗口内的最大时段热度，不是全历史峰值，也不是每分钟传播速度；仪表进度不是业务达标率。'
+  }
+}
+// 保存当前说明键，复用一个弹框承载所有图表说明。
+const explanationKey = ref<keyof typeof explanations>('heat')
+const explanationVisible = ref(false)
+const activeExplanation = computed(() => explanations[explanationKey.value])
+function openExplanation(key: keyof typeof explanations) {
+  explanationKey.value = key
+  explanationVisible.value = true
+}
+// 仅允许绝对 HTTP(S) 原文地址，防止异常协议被渲染为可点击链接。
+function newsUrl(value: unknown): string | undefined {
+  try {
+    const url = new URL(String(value || '').trim())
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : undefined
+  } catch {
+    return undefined
+  }
+}
 const data = ref<any>({})
 const dateText = ref('')
 const timeText = ref('')
@@ -448,7 +529,7 @@ function canonicalPlatform(value: any) {
   if (!text || upper.includes('RSS') || text.includes('中新网') || text.includes('百度')) return 'NEWS'
   return upper || 'UNKNOWN'
 }
-function platformName(value: any) { const code = canonicalPlatform(value); return PLATFORM_LABELS[code] || String(value || '未知平台') }
+function platformName(value: any) { const code = canonicalPlatform(value); return PLATFORM_LABELS[code] || '其他平台' }
 function platformColor(value: any) { return PLATFORM_COLORS[canonicalPlatform(value)] || '#7dd3fc' }
 function compactTimeline(rows: any[]) {
   const grouped = new Map<string, any>()

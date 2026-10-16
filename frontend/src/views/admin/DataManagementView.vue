@@ -18,7 +18,7 @@
           <el-button @click="query = ''">重置</el-button>
         </div>
         <div class="card table-card" v-loading="loading">
-          <div class="card-title">内容数据列表 <span>ads_content_hot_rank</span></div>
+          <div class="card-title">内容数据列表 <span>分析明细</span></div>
           <div class="source-note">该表随采集和 CSV 上传自动重建，不允许单独增删改，避免内容明细与聚合图表不一致。</div>
           <div v-if="loadError" class="source-note error-note">{{ loadError }}</div>
           <table class="table fixed-rows">
@@ -26,13 +26,13 @@
             <tbody>
               <tr v-for="row in pagedContents" :key="row.id">
                 <td>{{ row.rank_no }}</td>
-                <td>{{ row.platform }}</td>
+                <td>{{ platformName(row.platform) }}</td>
                 <td>{{ row.title }}</td>
-                <td>{{ row.category || '-' }}</td>
-                <td>{{ row.sentiment_label }}</td>
+                <td>{{ categoryName(row.category) }}</td>
+                <td>{{ sentimentName(row.sentiment_label) }}</td>
                 <td>{{ row.hot_score }}</td>
               </tr>
-              <tr v-if="!loading && !filteredContents.length"><td colspan="6">当前事件暂无数据库内容，请先使用独立 Python 采集器生成 Raw CSV，再执行 ETL。</td></tr>
+              <tr v-if="!loading && !filteredContents.length"><td colspan="6">当前事件暂无内容，请先由采集器生成原始数据文件，再上传并执行数据处理。</td></tr>
               <tr v-for="i in emptyContentRows" :key="`content-empty-${i}`"><td colspan="6"></td></tr>
             </tbody>
           </table>
@@ -40,42 +40,21 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="人工标注审核" name="submission">
-        <div class="card table-card">
-          <div class="card-title">异常内容与人工标注 <span>user_submission</span></div>
-          <table class="table fixed-rows">
-            <thead><tr><th>标注人</th><th>平台</th><th>标题</th><th>内容摘要</th><th>审核状态</th><th style="width:190px">操作</th></tr></thead>
-            <tbody>
-              <tr v-for="row in pagedSubmissions" :key="row.id">
-                <td>{{ row.username }}</td>
-                <td>{{ row.platform }}</td>
-                <td>{{ row.title }}</td>
-                <td>{{ row.content_text }}</td>
-                <td><span class="tag" :class="row.status === 'APPROVED' ? 'green' : row.status === 'REJECTED' ? 'red' : 'amber'">{{ row.status }}</span></td>
-                <td>
-                  <el-button link type="primary" @click="setStatus(row, 'APPROVED')">通过</el-button>
-                  <el-button link type="warning" @click="setStatus(row, 'REJECTED')">驳回</el-button>
-                  <el-button link type="danger" @click="removeSubmission(row)">删除</el-button>
-                </td>
-              </tr>
-              <tr v-for="i in emptySubmissionRows" :key="`submission-empty-${i}`"><td colspan="6"></td></tr>
-            </tbody>
-          </table>
-          <el-pagination class="table-pagination" v-model:current-page="submissionPage" :page-size="pageSize" layout="total, prev, pager, next" :total="submissions.length" />
-        </div>
+      <el-tab-pane label="人工标注审核" name="review" lazy>
+        <QualityReviewPanel />
       </el-tab-pane>
 
       <el-tab-pane label="互动记录" name="interaction">
         <div class="card table-card">
-          <div class="card-title">用户互动记录 <span>user_interaction</span></div>
+          <div class="card-title">用户互动记录 <span>互动明细</span></div>
           <table class="table fixed-rows">
             <thead><tr><th>用户</th><th>事件</th><th>平台</th><th>动作</th><th>内容</th><th>时间</th><th style="width:88px">操作</th></tr></thead>
             <tbody>
               <tr v-for="row in pagedInteractions" :key="row.id">
                 <td>{{ row.username }}</td>
-                <td>{{ row.event_name || row.event_id }}</td>
-                <td>{{ row.platform }}</td>
-                <td>{{ row.action_type }}</td>
+                <td>{{ eventName(row.event_name || row.event_id) }}</td>
+                <td>{{ platformName(row.platform) }}</td>
+                <td>{{ actionName(row.action_type) }}</td>
                 <td>{{ row.comment_text || row.content_id }}</td>
                 <td>{{ formatTime(row.created_at) }}</td>
                 <td><el-button link type="danger" @click="removeInteraction(row)">删除</el-button></td>
@@ -92,23 +71,23 @@
 </template>
 
 <script setup lang="ts">
-// 数据管理页：管理人工投稿、互动记录和内容审核状态。
+// 数据管理页：查看内容数据、审核清洗异常和管理互动记录。
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import QualityReviewPanel from '../../components/review/QualityReviewPanel.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { deleteData, getData, getErrorMessage, putData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
+import { deleteData, getData, getErrorMessage } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { platformName, categoryName, sentimentName, actionName, eventName } from '../../utils/userText'
 
 const router = useRouter()
 const activeTab = ref('content')
 const eventId = ref(ANALYSIS_EVENT_ID)
 const query = ref('')
 const contents = ref<any[]>([])
-const submissions = ref<any[]>([])
 const interactions = ref<any[]>([])
 const contentPage = ref(1)
-const submissionPage = ref(1)
 const interactionPage = ref(1)
 const pageSize = 8
 const loading = ref(false)
@@ -118,13 +97,11 @@ const currentEventName = ANALYSIS_EVENT_NAME
 const filteredContents = computed(() => {
   const text = query.value.trim()
   if (!text) return contents.value
-  return contents.value.filter(item => `${item.title}${item.clean_text}${item.platform}`.includes(text))
+  return contents.value.filter(item => `${item.title}${item.clean_text}${item.platform}${platformName(item.platform)}`.includes(text))
 })
 const pagedContents = computed(() => filteredContents.value.slice((contentPage.value - 1) * pageSize, contentPage.value * pageSize))
-const pagedSubmissions = computed(() => submissions.value.slice((submissionPage.value - 1) * pageSize, submissionPage.value * pageSize))
 const pagedInteractions = computed(() => interactions.value.slice((interactionPage.value - 1) * pageSize, interactionPage.value * pageSize))
 const emptyContentRows = computed(() => Math.max(0, pageSize - pagedContents.value.length - (filteredContents.value.length ? 0 : 1)))
-const emptySubmissionRows = computed(() => Math.max(0, pageSize - pagedSubmissions.value.length))
 const emptyInteractionRows = computed(() => Math.max(0, pageSize - pagedInteractions.value.length))
 
 async function load() {
@@ -137,36 +114,13 @@ async function load() {
       eventId.value = 'public_rss_latest'
     }
     contents.value = rows
-    submissions.value = await getData('/admin/submissions?limit=200')
     interactions.value = await getData('/admin/interactions?limit=200')
   } catch (error: any) {
     contents.value = []
-    loadError.value = `内容数据加载失败：${error?.message || '请检查后端服务和数据库连接'}`
+    loadError.value = getErrorMessage(error, '内容数据加载失败，请检查后端服务或稍后重试。')
     ElMessage.error(loadError.value)
   } finally {
     loading.value = false
-  }
-}
-
-async function setStatus(row: any, status: string) {
-  try {
-    await putData(`/admin/submissions/${row.id}/status`, { status })
-    ElMessage.success('审核状态已更新')
-    await load()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error, '更新审核状态失败，请稍后重试。'))
-  }
-}
-
-async function removeSubmission(row: any) {
-  try {
-    await ElMessageBox.confirm(`确认删除投稿：${row.title}？`, '删除确认')
-    await deleteData(`/admin/submissions/${row.id}`)
-    ElMessage.success('已删除标注记录')
-    await load()
-  } catch (error) {
-    if (error === 'cancel' || error === 'close') return
-    ElMessage.error(getErrorMessage(error, '删除标注记录失败，请稍后重试。'))
   }
 }
 

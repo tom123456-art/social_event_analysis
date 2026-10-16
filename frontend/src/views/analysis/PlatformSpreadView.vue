@@ -63,11 +63,11 @@
 // 平台扩散页：比较不同平台的传播时间、热度和覆盖情况。
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import ChartBox from '../components/ChartBox.vue'
-import PropagationEvidenceDialog from '../components/PropagationEvidenceDialog.vue'
-import { clearGetCache, getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
+import ChartBox from '../../components/common/ChartBox.vue'
+import PropagationEvidenceDialog from '../../components/analysis/PropagationEvidenceDialog.vue'
+import { clearGetCache, getData, getErrorMessage } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 const eventId = ref(ANALYSIS_EVENT_ID)
 const data = ref<any>({})
@@ -146,7 +146,7 @@ async function refreshData() {
     await load()
     ElMessage.success('已读取最新数据库快照')
   } catch (error: any) {
-    ElMessage.error(error?.response?.data?.message || error?.message || '读取数据库失败')
+    ElMessage.error(getErrorMessage(error, '读取数据库失败，请稍后重试。'))
   } finally {
     refreshing.value = false
   }
@@ -169,7 +169,7 @@ function formatWindow(summary: any) {
   const end = formatTime(summary?.window_end).slice(0, 10)
   return start && end && start !== '-' && end !== '-' ? `${start} 至 ${end}` : '最近 7 天'
 }
-function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道', news: '新闻' } as Record<string, string>)[value] || value || '-' }
+function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道', news: '新闻' } as Record<string, string>)[value] || '其他平台' }
 
 onMounted(async () => {
   await load().catch(() => ElMessage.error('读取平台扩散失败'))

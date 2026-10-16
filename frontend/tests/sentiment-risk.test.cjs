@@ -5,7 +5,7 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const { parse, compileTemplate } = require('@vue/compiler-sfc')
 
-const source = readFileSync(require('node:path').join(__dirname, '../src/views/SentimentAnalysisView.vue'), 'utf8')
+const source = readFileSync(require('node:path').join(__dirname, '../src/views/analysis/SentimentAnalysisView.vue'), 'utf8')
 const helpers = source.slice(source.indexOf('function heatValue('), source.indexOf('const newsMetrics ='))
 const context = vm.createContext({})
 vm.runInContext(ts.transpileModule(helpers, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context)
@@ -73,10 +73,52 @@ test('sentiment trend fixes positive to green and negative to red for lines and 
   ].join('\n')
   vm.runInContext(ts.transpileModule(chartSource, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, chartContext)
   const [positive, negative] = chartContext.option.series
+  assert.equal(chartContext.option.series.length, 2)
   assert.equal(positive.lineStyle.color, '#16a34a')
   assert.equal(positive.itemStyle.color, '#16a34a')
   assert.equal(negative.lineStyle.color, '#dc2626')
   assert.equal(negative.itemStyle.color, '#dc2626')
   assert.equal(positive.data[0], 12)
   assert.equal(negative.data[0], 3)
+})
+
+test('neutral and skipped rows cannot enter sentiment counts, charts or percentage denominators', () => {
+  const rows = ['WEIBO', 'SOHU_NEWS'].flatMap(platform =>
+    ['positive', 'negative', 'neutral', null].map(sentiment_label => ({
+      platform, sentiment_label, publish_time: '2026-10-01 10:00:00', keywords: 'topic',
+      sentiment_status: sentiment_label === null ? 'SKIPPED' : 'PREDICTED'
+    })))
+  const chartContext = vm.createContext({
+    computed: fn => ({ get value() { return fn() } }),
+    sentimentRows: { value: rows }, NEWS_PLATFORMS: ['SOHU_NEWS'],
+    trendRange: { value: '7' }, heatValue: () => null, riskScore: () => 0
+  })
+  const prefixes = [
+    'const binarySentimentRows =', 'const isWeibo =', 'const tokens =',
+    'const weiboRows =', 'const totals =', 'const weiboTotals =',
+    'const daily =', 'const dailyWeibo =', 'function topicStats(', 'const topics ='
+  ]
+  const logic = source.split('\n').filter(line => prefixes.some(prefix => line.startsWith(prefix))).join('\n')
+  vm.runInContext(ts.transpileModule(logic + '\nglobalThis.result = { weiboRows: weiboRows.value, newsRows: newsRows.value, totals: weiboTotals.value, total: weiboTotal.value, day: dailyWeibo.value[0], heatmap: topicHeatOption.value, positiveShare: share(weiboTotals.value.positive, weiboTotal.value) }', {
+    compilerOptions: { target: ts.ScriptTarget.ES2020 }
+  }).outputText, chartContext)
+  const result = chartContext.result
+  assert.equal(result.weiboRows.length, 2)
+  assert.equal(result.newsRows.length, 2)
+  assert.equal(result.total, 2)
+  assert.equal(result.totals.positive, 1)
+  assert.equal(result.totals.negative, 1)
+  assert.equal(result.positiveShare, '50.0%')
+  assert.equal(result.day.total, 2)
+  assert.equal(result.heatmap.yAxis.data.length, 2)
+  assert.equal(result.heatmap.series[0].data.length, 2)
+  assert.equal(result.heatmap.series[0].data[0][2], 50)
+  assert.equal(result.heatmap.series[0].data[1][2], 50)
+})
+
+test('sentiment API only selects positive and negative labels', () => {
+  const mapper = readFileSync(require('node:path').join(__dirname, '../../server/backend/src/main/resources/mapper/analysis/AnalyticsMapper.xml'), 'utf8')
+  const query = mapper.match(/<select id="sentimentAnalysisRows"[\s\S]*?<\/select>/)[0]
+  assert.match(query, /sentiment_label IN \('positive', 'negative'\)/)
+  assert.doesNotMatch(query, /'neutral'/)
 })

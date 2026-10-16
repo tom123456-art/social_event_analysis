@@ -6,7 +6,7 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const { parse, compileTemplate } = require('@vue/compiler-sfc')
 
-const pages = ['OverviewView', 'EventAnalysisView', 'PlatformSpreadView', 'KeywordSentimentView', 'ContentDetailView', 'DataManageView', 'SentimentAnalysisView']
+const pages = ['analysis/OverviewView', 'analysis/HotspotTrendView', 'analysis/PlatformSpreadView', 'analysis/KeywordAnalysisView', 'analysis/ContentListView', 'admin/DataManagementView', 'analysis/SentimentAnalysisView']
 const config = readFileSync(path.join(__dirname, '../src/config/analysisDataset.ts'), 'utf8')
 const exportsObject = {}
 vm.runInNewContext(ts.transpileModule(config, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: exportsObject })
@@ -33,10 +33,10 @@ for (const page of pages) {
 
 test('event API excludes legacy imports and normalizes the canonical label', () => {
   const root = path.join(__dirname, '../..')
-  const mapper = readFileSync(path.join(root, 'server/backend/src/main/resources/mapper/AnalyticsMapper.xml'), 'utf8')
+  const mapper = readFileSync(path.join(root, 'server/backend/src/main/resources/mapper/analysis/AnalyticsMapper.xml'), 'utf8')
   const query = mapper.match(/<select id=\x22events\x22[\s\S]*?<\/select>/)[0]
   assert.match(query, /WHERE event_id = 'public_rss_latest' AND status = 'ACTIVE'/)
-  const service = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/service/impl/AnalyticsServiceImpl.java'), 'utf8')
+  const service = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/service/analysis/impl/AnalyticsServiceImpl.java'), 'utf8')
   const method = service.slice(service.indexOf('public List<Map<String, Object>> events()'), service.indexOf('public Map<String, Object> dashboard('))
   assert.match(method, /CANONICAL_EVENT_ID\.equals\(row\.get\(\x22event_id\x22\)\)/)
   assert.match(method, /event\.put\(\x22event_name\x22,/)

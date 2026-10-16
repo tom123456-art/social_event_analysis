@@ -5,7 +5,7 @@ const { join } = require('node:path')
 const { parse, compileScript, compileTemplate } = require('@vue/compiler-sfc')
 
 test('propagation evidence dialog compiles and supports source paging and request race protection', () => {
-  const source = readFileSync(join(__dirname, '../src/components/PropagationEvidenceDialog.vue'), 'utf8')
+  const source = readFileSync(join(__dirname, '../src/components/analysis/PropagationEvidenceDialog.vue'), 'utf8')
   const { descriptor, errors } = parse(source)
   assert.deepEqual(errors, [])
   const script = compileScript(descriptor, { id: 'evidence' })
@@ -18,7 +18,7 @@ test('propagation evidence dialog compiles and supports source paging and reques
   assert.match(source, /未经显著性检验/)
 })
 test('each summary has a distinct evidence entry and does not label cumulative heat as peak', () => {
-  const source = readFileSync(join(__dirname, '../src/views/PlatformSpreadView.vue'), 'utf8')
+  const source = readFileSync(join(__dirname, '../src/views/analysis/PlatformSpreadView.vue'), 'utf8')
   for (const mode of ['lead', 'heat', 'span', 'relations']) assert.ok(source.includes(`evidenceMode = '${mode}'`))
   assert.match(source, /累计热度最高/)
   assert.match(source, /最早达到阈值/)

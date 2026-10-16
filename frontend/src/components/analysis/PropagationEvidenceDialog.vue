@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getData } from '../api/client'
+import { getData, getErrorMessage } from '../../api/client'
 const props = defineProps<{ mode: string; eventId: string; dashboard: any }>()
 defineEmits<{ close: [] }>()
 const titles: Record<string, string> = { lead: '最早达到阈值 · 结论来源', heat: '累计热度最高 · 结论来源', span: '各平台首达时间跨度 · 结论来源', relations: '同类别先后关系 · 结论来源' }
@@ -105,12 +105,12 @@ async function load() {
   if (props.mode !== 'heat') params.set('category', category.value)
   if (hour.value) params.set('hour', hour.value)
   try { const data = await getData(`/events/${props.eventId}/propagation-evidence?${params}`); if (id === requestId) result.value = data }
-  catch (e: any) { if (id === requestId) error.value = e?.message || '读取来源失败' }
+  catch (e: any) { if (id === requestId) error.value = getErrorMessage(e, '读取来源失败，请稍后重试。') }
   finally { if (id === requestId) loading.value = false }
 }
 function select(p: string, c: string, h: any) { platform.value = p; category.value = c; hour.value = String(h || ''); page.value = 1; void load() }
 function reset() { hour.value = ''; page.value = 1; void load() }
-function name(p: string) { return names[p] || p || '-' }
+function name(p: string) { return names[p] || '其他平台' }
 function time(v: any) { return v ? String(v).replace('T', ' ').slice(0, 16) : '-' }
 function fixed(v: any) { return v == null || !Number.isFinite(Number(v)) ? '-' : Number(v).toFixed(2) }
 function safeUrl(v: any) { try { const u = new URL(String(v)); return ['http:', 'https:'].includes(u.protocol) ? u.href : undefined } catch { return undefined } }

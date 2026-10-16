@@ -74,7 +74,7 @@
       </div>
       <div class="analysis-card table-card hot-event-card">
         <div class="card-title">
-          <span class="title-main">选定时段热门事件 Top3</span>
+          <span class="title-main">选定时段热门事件前三名</span>
           <span>{{ selectedPlatform === 'ALL' ? '各平台分别取前 3' : `${platformName(selectedPlatform)}前 3` }}</span>
         </div>
         <div class="hot-event-groups">
@@ -99,11 +99,11 @@
 // 热点趋势页：分析事件随时间变化的热度、话题和传播阶段。
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import ChartBox from '../components/ChartBox.vue'
-import MetricGrid from '../components/MetricGrid.vue'
-import { clearGetCache, getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
+import ChartBox from '../../components/common/ChartBox.vue'
+import MetricGrid from '../../components/common/MetricGrid.vue'
+import { clearGetCache, getData, getErrorMessage } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 const platformColors: Record<string, string> = {
   TENCENT_NEWS: '#2563eb', NETEASE_NEWS: '#172033', SOHU_NEWS: '#d97706', SINA_NEWS: '#7c3aed', THE_PAPER: '#0f766e'
@@ -115,7 +115,7 @@ const refreshing = ref(false)
 const selectedPlatform = ref('ALL')
 const dateRange = ref<string[]>([])
 
-function platformName(value: string) { return ({ TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻' } as Record<string, string>)[value] || value || '-' }
+function platformName(value: string) { return ({ TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻' } as Record<string, string>)[value] || '其他平台' }
 function platformColor(value: string) { return platformColors[value] || '#64748b' }
 const CATEGORY_LABELS = ['财经', '政治', '科技', '体育', '文娱', '社会', '综合']
 const CATEGORY_COLORS: Record<string, string> = { 财经: '#2563eb', 政治: '#7c3aed', 科技: '#0891b2', 体育: '#16a34a', 文娱: '#d97706', 社会: '#dc2626', 综合: '#64748b' }
@@ -356,7 +356,7 @@ function setDefaultDateRange() {
 async function refreshData() {
   refreshing.value = true
   try { clearGetCache(); await load(); ElMessage.success('已读取最新数据库快照') }
-  catch (error: any) { ElMessage.error(error?.response?.data?.message || error?.message || '读取热点趋势失败') }
+  catch (error: any) { ElMessage.error(getErrorMessage(error, '读取热点趋势失败，请稍后重试。')) }
   finally { refreshing.value = false }
 }
 

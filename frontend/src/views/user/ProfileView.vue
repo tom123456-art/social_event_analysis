@@ -14,14 +14,14 @@
         <p>{{ roleText }}</p>
         <div class="detail-list">
           <div><span>账号</span><b>{{ profile.username || '-' }}</b></div>
-          <div><span>角色</span><b>{{ profile.role || 'ADMIN' }}</b></div>
-          <div><span>状态</span><b>{{ profile.status || 'ENABLED' }}</b></div>
+          <div><span>角色</span><b>{{ roleName(profile.role) }}</b></div>
+          <div><span>状态</span><b>{{ statusName(profile.status) }}</b></div>
           <div><span>最近更新</span><b>{{ updatedAt }}</b></div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">基础资料 <span>app_user</span></div>
+        <div class="card-title">基础资料 <span>账号资料</span></div>
         <el-form label-width="86px" class="compact-form">
           <div class="form-grid">
             <el-form-item label="账号"><el-input v-model="profile.username" disabled /></el-form-item>
@@ -33,9 +33,9 @@
           </div>
           <el-form-item label="个人简介"><el-input v-model="profile.bio" type="textarea" :rows="5" /></el-form-item>
           <div class="form-grid">
-            <el-form-item label="角色"><el-input v-model="profile.role" disabled /></el-form-item>
+            <el-form-item label="角色"><el-input :model-value="roleName(profile.role)" disabled /></el-form-item>
             <el-form-item label="状态">
-              <el-select v-model="profile.status" style="width:100%">
+              <el-select v-model="profile.status" style="width:100%" disabled>
                 <el-option label="启用" value="ENABLED" />
                 <el-option label="禁用" value="DISABLED" />
               </el-select>
@@ -45,13 +45,13 @@
       </div>
 
       <div class="card">
-        <div class="card-title">安全设置 <span>本地演示</span></div>
+        <div class="card-title">安全设置 <span>账号密码</span></div>
         <el-form label-width="86px" class="compact-form">
           <el-form-item label="原密码"><el-input v-model="password.old" type="password" show-password /></el-form-item>
           <el-form-item label="新密码"><el-input v-model="password.next" type="password" show-password /></el-form-item>
           <el-form-item label="确认密码"><el-input v-model="password.confirm" type="password" show-password /></el-form-item>
           <el-form-item>
-            <el-button @click="resetPassword">更新密码</el-button>
+            <el-button :loading="passwordBusy" @click="resetPassword">更新密码</el-button>
             <el-button @click="load">重新读取</el-button>
           </el-form-item>
         </el-form>
@@ -63,12 +63,16 @@
 <script setup lang="ts">
 // 个人资料页：查看并修改当前用户的基础资料。
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getData, getErrorMessage, putData } from '../api/client'
+import { getData, getErrorMessage, putData } from '../../api/client'
+import { roleName, statusName } from '../../utils/userText'
 
 const currentUser = localStorage.getItem('social_user') || 'student'
 const profile = reactive<any>({ username: currentUser, role: 'USER', status: 'ENABLED' })
 const password = reactive({ old: '', next: '', confirm: '' })
+const passwordBusy = ref(false)
+const router = useRouter()
 const updatedAt = computed(() => new Date().toLocaleString('zh-CN', { hour12: false }))
 const avatarText = computed(() => String(profile.username || currentUser).slice(0, 2).toUpperCase())
 const roleText = computed(() => String(profile.role).toUpperCase() === 'ADMIN' ? '系统管理员' : '普通用户')
@@ -92,15 +96,21 @@ async function saveProfile() {
   }
 }
 
-function resetPassword() {
+async function resetPassword() {
+  if (passwordBusy.value) return
   if (!password.old || !password.next || password.next !== password.confirm) {
     ElMessage.warning('请完整填写密码，并确认两次新密码一致')
     return
   }
-  password.old = ''
-  password.next = ''
-  password.confirm = ''
-  ElMessage.success('密码表单已校验，后续可接入认证接口')
+  passwordBusy.value = true
+  try {
+    await putData('/auth/password', { oldPassword: password.old, password: password.next, confirmPassword: password.confirm })
+    password.old = ''; password.next = ''; password.confirm = ''
+    localStorage.removeItem('social_token'); localStorage.removeItem('social_user'); localStorage.removeItem('social_role')
+    ElMessage.success('密码已更新，请重新登录')
+    await router.replace('/login')
+  } catch (error) { ElMessage.error(getErrorMessage(error, '更新密码失败，请稍后重试。')) }
+  finally { passwordBusy.value = false }
 }
 
 onMounted(load)

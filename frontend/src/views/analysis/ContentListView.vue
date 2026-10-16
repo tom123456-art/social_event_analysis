@@ -30,7 +30,7 @@
     </div>
 
     <div v-loading="loading" class="analysis-card table-card content-table-card">
-      <div class="card-title">内容明细列表 <span>ads_content_hot_rank</span></div>
+      <div class="card-title">内容明细列表 <span>分析内容明细</span></div>
       <table class="table fixed-rows">
         <thead><tr><th>排名</th><th>平台</th><th>类型</th><th>内容分类</th><th>标题/正文</th><th>作者</th><th>发布时间</th><th>情感</th><th>热度</th><th style="width:90px">操作</th></tr></thead>
         <tbody>
@@ -70,9 +70,9 @@
 // 内容明细页：展示事件下的热点内容并支持筛选查看。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
+import { getData } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 const eventId = ref(ANALYSIS_EVENT_ID)
 const rows = ref<any[]>([])
@@ -112,7 +112,7 @@ function reset() { query.value = ''; platform.value = '全部'; sentiment.value 
 function openDetail(row: any) { Object.assign(current, row); detailVisible.value = true }
 function numberText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0) }
 function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }
-function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道' } as Record<string, string>)[value] || value || '-' }
+function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道' } as Record<string, string>)[value] || '其他平台' }
 function sentimentName(value: string) { return value === 'positive' ? '正向' : value === 'negative' ? '负向' : '未分类' }
 function categoryName(row: any) { return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合' }
 

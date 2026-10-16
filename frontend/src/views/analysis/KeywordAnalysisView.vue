@@ -4,7 +4,7 @@
       <div>
         <span>关键词分析</span>
         <h2>新闻主题与互动关注观察</h2>
-        <p>以新闻内容的互动总量为热度，按关键词共现关系归并主题簇，避免同一主题重复进入 Top N。</p>
+        <p>以新闻内容的互动总量为热度，按关键词共现关系归并主题簇，避免同一主题重复进入排名。</p>
       </div>
       <div class="analysis-actions">
         <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
@@ -14,7 +14,7 @@
 
     <div class="grid third">
       <section class="analysis-card keyword-cloud-card">
-        <div class="card-title">主题关键词云 <span>Top25 议题词簇</span></div>
+        <div class="card-title">主题关键词云 <span>前二十五个议题词簇</span></div>
         <div class="category-legend" aria-label="类别图例">
           <button v-for="category in categoryLegend" :key="category.name" type="button" :class="{ muted: hiddenCloudCategories.has(category.name) }" @click="toggleCloudCategory(category.name)">
             <i :style="{ background: category.color }"></i>{{ category.name }}
@@ -28,7 +28,7 @@
 
       <section class="analysis-card keyword-trend-card">
         <div class="card-title chart-title-with-control">
-          <span>主题热度趋势 <small>Top8 跨主题代表词</small></span>
+          <span>主题热度趋势 <small>前八个跨主题代表词</small></span>
           <el-radio-group v-model="trendGranularity" size="small" aria-label="时间粒度">
             <el-radio-button label="day">日</el-radio-button>
             <el-radio-button label="week">周</el-radio-button>
@@ -38,7 +38,7 @@
       </section>
 
       <section class="analysis-card keyword-platform-card">
-        <div class="card-title">主题-平台分布 <span>Top10 跨主题代表词</span></div>
+        <div class="card-title">主题-平台分布 <span>前十个跨主题代表词</span></div>
         <ChartBox class="keyword-platform-chart" :option="keywordPlatformOption" />
       </section>
     </div>
@@ -169,11 +169,11 @@
 // 关键词分析页：展示关键词频次、关联平台和关注建议。
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import ChartBox from '../components/ChartBox.vue'
-import { clearGetCache, getData } from '../api/client'
-import { useDatabaseAutoRefresh } from '../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../config/analysisDataset'
-import { INTERACTION_METRICS, isContextOnlyKeyword, numericInteraction, observeTopics, observationPosition, representativeTopics, topicMedian } from '../utils/topicObservation'
+import ChartBox from '../../components/common/ChartBox.vue'
+import { clearGetCache, getData, getErrorMessage } from '../../api/client'
+import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
+import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { INTERACTION_METRICS, isContextOnlyKeyword, numericInteraction, observeTopics, observationPosition, representativeTopics, topicMedian } from '../../utils/topicObservation'
 
 type Granularity = 'day' | 'week'
 
@@ -517,7 +517,7 @@ async function refreshData() {
     await load()
     ElMessage.success('已读取最新数据库快照')
   } catch (error: any) {
-    ElMessage.error(error?.message || '读取数据库失败')
+    ElMessage.error(getErrorMessage(error, '读取数据库失败，请稍后重试。'))
   } finally {
     refreshing.value = false
   }
@@ -584,7 +584,7 @@ function categoryName(value: any) {
   const text = String(value || '').trim()
   return ({ finance: '财经', politics: '政治', culture: '文娱', general: '综合', society: '社会', sports: '体育', technology: '科技' } as Record<string, string>)[text] || (CATEGORY_COLORS[text] ? text : '综合')
 }
-function platformName(value: string) { return ({ SOHU_NEWS: '搜狐新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻' } as Record<string, string>)[value] || value }
+function platformName(value: string) { return ({ SOHU_NEWS: '搜狐新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻' } as Record<string, string>)[value] || '其他平台' }
 function formatNumber(value: number) { return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(Number(value || 0)) }
 function decimal(value: unknown) { return value === null || value === undefined || !Number.isFinite(Number(value)) ? '-' : Number(value).toFixed(1) }
 function escapeHtml(value: unknown) { return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }

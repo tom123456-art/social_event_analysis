@@ -4,10 +4,8 @@
   <div v-else-if="route.meta.group === 'front'" class="front-shell">
     <header class="front-header">
       <router-link class="front-brand" to="/overview">
-        <span class="brand-mark">SH</span>
         <div>
-          <b>社交媒体热点传播分析</b>
-          <small>Public Analysis Portal</small>
+          <b title="网络媒体热点事件传播态势与舆情分析">网络媒体热点事件<br />传播态势与舆情分析</b>
         </div>
       </router-link>
       <nav class="front-nav">
@@ -28,10 +26,8 @@
   <div v-else class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">SH</div>
         <div>
-          <b>社媒热点传播分析</b>
-          <span>Spark Analytics Console</span>
+          <b title="网络媒体热点事件传播态势与舆情分析">网络媒体热点事件<br />传播态势与舆情分析</b>
         </div>
       </div>
 
@@ -53,7 +49,7 @@
         <div class="admin-status">
           <span>{{ roleLabel }}</span>
           <b>{{ isAdmin ? '权限边界已启用' : '普通用户权限' }}</b>
-          <em>{{ isAdmin ? 'Raw CSV / Spark ETL / ADS 管理' : '仅可维护本人资料' }}</em>
+          <em>{{ isAdmin ? '原始数据、处理任务与分析结果管理' : '仅可维护本人资料' }}</em>
         </div>
         <div class="top-actions">
           <router-link class="screen-link" to="/overview">返回前台</router-link>
@@ -82,6 +78,7 @@
 import { computed, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DataLine, Files, Monitor, User, Postcard } from '@element-plus/icons-vue'
+import { clearGetCache, postData } from './api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -132,9 +129,9 @@ const session = ref(readSession())
 const userName = computed(() => session.value.user || '管理员')
 const userInitial = computed(() => userName.value.slice(0, 1))
 const isLoggedIn = computed(() => Boolean(session.value.token))
-const isAdmin = computed(() => session.value.user === 'admin' && session.value.role === 'admin')
+const isAdmin = computed(() => session.value.role === 'admin')
 const adminMenuGroups = computed(() => isAdmin.value ? fullAdminMenuGroups : userMenuGroups)
-const roleLabel = computed(() => isAdmin.value ? 'ADMIN' : 'USER')
+const roleLabel = computed(() => isAdmin.value ? '管理员' : '普通用户')
 const adminEntryText = computed(() => !isLoggedIn.value ? '后台登录' : isAdmin.value ? '后台管理' : '个人信息')
 
 watch(() => route.fullPath, () => {
@@ -163,7 +160,9 @@ function goAdmin() {
   router.push('/login?redirect=/admin')
 }
 
-function logout() {
+async function logout() {
+  try { await postData('/auth/logout', {}) } catch { /* Local logout still completes when the server is unavailable. */ }
+  clearGetCache()
   localStorage.removeItem('social_token')
   localStorage.removeItem('social_user')
   localStorage.removeItem('social_role')

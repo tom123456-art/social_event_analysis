@@ -51,11 +51,9 @@ public class AuthController {
     }
     // 清理过期记录并拒绝超过阈值的认证请求。
     private synchronized void throttle(String ip) {
-        // 读取当前毫秒时间。
+        // 读取当前毫秒时间；删除已经超过一分钟窗口的客户端记录；读取当前客户端记录，不存在时创建新窗口。
         long now = System.currentTimeMillis();
-        // 删除已经超过一分钟窗口的客户端记录。
         attempts.entrySet().removeIf(entry -> now - entry.getValue().started() >= 60000);
-        // 读取当前客户端记录，不存在时创建新窗口。
         Attempt previous = attempts.getOrDefault(ip, new Attempt(now, 0));
         // 限制单地址频率，并限制内存中客户端数量。
         if (previous.count() >= 20 || (!attempts.containsKey(ip) && attempts.size() >= 10000)) throw new AuthException(429, "操作过于频繁，请稍后再试。");

@@ -1,14 +1,9 @@
-// 声明包名 com.social.hotspot.service.etl。
 package com.social.hotspot.service.etl;
 
-// 引入统一接口响应对象。
 import com.social.hotspot.common.ApiResponse;
-// 引入上传文件类型。
 import org.springframework.web.multipart.MultipartFile;
 
-// 引入列表，保存多条数据。
 import java.util.List;
-// 引入键值映射，按字段名存取数据。
 import java.util.Map;
 
 // 定义 ETL 业务接口，约定调用方式。

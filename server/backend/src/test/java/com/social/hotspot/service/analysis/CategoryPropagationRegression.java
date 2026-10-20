@@ -1,6 +1,6 @@
 // 声明包名 com.social.hotspot.service.analysis。
 package com.social.hotspot.service.analysis;
-import com.social.hotspot.service.analysis.impl.AnalyticsServiceImpl;
+import com.social.hotspot.service.analysis.AnalyticsServiceImpl;
 
 // 引入反射方法类型。
 import java.lang.reflect.Method;

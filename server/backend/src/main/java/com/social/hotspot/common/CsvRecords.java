@@ -10,11 +10,9 @@ public final class CsvRecords {
 
     /** 按引号外的换行符切分完整 CSV 记录。 */
     public static List<String> records(String content) {
-        // 按原始顺序保存非空记录。
+        // 按原始顺序保存非空记录；跟踪当前位置是否处于引号字段内；只有字段起点的引号能够开启引号字段。
         List<String> records = new ArrayList<>();
-        // 跟踪当前位置是否处于引号字段内。
         boolean quoted = false;
-        // 只有字段起点的引号能够开启引号字段。
         boolean fieldStart = true;
         // 保存当前记录在原文中的起始偏移。
         int start = 0;
@@ -50,11 +48,9 @@ public final class CsvRecords {
 
     /** 按引号外的逗号切分字段，并还原双引号转义。 */
     public static List<String> cells(String record) {
-        // 保存解析完成的单元格，包括空单元格。
+        // 保存解析完成的单元格，包括空单元格；累积当前单元格已经解码的字符；标记当前是否在引号字段内。
         List<String> cells = new ArrayList<>();
-        // 累积当前单元格已经解码的字符。
         StringBuilder cell = new StringBuilder();
-        // 标记当前是否在引号字段内。
         boolean quoted = false;
         // 标记当前字符能否开启引号字段。
         boolean fieldStart = true;

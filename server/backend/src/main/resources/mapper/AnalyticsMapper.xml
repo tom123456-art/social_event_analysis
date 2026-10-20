@@ -118,6 +118,7 @@
         SELECT *
         FROM ads_keyword_rank
         WHERE event_id = #{eventId}
+          AND TRIM(keyword) NOT IN ('效率', '方面', '理性', '这一', '导弹', '群众', '效果', '美军', '经验总结', '习近平')
         ORDER BY word_count DESC
         LIMIT #{limit}
     </select>
@@ -198,6 +199,7 @@
             AND sentiment_label = #{sentiment}
         </if>
         <if test="category != null and category != ''">
+            AND UPPER(TRIM(platform)) NOT IN ('WEIBO', 'SINA_WEIBO')
             AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
             <choose>
                 <when test="category == 'finance'">'财经'</when>

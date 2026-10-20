@@ -1,9 +1,6 @@
-// 声明包名 com.social.hotspot.service.analysis。
 package com.social.hotspot.service.analysis;
 
-// 引入列表，保存多条数据。
 import java.util.List;
-// 引入键值映射，按字段名存取数据。
 import java.util.Map;
 
 /** 分析服务接口：定义前端分析页面需要的数据能力。 */

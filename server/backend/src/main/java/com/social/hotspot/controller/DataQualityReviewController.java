@@ -9,9 +9,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin/reviews")
 public class DataQualityReviewController {
-    // 提供审核队列查询和审核决定持久化。
+    // 提供审核队列查询和审核决定持久化；提供异步应用审核结果的任务入口。
     private final DataQualityReviewStore store;
-    // 提供异步应用审核结果的任务入口。
     private final ReviewApplicationService application;
     // 注入审核存储和应用任务服务。
     public DataQualityReviewController(DataQualityReviewStore store, ReviewApplicationService application) { this.store = store; this.application = application; }

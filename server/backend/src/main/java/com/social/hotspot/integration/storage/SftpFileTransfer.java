@@ -8,9 +8,8 @@ import java.nio.file.Path;
 public final class SftpFileTransfer {
     private SftpFileTransfer() {}
     public static void upload(Session session, Path localFile, String remotePath, int timeoutSeconds) throws Exception {
-        // 在 SSH 会话中创建 SFTP 文件传输通道。
+        // 在 SSH 会话中创建 SFTP 文件传输通道；建立 SSH 连接或通道，最多等待 30 秒。
         ChannelSftp sftp = (ChannelSftp) session.openChannel("sftp");
-        // 建立 SSH 连接或通道，最多等待 30 秒。
         sftp.connect(Math.min(timeoutSeconds * 1000, 30000));
         // 打开自动关闭资源，离开 try 时关闭文件或流。
         try (InputStream input = Files.newInputStream(localFile)) {
@@ -20,8 +19,6 @@ public final class SftpFileTransfer {
         } finally {
             // 关闭远程会话或通道，释放连接资源。
             sftp.disconnect();
-        // 结束资源清理步骤。
         }
-    // 结束当前方法。
     }
 }

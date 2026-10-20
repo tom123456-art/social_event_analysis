@@ -19,9 +19,8 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Override public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         // 放行跨域预检请求，不要求携带认证令牌。
         if ("OPTIONS".equals(request.getMethod())) return true;
-        // 校验 Authorization 中的令牌并读取用户资料。
+        // 校验 Authorization 中的令牌并读取用户资料；去掉部署上下文前缀，得到应用内接口路径。
         Map<String, Object> user = auth.authenticate(request.getHeader("Authorization"));
-        // 去掉部署上下文前缀，得到应用内接口路径。
         String path = request.getRequestURI().substring(request.getContextPath().length());
         // 管理接口和 ETL 接口仅允许管理员访问。
         if ((path.startsWith("/api/admin/") || path.startsWith("/api/etl/")) && !"admin".equals(user.get("role")))

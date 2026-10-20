@@ -7,9 +7,8 @@ import static com.social.hotspot.integration.spark.RemoteCommandExecutor.*;
 public final class HivePartitionRegistrar {
     private HivePartitionRegistrar() {}
     public static void register(Session session, String batchId, String rawPath, String dwdPath, String appHome, String warehouseOutput, int timeoutSeconds) throws Exception {
-        // 将批次号中的单引号转义为 SQL 字符串格式。
+        // 将批次号中的单引号转义为 SQL 字符串格式；构造注册 ODS、DWD 和 DWS 批次分区的 Hive SQL。
         String partition = batchId.replace("'", "''");
-        // 构造注册 ODS、DWD 和 DWS 批次分区的 Hive SQL。
         String sql = "ALTER TABLE social_ods.ods_social_content_raw ADD IF NOT EXISTS PARTITION (batch_id='" + partition
                 // 继续拼接命令、路径或文本：+ "') LOCATION '" + rawPath.replace("'", "''") + "'; "；sh 负责参数引号转义。
                 + "') LOCATION '" + rawPath.replace("'", "''") + "'; "
@@ -37,7 +36,6 @@ public final class HivePartitionRegistrar {
                 + sh(warehouseOutput + "/manifests/batch_id=" + batchId + "/dws.sql"), timeoutSeconds);
         if (manifest.stdout().isBlank()) throw new IllegalStateException("Missing DWS Hive manifest");
         exec(session, hiveCli() + " -e " + sh(manifest.stdout()), timeoutSeconds);
-    // 结束当前方法。
     }
     private static String hiveCli() {
         // Older VM glibc exposes openpty through libutil; Jansi needs that symbol loaded.

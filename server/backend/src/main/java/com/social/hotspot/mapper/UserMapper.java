@@ -1,14 +1,9 @@
-// 声明包名 com.social.hotspot.mapper.user。
 package com.social.hotspot.mapper;
 
-// 引入 MyBatis 接口注解。
 import org.apache.ibatis.annotations.Mapper;
-// 引入 SQL 参数命名注解。
 import org.apache.ibatis.annotations.Param;
 
-// 引入列表，保存多条数据。
 import java.util.List;
-// 引入键值映射，按字段名存取数据。
 import java.util.Map;
 
 // 让 MyBatis 创建访问代理，SQL 位于对应映射文件。
@@ -27,5 +22,4 @@ public interface UserMapper {
     int deleteUser(@Param("id") Long id);
     // 按用户名查询资料。
     Map<String, Object> userByUsername(@Param("username") String username);
-// 结束接口定义。
 }

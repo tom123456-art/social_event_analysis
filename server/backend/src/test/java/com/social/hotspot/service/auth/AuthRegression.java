@@ -64,7 +64,12 @@ public class AuthRegression {
         check(interceptor.preHandle(front, null, null), "authenticated user can read own profile");
         reject(AuthException.class, () -> interceptor.preHandle(request("/api/admin/reviews", header), null, null));
         reject(AuthException.class, () -> interceptor.preHandle(request("/api/etl/run", header), null, null));
-        UserProfileService profile = (UserProfileService) Proxy.newProxyInstance(AuthRegression.class.getClassLoader(), new Class[]{UserProfileService.class}, (proxy, method, values) -> Map.of("username", values[0]));
+        // 个人资料服务已是具体类，使用隔离替身验证控制器取认证主体，不连接数据库。
+        UserProfileService profile = new UserProfileService(null) {
+            @Override public Map<String, Object> profile(String username) {
+                return Map.of("username", username);
+            }
+        };
         UserProfileCommunityController controller = new UserProfileCommunityController(profile, null);
         check("reader".equals(controller.profile(front).data().get("username")), "profile must use authenticated principal");
         reject(AuthException.class, () -> controller.updateProfile("admin", Map.of(), front));

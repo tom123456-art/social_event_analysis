@@ -1,5 +1,5 @@
 package com.social.hotspot.service.etl;
-import com.social.hotspot.service.etl.impl.EtlTaskServiceImpl;
+import com.social.hotspot.service.etl.EtlTaskServiceImpl;
 
 import java.util.List;
 

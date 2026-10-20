@@ -1,7 +1,5 @@
-// 声明统一用户提示工具所在的包。
 package com.social.hotspot.common;
 
-// 引入正则工具，识别英文技术异常和堆栈。
 import java.util.regex.Pattern;
 
 // 统一过滤用户提示。
@@ -22,13 +20,10 @@ public final class UserMessages {
         if (message == null || message.isBlank()) {
             // 返回备用中文提示。
             return fallback;
-        // 结束空值处理。
         }
         // 清理首尾空白，但不尝试翻译不可控的第三方异常。
         String text = message.trim();
         // 保留中文业务说明，技术详情留在日志中。
         return CHINESE.matcher(text).find() && !TECHNICAL.matcher(text).find() ? text : fallback;
-    // 结束提示转换方法。
     }
-// 结束工具类。
 }

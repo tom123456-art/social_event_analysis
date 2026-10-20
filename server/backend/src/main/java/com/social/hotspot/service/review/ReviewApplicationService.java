@@ -17,15 +17,12 @@ import java.util.concurrent.ExecutorService;
 
 @Service
 public class ReviewApplicationService {
-    // 保存审核记录并负责状态流转。
+    // 保存审核记录并负责状态流转；负责把审核快照写入临时输入数据；负责触发远程 ETL 全量重建。
     private final DataQualityReviewStore store;
-    // 负责把审核快照写入临时输入数据。
     private final ReviewInputPreparationService pipeline;
-    // 负责触发远程 ETL 全量重建。
     private final EtlWorkflowService remote;
-    // 串行协调数据库写入和分析任务，避免并发快照冲突。
+    // 串行协调数据库写入和分析任务，避免并发快照冲突；任务成功后清理分析缓存。
     private final DataSyncCoordinator coordinator;
-    // 任务成功后清理分析缓存。
     private final AnalyticsCache cache;
     // 保存最近一次审核应用任务的可查询状态。
     private volatile Map<String, Object> latestJob = Map.of();
@@ -47,9 +44,8 @@ public class ReviewApplicationService {
     public synchronized Map<String, Object> submit() {
         // 同一时间只允许存在一个应用任务。
         if (applying) throw new BusinessException("已有审核应用任务正在运行");
-        // 固定本次任务使用的审核记录快照。
+        // 固定本次任务使用的审核记录快照；创建任务编号和排队状态。
         var snapshot = store.reserveForApplication();
-        // 创建任务编号和排队状态。
         Map<String, Object> job = Map.of("id", UUID.randomUUID().toString(), "status", "QUEUED", "count", snapshot.size());
         // 发布最近任务状态并设置运行标记。
         latestJob = job;
@@ -89,17 +85,14 @@ public class ReviewApplicationService {
             coordinator.execute(() -> {
                 // 标记任务已经开始运行。
                 updateJob("RUNNING", null, null);
-                // 定位原始 CSV 基线文件。
+                // 定位原始 CSV 基线文件；临时注入审核快照并运行远程全量 ETL。
                 var source = ProjectPaths.root().resolve("data/crawler/social_event_real.csv");
-                // 临时注入审核快照并运行远程全量 ETL。
                 var result = pipeline.withSnapshot(snapshot, () -> remote.runFull(source));
                 // ETL 必须成功后才允许审核记录生效。
                 if (!"SUCCESS".equals(result.get("status"))) throw new IllegalStateException("分析重建未成功");
-                // 读取新生成的分析批次号。
+                // 读取新生成的分析批次号；将审核记录标记为已应用；清理公开事件缓存，确保页面读取新结果。
                 String batch = result.get("batch_id").toString();
-                // 将审核记录标记为已应用。
                 store.finishApplication(snapshot, batch, null);
-                // 清理公开事件缓存，确保页面读取新结果。
                 cache.evictEvent("public_rss_latest");
                 try { remote.markFullBaseline(source, batch); }
                 catch (Exception checkpoint) {

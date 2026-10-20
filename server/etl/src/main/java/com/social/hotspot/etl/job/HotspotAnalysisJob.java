@@ -82,9 +82,8 @@ public class HotspotAnalysisJob {
             Dataset<Row> parsed = ensureColumns(readInput(spark, input), "_corrupt_record").cache();
             long sourceCount = parsed.count();
             long structuralDirtyCount = parsed.filter(col("_corrupt_record").isNotNull()).count();
-            // 清洗入口同时提供原始损坏证据和规范化视图；日志、隔离输出仍由作业负责。
+            // 清洗入口同时提供原始损坏证据和规范化视图；日志、隔离输出仍由作业负责；保留原始字段供损坏计数和隔离文件使用。
             CleaningStage.Prepared prepared = CleaningStage.prepare(parsed, eventId, eventName, batchId);
-            // 保留原始字段供损坏计数和隔离文件使用。
             Dataset<Row> raw = prepared.raw();
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "RawToOdsJob", "ODS", sourceCount, sourceCount, "SUCCESS", null);
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityStructural", "DWD", sourceCount,
@@ -105,9 +104,8 @@ public class HotspotAnalysisJob {
                         .write().mode(SaveMode.ErrorIfExists).parquet(warehouseOutput
                                 + "/quarantine/text_encoding/batch_id=" + batchId);
             }
-            // 统一执行有效性过滤和批内去重，作业层不再拼装规则。
+            // 统一执行有效性过滤和批内去重，作业层不再拼装规则；此处仍为去重前的质量通过数，与原任务日志口径一致。
             CleaningStage.Result cleaned = CleaningStage.clean(normalized);
-            // 此处仍为去重前的质量通过数，与原任务日志口径一致。
             long candidateCount = cleaned.candidateCount();
             long dirtyCount = Math.max(0, sourceCount - candidateCount);
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityCompletenessValidity", "DWD", sourceCount, candidateCount, "SUCCESS", null);

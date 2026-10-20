@@ -58,7 +58,8 @@ public final class DwsSummaryAggregator {
                 .withColumn("keyword", explode(split(regexp_replace(coalesce(col("keywords"), col("clean_text")), "[,，、/|；;]+", " "), "\\s+")))
                 .withColumn("keyword", trim(col("keyword")))
                 .filter(length(col("keyword")).between(2, 12))
-                .filter(not(col("keyword").isin("这个", "一个", "我们", "你们", "他们", "以及", "但是", "然后")));
+                .filter(not(col("keyword").isin("这个", "一个", "我们", "你们", "他们", "以及", "但是", "然后",
+                        "效率", "方面", "理性", "这一", "导弹", "群众", "效果", "美军", "经验总结", "习近平")));
         Dataset<Row> keywordRank = keywords.groupBy(col("event_id"), col("keyword"))
                 .agg(
                     count(lit(1)).alias("word_count"),

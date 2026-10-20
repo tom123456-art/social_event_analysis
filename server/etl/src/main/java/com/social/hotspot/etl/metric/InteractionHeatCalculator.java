@@ -41,17 +41,14 @@ public final class InteractionHeatCalculator {
 
     // 计算同一事件、同一平台内部的相对热度指数。
     public static Dataset<Row> buildPlatformRelativeHeat(Dataset<Row> valid) {
-        // 以事件和平台作为百分位排名窗口。
+        // 以事件和平台作为百分位排名窗口；删除旧热度排名，避免重复计算产生歧义。
         WindowSpec platformWindow = Window.partitionBy("event_id", "platform");
-        // 删除旧热度排名，避免重复计算产生歧义。
         Dataset<Row> result = valid.drop("hot_rank");
         // 为每个互动字段计算信号覆盖率和百分位。
         for (String field : INTERACTION_FIELDS) {
-            // 生成覆盖率字段名。
+            // 生成覆盖率字段名；生成百分位字段名；对互动量取对数后排名，降低极端值影响。
             String coverageColumn = "_" + field + "_coverage";
-            // 生成百分位字段名。
             String percentileColumn = "_" + field + "_percentile";
-            // 对互动量取对数后排名，降低极端值影响。
             result = result
                     .withColumn(coverageColumn, avg(when(col(field).gt(0), lit(1D)).otherwise(lit(0D))).over(platformWindow))
                     .withColumn(percentileColumn, round(percent_rank().over(platformWindow.orderBy(log1p(col(field)).asc())).multiply(100), 2));
@@ -68,9 +65,8 @@ public final class InteractionHeatCalculator {
             interactionSignalCount = interactionSignalCount.plus(when(available, lit(1)).otherwise(lit(0)));
             interactionPercentileSum = interactionPercentileSum.plus(when(available, col("_" + field + "_percentile")).otherwise(lit(0D)));
         }
-        // 至少存在一个有效字段时才认为内容具备热度信号。
+        // 至少存在一个有效字段时才认为内容具备热度信号；对可用字段的百分位做等权平均。
         Column interactionAvailable = interactionSignalCount.gt(0);
-        // 对可用字段的百分位做等权平均。
         Column relativeIndex = when(interactionAvailable, interactionPercentileSum.divide(interactionSignalCount))
                 .otherwise(lit(null).cast("double"));
 

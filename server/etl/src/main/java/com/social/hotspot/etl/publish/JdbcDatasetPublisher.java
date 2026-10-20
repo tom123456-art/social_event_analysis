@@ -14,15 +14,12 @@ public final class JdbcDatasetPublisher {
     private JdbcDatasetPublisher() {}
     // 将 Spark 数据集追加写入指定 MySQL 表。
     public static void writeJdbc(Dataset<Row> data, String url, String user, String password, String table) {
-        // 创建 Spark JDBC 写入连接参数。
+        // 创建 Spark JDBC 写入连接参数；设置数据库用户名；设置数据库密码。
         Properties properties = new Properties();
-        // 设置数据库用户名。
         properties.put("user", user);
-        // 设置数据库密码。
         properties.put("password", password);
-        // 指定 MySQL Connector/J 驱动。
+        // 指定 MySQL Connector/J 驱动；使用追加模式发布数据，快照清理由上层流程协调。
         properties.put("driver", "com.mysql.cj.jdbc.Driver");
-        // 使用追加模式发布数据，快照清理由上层流程协调。
         data.write().mode(SaveMode.Append).jdbc(url, table, properties);
     }
 
@@ -37,17 +34,13 @@ public final class JdbcDatasetPublisher {
                      values(?, ?, ?, ?, ?, 'ACTIVE')
                      on duplicate key update event_name=values(event_name), start_time=values(start_time), end_time=values(end_time), updated_at=current_timestamp
                      """)) {
-            // 绑定事件主键。
+            // 绑定事件主键；绑定事件展示名称；说明事件分析结果来自真实采集和 Spark 计算。
             ps.setString(1, eventId);
-            // 绑定事件展示名称。
             ps.setString(2, eventName);
-            // 说明事件分析结果来自真实采集和 Spark 计算。
             ps.setString(3, "由公开数据源真实采集后经 Spark ETL 计算生成");
-            // 绑定实际内容时间范围起点。
+            // 绑定实际内容时间范围起点；绑定实际内容时间范围终点；执行插入或主键冲突更新。
             ps.setTimestamp(4, row.getAs("start_time"));
-            // 绑定实际内容时间范围终点。
             ps.setTimestamp(5, row.getAs("end_time"));
-            // 执行插入或主键冲突更新。
             ps.executeUpdate();
         }
     }

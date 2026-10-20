@@ -15,11 +15,9 @@ public final class JobArguments {
         for (int i = 0; i < args.length; i++) {
             // 只处理以双短横线开头的选项。
             if (args[i].startsWith("--")) {
-                // 去掉选项前缀，得到配置键。
+                // 去掉选项前缀，得到配置键；下一个元素不是选项时作为值，否则将当前选项当作布尔开关；保存当前参数键值。
                 String key = args[i].substring(2);
-                // 下一个元素不是选项时作为值，否则将当前选项当作布尔开关。
                 String value = (i + 1 < args.length && !args[i + 1].startsWith("--")) ? args[++i] : "true";
-                // 保存当前参数键值。
                 params.put(key, value);
             }
         }

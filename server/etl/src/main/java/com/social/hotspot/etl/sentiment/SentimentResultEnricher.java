@@ -14,11 +14,9 @@ public final class SentimentResultEnricher {
     private SentimentResultEnricher() {}
     // 校验模型二分类概率与标签是否符合输出契约。
     public static Column validBinarySentiment() {
-        // 读取模型正面概率。
+        // 读取模型正面概率；读取模型负面概率；标签应对应最大概率，相等时按推理脚本约定选正面。
         Column positive = col("sentiment_positive_score");
-        // 读取模型负面概率。
         Column negative = col("sentiment_negative_score");
-        // 标签应对应最大概率，相等时按推理脚本约定选正面。
         Column expectedLabel = when(positive.geq(negative), lit("positive")).otherwise(lit("negative"));
         // 检查概率非空、有限、范围合法、合计接近一且标签一致。
         return coalesce(positive.isNotNull().and(negative.isNotNull())
@@ -42,11 +40,9 @@ public final class SentimentResultEnricher {
     public static Dataset<Row> applyManualSentiment(Dataset<Row> data) {
         // 人工来源标记为 MANUAL，其余记录暂按模型来源处理。
         return data.withColumn("sentiment_source", when(manualSentiment(), lit("MANUAL")).otherwise(lit("MODEL")))
-                // 人工通过记录采用审核标签。
+                // 人工通过记录采用审核标签；人工标注没有模型正面概率；人工标注没有模型负面概率。
                 .withColumn("sentiment_label", when(manualSentiment(), col("_review_sentiment")).otherwise(col("sentiment_label")))
-                // 人工标注没有模型正面概率。
                 .withColumn("sentiment_positive_score", when(manualSentiment(), lit(null).cast("double")).otherwise(col("sentiment_positive_score")))
-                // 人工标注没有模型负面概率。
                 .withColumn("sentiment_negative_score", when(manualSentiment(), lit(null).cast("double")).otherwise(col("sentiment_negative_score")))
                 // 人工概率保持空值，二分类模型中性概率固定为零。
                 .withColumn("sentiment_neutral_score", when(manualSentiment(), lit(null).cast("double")).otherwise(lit(0D)));
@@ -84,9 +80,8 @@ public final class SentimentResultEnricher {
         if (!hasColumn(inputRows, "sentiment_status")) {
             throw new IllegalArgumentException("情感结果缺少前置筛选状态，请使用新版脚本重新生成结果。");
         }
-        // 读取前置门控状态。
+        // 读取前置门控状态；跳过记录不允许携带标签或任一概率。
         Column status = col("sentiment_status");
-        // 跳过记录不允许携带标签或任一概率。
         Column malformedSkip = status.equalTo("SKIPPED").and(
                 nullIfBlank(col("sentiment_label")).isNotNull()
                         .or(nullIfBlank(col("sentiment_positive_score")).isNotNull())

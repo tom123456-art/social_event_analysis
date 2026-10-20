@@ -22,29 +22,21 @@ public final class EtlProgressRecorder {
                      on duplicate key update source_count=values(source_count), valid_count=values(valid_count), dirty_count=values(dirty_count),
                      duplicate_count=values(duplicate_count), status=values(status), current_stage=values(current_stage), finished_at=values(finished_at), error_message=values(error_message), updated_at=current_timestamp
                      """)) {
-            // 绑定批次唯一标识。
+            // 绑定批次唯一标识；绑定批次对应的事件标识；记录本次读取的数据源路径。
             ps.setString(1, batchId);
-            // 绑定批次对应的事件标识。
             ps.setString(2, eventId);
-            // 记录本次读取的数据源路径。
             ps.setString(3, sourcePath);
-            // 记录读取的原始记录数。
+            // 记录读取的原始记录数；记录通过清洗的有效记录数；记录质量筛选淘汰数量。
             ps.setLong(4, sourceCount);
-            // 记录通过清洗的有效记录数。
             ps.setLong(5, validCount);
-            // 记录质量筛选淘汰数量。
             ps.setLong(6, dirtyCount);
-            // 记录重复版本淘汰数量。
+            // 记录重复版本淘汰数量；写入批次执行状态；写入当前处理阶段。
             ps.setLong(7, duplicateCount);
-            // 写入批次执行状态。
             ps.setString(8, status);
-            // 写入当前处理阶段。
             ps.setString(9, stage);
-            // 将可空的 Java 开始时间转换为 JDBC 时间戳。
+            // 将可空的 Java 开始时间转换为 JDBC 时间戳；尚未完成的批次保留空结束时间；截断错误说明以符合数据库字段长度。
             ps.setTimestamp(10, startedAt == null ? null : Timestamp.valueOf(startedAt));
-            // 尚未完成的批次保留空结束时间。
             ps.setTimestamp(11, finishedAt == null ? null : Timestamp.valueOf(finishedAt));
-            // 截断错误说明以符合数据库字段长度。
             ps.setString(12, truncate(error, 1000));
             // 提交批次状态更新。
             ps.executeUpdate();
@@ -62,23 +54,17 @@ public final class EtlProgressRecorder {
                      insert into etl_task_log(batch_id, task_name, task_stage, input_count, output_count, status, started_at, finished_at, error_message)
                      values(?, ?, ?, ?, ?, ?, ?, ?, ?)
                      """)) {
-            // 将阶段日志关联至所属批次。
+            // 将阶段日志关联至所属批次；绑定任务名称；绑定阶段标识。
             ps.setString(1, batchId);
-            // 绑定任务名称。
             ps.setString(2, taskName);
-            // 绑定阶段标识。
             ps.setString(3, stage);
-            // 绑定阶段输入记录数。
+            // 绑定阶段输入记录数；绑定阶段输出记录数；绑定阶段执行状态。
             ps.setLong(4, input);
-            // 绑定阶段输出记录数。
             ps.setLong(5, output);
-            // 绑定阶段执行状态。
             ps.setString(6, status);
-            // 当前日志未单独采集阶段开始时间，使用写入时刻。
+            // 当前日志未单独采集阶段开始时间，使用写入时刻；记录日志写入时刻作为阶段结束时间；将错误信息限制在数据库允许的长度内。
             ps.setTimestamp(7, Timestamp.valueOf(now));
-            // 记录日志写入时刻作为阶段结束时间。
             ps.setTimestamp(8, Timestamp.valueOf(now));
-            // 将错误信息限制在数据库允许的长度内。
             ps.setString(9, truncate(error, 1000));
             // 执行阶段日志插入。
             ps.executeUpdate();

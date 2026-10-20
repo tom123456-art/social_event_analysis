@@ -1,23 +1,13 @@
-// 将本类归入清洗规则包，统一原始字段处理与质量规则的代码位置。
 package com.social.hotspot.etl.cleaning;
-// 检查来源或历史数据是否包含指定字段。
 import static com.social.hotspot.etl.cleaning.DataFrameColumns.hasColumn;
-// 安全引用可选字段，缺列时生成空值。
 import static com.social.hotspot.etl.cleaning.DataFrameColumns.safeCol;
 
-// 使用 Spark 列表达式描述字段转换和质量条件。
 import org.apache.spark.sql.Column;
-// 使用分布式数据集承载来源或规范化记录。
 import org.apache.spark.sql.Dataset;
-// 以通用行结构读取不同来源的数据。
 import org.apache.spark.sql.Row;
-// 将单参数 Java 函数包装为 Spark 用户定义函数。
 import org.apache.spark.sql.api.java.UDF1;
-// 指定字符串 UDF 的 Spark 返回类型。
 import org.apache.spark.sql.types.DataTypes;
-// 使用 Spark 内置函数构造列转换、条件判断及字符串处理表达式。
 import static org.apache.spark.sql.functions.*;
-// 复用与 Python 共用的文本损坏检测规则。
 import com.social.hotspot.etl.cleaning.TextDamageDetector;
 
 // 集中构建质量标记表达式，不在此处执行过滤或输出文件。
@@ -26,9 +16,8 @@ public final class RecordQualityExpressions {
     private RecordQualityExpressions() {}
     // 通过标题省略号和关键词末尾分隔符识别疑似截断。
     public static Column hasPotentialTruncation(Dataset<Row> data) {
-        // 将标题空值转为空串后去掉首尾空格。
+        // 将标题空值转为空串后去掉首尾空格；将关键词空值转为空串后去掉首尾空格。
         Column title = trim(coalesce(safeCol(data, "title"), lit("")));
-        // 将关键词空值转为空串后去掉首尾空格。
         Column keywords = trim(coalesce(safeCol(data, "keywords"), lit("")));
         // 任一字段存在截断特征即标记当前记录。
         return title.rlike(".*(\\.\\.\\.|\\u2026)$").or(keywords.rlike(".*[,\\uFF0C\\u3001;\\uFF1B|/]$"));
@@ -42,9 +31,8 @@ public final class RecordQualityExpressions {
         Column requiresNormalization = lit(false);
         // 检查每个文本字段。
         for (String name : names) {
-            // 缺失字段不产生格式异常。
+            // 缺失字段不产生格式异常；合并控制字符、乱码片段和重复空白命中条件。
             Column value = coalesce(safeCol(data, name), lit(""));
-            // 合并控制字符、乱码片段和重复空白命中条件。
             requiresNormalization = requiresNormalization.or(value.rlike("[\\p{Cc}\\p{Cf}]|\\uFFFD|\\u951f\\u65a4\\u62f7|\\u00C3\\u00A9|\\s{2,}"));
         }
         // 返回整条记录是否需要规范化的 Spark 表达式。
@@ -59,11 +47,9 @@ public final class RecordQualityExpressions {
         Column invalid = lit(false);
         // 为各互动字段构建异常判定条件。
         for (String name : names) {
-            // 去除数值首尾空白，缺失列仍保持空值。
+            // 去除数值首尾空白，缺失列仍保持空值；接受 CSV 中形如 2014.0 的非负数值文本；允许前导加号、千分位逗号和小数，数字总长度最多八位。
             Column value = trim(safeCol(data, name));
-            // 接受 CSV 中形如 2014.0 的非负数值文本。
             Column digits = regexp_replace(value, "[+,.]", "");
-            // 允许前导加号、千分位逗号和小数，数字总长度最多八位。
             Column validNumber = value.rlike("^\\+?\\d[\\d,]*(?:\\.\\d+)?$").and(length(digits).leq(8));
             // 仅将非空且格式非法的字段计为异常。
             invalid = invalid.or(value.isNotNull().and(value.notEqual("")).and(not(validNumber)));
@@ -76,9 +62,8 @@ public final class RecordQualityExpressions {
     public static Column textQualityReason(Dataset<Row> data) {
         // 规定损坏原因的字段检查优先顺序。
         String[] fields = {"title", "content_text", "author_name", "keywords", "category"};
-        // 未发现损坏时保持字符串类型空值。
+        // 未发现损坏时保持字符串类型空值；注册共享规则的 Java 文本损坏检测函数。
         Column reason = lit(null).cast("string");
-        // 注册共享规则的 Java 文本损坏检测函数。
         var detect = udf((UDF1<String, String>) TextDamageDetector::rejectionReason, DataTypes.StringType);
         // 遍历各原始字段并优先保留第一条损坏原因。
         for (String field : fields) {

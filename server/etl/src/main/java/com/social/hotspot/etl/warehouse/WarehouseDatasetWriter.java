@@ -11,11 +11,9 @@ public final class WarehouseDatasetWriter {
     private WarehouseDatasetWriter() {}
     // 将 DWS 汇总转换为应用层 ADS 快照并覆盖对应 Parquet 目录。
     public static void writeWarehouseAds(String warehouseOutput, Map<String, Dataset<Row>> dws) {
-        // 计算应用层目录前缀。
+        // 计算应用层目录前缀；事件热度汇总结构可直接作为应用层热度趋势；将平台日汇总的日期字段统一为应用层时间桶。
         String adsRoot = warehouseOutput + "/ads/";
-        // 事件热度汇总结构可直接作为应用层热度趋势。
         dws.get("dws_event_heat_summary").write().mode(SaveMode.Overwrite).parquet(adsRoot + "ads_event_heat_trend");
-        // 将平台日汇总的日期字段统一为应用层时间桶。
         dws.get("dws_platform_daily_summary").select(
                         col("event_id"), col("platform"), col("heat_day").alias("time_bucket"), col("content_count"),
                         col("average_heat_index"), col("peak_content_heat_index"), col("high_heat_content_count"), col("heat_algorithm"))

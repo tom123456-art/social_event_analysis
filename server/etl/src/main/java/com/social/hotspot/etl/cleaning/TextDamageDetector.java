@@ -1,14 +1,9 @@
-// 将本类归入清洗规则包，统一原始字段处理与质量规则的代码位置。
 package com.social.hotspot.etl.cleaning;
 
-// 以 JSON 树读取共享文本损坏规则。
 import com.fasterxml.jackson.databind.JsonNode;
-// 将规则资源解析为 JSON 树。
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-// 通过输入流读取打包后的规则资源。
 import java.io.InputStream;
-// 预编译文本损坏规则的正则表达式。
 import java.util.regex.Pattern;
 
 /** 在规范化清洗移除损坏标记之前，检测原始文本的编码损坏。 */
@@ -38,9 +33,8 @@ public final class TextDamageDetector {
         if (EXPLICIT.matcher(text).find()) return "ENCODING_DAMAGE_MARKER";
         // 混合编码损坏也直接构成拒绝原因。
         if (MIXED.matcher(text).find()) return "MIXED_ENCODING_DAMAGE";
-        // 创建缺字片段匹配器。
+        // 创建缺字片段匹配器；统计当前文本中的缺字片段数量。
         var matcher = MISSING.matcher(text);
-        // 统计当前文本中的缺字片段数量。
         int fragments = 0;
         // 逐个检查缺字片段，达到阈值后停止扫描。
         while (matcher.find()) {

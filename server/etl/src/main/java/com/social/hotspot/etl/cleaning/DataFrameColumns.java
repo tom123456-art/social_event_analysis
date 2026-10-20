@@ -1,13 +1,8 @@
-// 将本类归入清洗规则包，统一原始字段处理与质量规则的代码位置。
 package com.social.hotspot.etl.cleaning;
 
-// 使用 Spark 列表达式描述字段转换和质量条件。
 import org.apache.spark.sql.Column;
-// 使用分布式数据集承载来源或规范化记录。
 import org.apache.spark.sql.Dataset;
-// 以通用行结构读取不同来源的数据。
 import org.apache.spark.sql.Row;
-// 使用 Spark 内置函数构造列转换、条件判断及字符串处理表达式。
 import static org.apache.spark.sql.functions.*;
 
 // 提供缺列补齐、模式对齐及字符串到数值和时间的列级转换。
@@ -16,19 +11,16 @@ public final class DataFrameColumns {
     private DataFrameColumns() {}
     // 将数据集投影为目标数据集的完整字段结构。
     public static Dataset<Row> alignToSchema(Dataset<Row> data, Dataset<Row> schemaSource) {
-        // 读取目标字段定义。
+        // 读取目标字段定义；按目标字段数量创建投影表达式数组。
         org.apache.spark.sql.types.StructField[] fields = schemaSource.schema().fields();
-        // 按目标字段数量创建投影表达式数组。
         Column[] projection = new Column[fields.length];
         // 逐个生成字段转换或空值占位表达式。
         for (int index = 0; index < fields.length; index++) {
-            // 读取当前目标字段定义。
+            // 读取当前目标字段定义；已存在字段执行类型转换，不存在字段生成同类型空列。
             org.apache.spark.sql.types.StructField field = fields[index];
-            // 已存在字段执行类型转换，不存在字段生成同类型空列。
             projection[index] = hasColumn(data, field.name())
-                    // 已有字段转换为目标类型，并保持目标字段名。
+                    // 已有字段转换为目标类型，并保持目标字段名；缺失字段生成目标类型的空值，保证后续合并的模式一致。
                     ? col(field.name()).cast(field.dataType()).alias(field.name())
-                    // 缺失字段生成目标类型的空值，保证后续合并的模式一致。
                     : lit(null).cast(field.dataType()).alias(field.name());
         }
         // 按目标字段顺序返回对齐后的数据集。
@@ -87,23 +79,17 @@ public final class DataFrameColumns {
 
     // 将常见日期时间文本转换为 Spark 时间戳。
     public static Column parseTimestamp(Column value) {
-        // 合并多余空白并规范化输入文本。
+        // 合并多余空白并规范化输入文本；定义支持短秒字段的日期时间格式；提取日期时间的各组成部分。
         Column normalized = trim(regexp_replace(coalesce(value, lit("")), "\\s+", " "));
-        // 定义支持短秒字段的日期时间格式。
         String pattern = "^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})[ T](\\d{1,2}):(\\d{2})(?::(\\d{2}))?$";
-        // 提取日期时间的各组成部分。
         Column year = regexp_extract(normalized, pattern, 1);
-        // 从正则第二个分组提取月份。
+        // 从正则第二个分组提取月份；从正则第三个分组提取日期；从正则第四个分组提取小时。
         Column month = regexp_extract(normalized, pattern, 2);
-        // 从正则第三个分组提取日期。
         Column day = regexp_extract(normalized, pattern, 3);
-        // 从正则第四个分组提取小时。
         Column hour = regexp_extract(normalized, pattern, 4);
-        // 从正则第五个分组提取分钟。
+        // 从正则第五个分组提取分钟；从可选的第六个分组提取秒，省略秒时得到空串；拼接为固定宽度的标准时间文本。
         Column minute = regexp_extract(normalized, pattern, 5);
-        // 从可选的第六个分组提取秒，省略秒时得到空串。
         Column second = regexp_extract(normalized, pattern, 6);
-        // 拼接为固定宽度的标准时间文本。
         Column canonical = concat(year, lit("-"), lpad(month, 2, "0"), lit("-"), lpad(day, 2, "0"),
                 // 在日期后拼接空格、补齐为两位的小时以及分钟。
                 lit(" "), lpad(hour, 2, "0"), lit(":"), minute, lit(":"),

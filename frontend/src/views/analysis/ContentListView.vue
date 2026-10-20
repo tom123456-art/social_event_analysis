@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-// 内容明细页：展示事件下的热点内容并支持筛选查看。
+import { numberText, formatTime } from '../../utils/analysisFormat'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getData } from '../../api/client'
@@ -110,11 +110,9 @@ async function load(force = false) {
 }
 function reset() { query.value = ''; platform.value = '全部'; sentiment.value = '全部'; category.value = '全部'; page.value = 1; load(true) }
 function openDetail(row: any) { Object.assign(current, row); detailVisible.value = true }
-function numberText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0) }
-function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }
 function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道' } as Record<string, string>)[value] || '其他平台' }
 function sentimentName(value: string) { return value === 'positive' ? '正向' : value === 'negative' ? '负向' : '未分类' }
-function categoryName(row: any) { return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合' }
+function categoryName(row: any) { return ['WEIBO', 'SINA_WEIBO'].includes(String(row.platform || '').trim().toUpperCase()) ? '-' : row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合' }
 
 onMounted(async () => {
   await load().catch(() => ElMessage.error('读取内容明细失败'))

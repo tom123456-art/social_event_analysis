@@ -1,29 +1,26 @@
-// 使用 Axios 管理 HTTP 请求及统一拦截器。
+import { clearSession, readSession } from '../utils/session'
 import axios from 'axios'
-// 过滤无法直接展示的第三方错误信息。
 import { chineseMessage } from '../utils/userText'
 
 // 创建统一的 HTTP 客户端，所有前端请求都会使用 /api 前缀。
 export const api = axios.create({
-  // 所有请求使用后端统一接口前缀。
+  // 所有请求使用后端统一接口前缀；允许 ETL 等长任务请求等待最多两分钟。
   baseURL: '/api',
-  // 允许 ETL 等长任务请求等待最多两分钟。
   timeout: 120000
 })
 
 // 在发送请求前附加本地登录令牌。
 api.interceptors.request.use(config => {
   // 读取当前浏览器保存的会话令牌。
-  const token = localStorage.getItem('social_token')
+  const token = readSession().token
   // 存在令牌时使用 Bearer 认证格式。
   if (token) config.headers.Authorization = `Bearer ${token}`
   // 将补充后的配置交回 Axios。
   return config
 })
 
-// 缓存相同的 GET 请求，避免同一页面同时重复读取数据库。
+// 缓存相同的 GET 请求，避免同一页面同时重复读取数据库；同时保存进行中的请求 Promise 和缓存到期时间。
 const GET_CACHE_TTL_MS = 15_000
-// 同时保存进行中的请求 Promise 和缓存到期时间。
 const getCache = new Map<string, { request: Promise<unknown>; expiresAt: number }>()
 
 // 数据发生变化后清理缓存，确保下一次读取到最新结果。
@@ -51,12 +48,8 @@ api.interceptors.response.use(
   (error) => {
     // 非登录注册请求收到未认证响应时清理过期会话。
     if (error.response?.status === 401 && !['/auth/login', '/auth/register'].includes(error.config?.url)) {
-      // 删除令牌，防止后续请求继续发送失效凭据。
-      localStorage.removeItem('social_token')
-      // 删除旧用户展示信息。
-      localStorage.removeItem('social_user')
-      // 删除旧角色标记，避免路由继续按管理员身份放行。
-      localStorage.removeItem('social_role')
+      // 删除令牌，防止后续请求继续发送失效凭据；删除旧用户展示信息；删除旧角色标记，避免路由继续按管理员身份放行。
+      clearSession()
       // 退出旧会话时一并清理其请求缓存。
       clearGetCache()
       // 跳转登录页，并保存当前页面作为登录后回跳地址。
@@ -104,9 +97,8 @@ export async function getData<T = any>(url: string, force = false): Promise<T> {
   // 删除过期条目后重新发起请求。
   if (cached) getCache.delete(url)
 
-  // 发起 GET 请求并提取业务数据。
+  // 发起 GET 请求并提取业务数据；立即缓存 Promise，合并同时到达的同地址请求。
   const request = api.get(url).then(response => unwrap<T>(response))
-  // 立即缓存 Promise，合并同时到达的同地址请求。
   getCache.set(url, { request, expiresAt: Date.now() + GET_CACHE_TTL_MS })
   // 失败请求不能作为缓存继续复用。
   request.catch(() => {

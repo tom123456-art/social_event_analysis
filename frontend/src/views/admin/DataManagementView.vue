@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-// 数据管理页：查看内容数据、审核清洗异常和管理互动记录。
+import { formatTime } from '../../utils/analysisFormat'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import QualityReviewPanel from '../../components/review/QualityReviewPanel.vue'
@@ -136,7 +136,6 @@ async function removeInteraction(row: any) {
   }
 }
 
-function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }
 
 onMounted(async () => {
   await load()

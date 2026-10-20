@@ -28,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { saveSession } from '../../utils/session'
 import { nextTick, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Close, Lock, Message, Phone, Right, User } from '@element-plus/icons-vue'
@@ -77,7 +78,7 @@ async function submit() {
       const user = await postData<{ token: string; username: string; role: string }>('/auth/login', { username: form.username.trim(), password: form.password })
       if (!user.token || !user.username || !['admin', 'user'].includes(user.role)) throw new Error('登录响应无效')
       clearGetCache()
-      localStorage.setItem('social_token', user.token); localStorage.setItem('social_user', user.username); localStorage.setItem('social_role', user.role)
+      saveSession(user)
       const requested = typeof route.query.redirect === 'string' ? route.query.redirect : ''
       const redirect = requested.startsWith('/') && !requested.startsWith('//') && !requested.startsWith('/login') ? requested : ''
       await router.replace(user.role === 'admin' ? (redirect || '/admin') : (redirect.startsWith('/admin') && !redirect.startsWith('/admin/profile') ? '/admin/profile' : (redirect || '/overview')))

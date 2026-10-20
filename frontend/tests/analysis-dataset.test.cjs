@@ -13,7 +13,7 @@ vm.runInNewContext(ts.transpileModule(config, { compilerOptions: { module: ts.Mo
 
 test('dataset identity remains canonical and its label is valid Unicode', () => {
   assert.equal(exportsObject.ANALYSIS_EVENT_ID, 'public_rss_latest')
-  assert.equal(exportsObject.ANALYSIS_EVENT_NAME, '\u793e\u4ea4\u5a92\u4f53\u70ed\u70b9\u4e8b\u4ef6\u4f20\u64ad\u5206\u6790')
+  assert.equal(exportsObject.ANALYSIS_EVENT_NAME, '网络媒体热点事件传播态势与舆情分析系统')
   assert.doesNotMatch(exportsObject.ANALYSIS_EVENT_NAME, /[?\uFFFD]/)
 })
 
@@ -27,16 +27,17 @@ for (const page of pages) {
     assert.doesNotMatch(source, /events\.length|events\.value|\/events['\x22]|events\[0\]/)
     assert.match(source, /const eventId = ref\(ANALYSIS_EVENT_ID\)/)
     assert.match(source, /const currentEventName = ANALYSIS_EVENT_NAME/)
-    assert.match(descriptor.template.content, /<el-tag class=\x22single-event-tag\x22/)
+    if (page === 'analysis/OverviewView') assert.doesNotMatch(descriptor.template.content, /<el-tag class=\x22single-event-tag\x22/)
+    else assert.match(descriptor.template.content, /<el-tag class=\x22single-event-tag\x22/)
   })
 }
 
 test('event API excludes legacy imports and normalizes the canonical label', () => {
   const root = path.join(__dirname, '../..')
-  const mapper = readFileSync(path.join(root, 'server/backend/src/main/resources/mapper/analysis/AnalyticsMapper.xml'), 'utf8')
+  const mapper = readFileSync(path.join(root, 'server/backend/src/main/resources/mapper/AnalyticsMapper.xml'), 'utf8')
   const query = mapper.match(/<select id=\x22events\x22[\s\S]*?<\/select>/)[0]
   assert.match(query, /WHERE event_id = 'public_rss_latest' AND status = 'ACTIVE'/)
-  const service = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/service/analysis/impl/AnalyticsServiceImpl.java'), 'utf8')
+  const service = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/service/analysis/AnalyticsServiceImpl.java'), 'utf8')
   const method = service.slice(service.indexOf('public List<Map<String, Object>> events()'), service.indexOf('public Map<String, Object> dashboard('))
   assert.match(method, /CANONICAL_EVENT_ID\.equals\(row\.get\(\x22event_id\x22\)\)/)
   assert.match(method, /event\.put\(\x22event_name\x22,/)

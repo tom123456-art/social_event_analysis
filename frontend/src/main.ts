@@ -1,6 +1,4 @@
-// 前端应用入口：创建 Vue 应用并注册路由、状态与组件库。
 import { createApp } from 'vue'
-import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import { ElMessage } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
@@ -28,4 +26,4 @@ app.config.errorHandler = (error) => {
   console.error('页面处理失败', error)
   ElMessage.error(getErrorMessage(error, '页面处理出现异常，请刷新后重试。'))
 }
-app.use(createPinia()).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')
+app.use(router).use(ElementPlus, { locale: zhCn }).mount('#app')

@@ -4,9 +4,7 @@
   <div v-else-if="route.meta.group === 'front'" class="front-shell">
     <header class="front-header">
       <router-link class="front-brand" to="/overview">
-        <div>
-          <b title="网络媒体热点事件传播态势与舆情分析">网络媒体热点事件<br />传播态势与舆情分析</b>
-        </div>
+        <b :title="ANALYSIS_EVENT_NAME">{{ ANALYSIS_EVENT_NAME }}</b>
       </router-link>
       <nav class="front-nav">
         <router-link v-for="item in frontMenus" :key="item.path" :to="item.path">{{ item.name }}</router-link>
@@ -74,11 +72,12 @@
 </template>
 
 <script setup lang="ts">
-// 应用外壳：负责顶部导航、菜单切换和页面容器布局。
 import { computed, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DataLine, Files, Monitor, User, Postcard } from '@element-plus/icons-vue'
 import { clearGetCache, postData } from './api/client'
+import { clearSession, readSession } from './utils/session'
+import { ANALYSIS_EVENT_NAME } from './config/analysisDataset'
 
 const route = useRoute()
 const router = useRouter()
@@ -129,7 +128,7 @@ const session = ref(readSession())
 const userName = computed(() => session.value.user || '管理员')
 const userInitial = computed(() => userName.value.slice(0, 1))
 const isLoggedIn = computed(() => Boolean(session.value.token))
-const isAdmin = computed(() => session.value.role === 'admin')
+const isAdmin = computed(() => session.value.role.toLowerCase() === 'admin')
 const adminMenuGroups = computed(() => isAdmin.value ? fullAdminMenuGroups : userMenuGroups)
 const roleLabel = computed(() => isAdmin.value ? '管理员' : '普通用户')
 const adminEntryText = computed(() => !isLoggedIn.value ? '后台登录' : isAdmin.value ? '后台管理' : '个人信息')
@@ -144,14 +143,6 @@ watchEffect(() => {
   }
 })
 
-function readSession() {
-  return {
-    token: localStorage.getItem('social_token') || '',
-    user: localStorage.getItem('social_user') || '',
-    role: (localStorage.getItem('social_role') || '').toLowerCase()
-  }
-}
-
 function goAdmin() {
   if (isLoggedIn.value) {
     router.push(isAdmin.value ? '/admin' : '/admin/profile')
@@ -161,11 +152,13 @@ function goAdmin() {
 }
 
 async function logout() {
-  try { await postData('/auth/logout', {}) } catch { /* Local logout still completes when the server is unavailable. */ }
+  try {
+    await postData('/auth/logout', {})
+  } catch {
+    // 后端不可用时也继续完成本地退出。
+  }
   clearGetCache()
-  localStorage.removeItem('social_token')
-  localStorage.removeItem('social_user')
-  localStorage.removeItem('social_role')
+  clearSession()
   session.value = readSession()
   router.replace('/login')
 }

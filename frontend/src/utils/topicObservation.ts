@@ -45,11 +45,9 @@ export function topicMedian(values: number[]): number | null {
 export function observeTopics(topics: any[], records: any[], field: string) {
   // 为每个主题关联命中文章并汇总指定互动字段。
   return topics.map(topic => {
-    // 将主题成员关键词转换为集合以便快速匹配。
+    // 将主题成员关键词转换为集合以便快速匹配；保留关键词与主题成员有交集的文章；提取有效互动量。
     const members = new Set(topic.member_keywords)
-    // 保留关键词与主题成员有交集的文章。
     const articles = records.filter(row => row.keywords.some((word: string) => members.has(word)))
-    // 提取有效互动量。
     const values = articles.map(row => numericInteraction(row.source[field])).filter((value): value is number => value !== null)
     // 计算互动总量。
     const total = values.reduce((sum, value) => sum + value, 0)
@@ -63,9 +61,8 @@ export function observeTopics(topics: any[], records: any[], field: string) {
 export function observationPosition(topic: any, countMedian: number | null, interactionMedian: number | null) {
   // 任一中位数或主题均值缺失时无法定位主题象限。
   if (topic.average_interaction === null || countMedian === null || interactionMedian === null) return '互动数据不足'
-  // 根据报道量相对中位数判断内容规模。
+  // 根据报道量相对中位数判断内容规模；根据平均互动量相对中位数判断互动强度。
   const count = topic.content_count === countMedian ? '报道量处于中位数' : topic.content_count > countMedian ? '报道较多' : '报道较少'
-  // 根据平均互动量相对中位数判断互动强度。
   const interaction = topic.average_interaction === interactionMedian ? '互动处于中位数' : topic.average_interaction > interactionMedian ? '互动较高' : '互动较低'
   return `${count} · ${interaction}`
 }

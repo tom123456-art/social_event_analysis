@@ -86,7 +86,6 @@
 </template>
 
 <script setup lang="ts">
-// 用户管理页：维护账号、角色和启用状态。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteData, getData, getErrorMessage, postData, putData } from '../../api/client'

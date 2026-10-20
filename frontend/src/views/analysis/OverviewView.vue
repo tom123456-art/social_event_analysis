@@ -5,7 +5,6 @@
         <span class="front-kicker">公开前台</span>
         <h1>{{ currentEventName }}</h1>
         <div class="portal-search">
-          <el-tag class="single-event-tag" size="large">{{ currentEventName }}</el-tag>
           <el-input v-model="keyword" placeholder="搜索标题、正文、关键词" clearable />
           <el-button class="database-refresh-button" type="primary" :loading="refreshing" @click="refreshData">刷新数据库</el-button>
           <el-button @click="router.push('/contents')">查看明细</el-button>
@@ -115,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-// 热点门户页：汇总事件核心指标并提供分析入口。
+import { numberText } from '../../utils/analysisFormat'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -152,7 +151,7 @@ const filteredRank = computed(() => {
   const text = keyword.value.trim()
   return displayContents.value.filter(item => {
     const matchPlatform = platform.value === '全部' || canonicalPlatform(item.platform) === platform.value
-    const matchCategory = category.value === '全部' || (item.category || 'general') === category.value
+    const matchCategory = category.value === '全部' || (canonicalPlatform(item.platform) !== 'WEIBO' && (item.category || 'general') === category.value)
     const matchKeyword = !text || `${item.title}${item.clean_text}`.includes(text)
     return matchPlatform && matchCategory && matchKeyword
   })
@@ -236,10 +235,6 @@ async function refreshData() {
   }
 }
 
-function numberText(value: any) {
-  const num = Number(value || 0)
-  return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0)
-}
 function platformName(value: string) {
   return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', news: '新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道', weibo: '微博', douyin: '抖音' } as Record<string, string>)[value] || '其他平台'
 }
@@ -251,6 +246,7 @@ function canonicalPlatform(value: any) {
   return 'UNKNOWN'
 }
 function categoryName(row: any) {
+  if (['WEIBO', 'SINA_WEIBO'].includes(String(row.platform || '').trim().toUpperCase())) return '-'
   return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合'
 }
 function sentimentName(value: string) {

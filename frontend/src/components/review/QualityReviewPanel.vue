@@ -65,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import { readSession } from '../../utils/session'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Upload, Refresh, Edit, Folder, Check, Close } from '@element-plus/icons-vue'
@@ -124,7 +125,7 @@ async function save(nextStatus: string) {
   try {
     await putData(`/admin/reviews/${detail.value.id}`, { revision: detail.value.revision, corrected_data: correction.value,
       status: nextStatus, manual_sentiment: manualSentiment.value || '', review_note: note.value,
-      reviewer: localStorage.getItem('social_user') || 'admin' })
+      reviewer: readSession().user || 'admin' })
     visible.value = false; ElMessage.success('审核决定已保存'); await load()
   } catch (e) { ElMessage.error(getErrorMessage(e, '保存审核失败')) }
   finally { saving.value = false }

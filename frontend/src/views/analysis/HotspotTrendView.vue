@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-// 热点趋势页：分析事件随时间变化的热度、话题和传播阶段。
+import { fixed } from '../../utils/analysisFormat'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../../components/common/ChartBox.vue'
@@ -137,7 +137,6 @@ function shiftDate(value: string, days: number) {
   date.setDate(date.getDate() + days)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
-function fixed(value: any) { return value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? '-' : Number(value).toFixed(1) }
 function countText(value: any) { return Number(value || 0).toLocaleString('zh-CN') }
 
 const heatRows = computed<any[]>(() => (data.value.platformDailyHeat || [])

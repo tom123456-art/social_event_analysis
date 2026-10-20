@@ -23,7 +23,7 @@ async function main() {
         if (!url.pathname.startsWith('/api/')) return route.continue()
         return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 0, data: rows }) })
       })
-      await page.goto((process.env.REVIEW_BASE_URL || 'http://127.0.0.1:5175') + '/sentiment')
+      await page.goto((process.env.REVIEW_BASE_URL || 'http://127.0.0.1:5174') + '/sentiment')
       const table = page.locator('.sentiment-detail-table:visible')
       await table.locator('tbody tr').first().waitFor()
       await page.waitForFunction(() => document.querySelector('.sentiment-detail-table tbody')?.textContent.includes('sample-'))

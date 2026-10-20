@@ -1,4 +1,4 @@
-// 前端路由配置：将访问路径映射到对应的页面组件。
+import { readSession } from '../utils/session'
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/auth/LoginView.vue'
 import OverviewView from '../views/analysis/OverviewView.vue'
@@ -16,9 +16,8 @@ import ScreenView from '../views/screen/ScreenView.vue'
 
 // 创建使用浏览器 History API 的路由实例。
 const router = createRouter({
-  // 页面 URL 不使用哈希片段。
+  // 页面 URL 不使用哈希片段；定义分析页、管理页和兼容跳转规则。
   history: createWebHistory(),
-  // 定义分析页、管理页和兼容跳转规则。
   routes: [
     // 根地址默认进入热点门户。
     { path: '/', redirect: '/overview' },
@@ -58,11 +57,12 @@ router.beforeEach((to) => {
   // 公开页面无需认证。
   if (to.meta.public) return true
   // 未登录用户跳转到登录页并保留目标地址。
-  if (!localStorage.getItem('social_token')) {
+  const session = readSession()
+  if (!session.token) {
     return `/login?redirect=${encodeURIComponent(to.fullPath)}`
   }
   // 读取本地角色，仅用于界面路由控制，接口权限仍由后端校验。
-  const isAdmin = localStorage.getItem('social_role') === 'admin'
+  const isAdmin = session.role === 'admin'
   // 普通用户访问管理员页面时转到本人资料页。
   if (to.meta.requiresAdmin && !isAdmin) {
     return '/admin/profile'

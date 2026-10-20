@@ -117,7 +117,7 @@ test('neutral and skipped rows cannot enter sentiment counts, charts or percenta
 })
 
 test('sentiment API only selects positive and negative labels', () => {
-  const mapper = readFileSync(require('node:path').join(__dirname, '../../server/backend/src/main/resources/mapper/analysis/AnalyticsMapper.xml'), 'utf8')
+  const mapper = readFileSync(require('node:path').join(__dirname, '../../server/backend/src/main/resources/mapper/AnalyticsMapper.xml'), 'utf8')
   const query = mapper.match(/<select id="sentimentAnalysisRows"[\s\S]*?<\/select>/)[0]
   assert.match(query, /sentiment_label IN \('positive', 'negative'\)/)
   assert.doesNotMatch(query, /'neutral'/)

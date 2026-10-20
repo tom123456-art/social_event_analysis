@@ -4,25 +4,21 @@
 </template>
 
 <script setup lang="ts">
-// 通用图表组件：负责创建、更新和销毁 ECharts 图表实例。
 import * as echarts from 'echarts'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 // 接收图表配置及可选尺寸规格。
 const props = defineProps<{
-  // 完整的 ECharts 图表配置。
+  // 完整的 ECharts 图表配置；允许小号或默认中号图表布局。
   option: any
-  // 允许小号或默认中号图表布局。
   size?: 'sm' | 'md'
 }>()
 // 将图表点击参数透传给父页面。
 const emit = defineEmits<{ chartClick: [params: any] }>()
 
-// 保存挂载 ECharts 的 DOM 元素引用。
+// 集中保存挂载 ECharts 的 DOM 元素引用、当前图表实例，避免每次配置更新重复创建、待执行绘制帧，用于合并连续更新。
 const chartEl = ref<HTMLDivElement>()
-// 保存当前图表实例，避免每次配置更新重复创建。
 let chart: echarts.ECharts | undefined
-// 保存待执行绘制帧，用于合并连续更新。
 let renderFrame: number | undefined
 // 监听容器尺寸变化，而不只依赖浏览器窗口变化。
 let resizeObserver: ResizeObserver | undefined
@@ -60,11 +56,9 @@ function render() {
     // 组件销毁或实例释放后不继续写入画布。
     if (!chart || !chartEl.value) return
     try {
-      // 替换旧配置，避免旧系列残留，并启用延迟更新。
+      // 替换旧配置并重新绑定点击事件，避免旧系列残留和监听重复。
       chart.setOption(props.option, true, true)
-      // 先移除旧点击监听，防止反复渲染累积处理函数。
       chart.off('click')
-      // 将 ECharts 点击事件转换为组件事件。
       chart.on('click', params => emit('chartClick', params))
     } catch (error) {
       console.error('ECharts render failed', error)
@@ -78,9 +72,8 @@ onMounted(() => {
   render()
   // DOM 存在时观察其尺寸变化。
   if (chartEl.value) {
-    // 创建容器尺寸观察器。
+    // 监听当前容器的尺寸变化，同步调整画布。
     resizeObserver = new ResizeObserver(resize)
-    // 只观察当前图表容器。
     resizeObserver.observe(chartEl.value)
   }
   // 兼容浏览器窗口缩放引起的布局调整。
@@ -90,9 +83,8 @@ onMounted(() => {
 watch(() => props.option, render, { deep: true })
 // 销毁前释放浏览器监听、绘制帧和 ECharts 实例。
 onBeforeUnmount(() => {
-  // 删除全局窗口监听，避免持有已销毁组件。
+  // 解除窗口与容器监听，避免持有已销毁组件。
   window.removeEventListener('resize', resize)
-  // 断开容器尺寸观察。
   resizeObserver?.disconnect()
   // 取消尚未执行的绘制回调。
   if (renderFrame) window.cancelAnimationFrame(renderFrame)

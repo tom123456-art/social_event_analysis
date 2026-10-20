@@ -166,7 +166,6 @@
 </template>
 
 <script setup lang="ts">
-// 关键词分析页：展示关键词频次、关联平台和关注建议。
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../../components/common/ChartBox.vue'
@@ -183,7 +182,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 const CATEGORY_NAMES = ['财经', '政治', '文娱', '综合', '社会', '体育', '科技']
 const TOPIC_LINE_COLORS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#16a34a', '#be123c']
-const STOPWORDS = new Set(['没有', '为什么', '就是', '不是', '这个', '发文', '感谢', '不要', '除了', '还有', '运气', '切片', '包场'])
+const STOPWORDS = new Set(['没有', '为什么', '就是', '不是', '这个', '发文', '感谢', '不要', '除了', '还有', '运气', '切片', '包场', '效率', '方面', '理性', '这一', '导弹', '群众', '效果', '美军', '经验总结', '习近平'])
 
 const eventId = ref(ANALYSIS_EVENT_ID)
 const refreshing = ref(false)

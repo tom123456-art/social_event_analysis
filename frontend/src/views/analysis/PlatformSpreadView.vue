@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-// 平台扩散页：比较不同平台的传播时间、热度和覆盖情况。
+import { numberText, formatTime, fixed } from '../../utils/analysisFormat'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../../components/common/ChartBox.vue'
@@ -151,9 +151,6 @@ async function refreshData() {
     refreshing.value = false
   }
 }
-function numberText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0) }
-function formatTime(value: any) { return value ? String(value).replace('T', ' ').slice(0, 16) : '-' }
-function fixed(value: any) { return value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? '-' : Number(value).toFixed(1) }
 function togglePlatform(params: any) {
   if (params?.dataType !== 'node' || !params.data?.platform) {
     return

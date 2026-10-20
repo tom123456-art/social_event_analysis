@@ -26,9 +26,8 @@ a { text-decoration: none; color: inherit; }
   border-bottom: 1px solid #dce5f0;
   backdrop-filter: blur(10px);
 }
-.front-brand { display: flex; align-items: center; min-width: 0; flex: 0 0 176px; }
-.front-brand > div { min-width: 0; }
-.front-brand b { display: block; font-size: 16px; line-height: 1.5; color: #172033; }
+.front-brand { display: flex; align-items: center; min-width: 0; flex: 0 0 auto; max-width: 100%; }
+.front-brand b { display: block; font-size: 18px; font-weight: 600; line-height: 1.5; color: #172033; white-space: nowrap; }
 .front-nav { display: flex; align-items: center; gap: 4px; flex: 1; justify-content: center; min-width: 0; overflow: hidden; }
 .front-nav a {
   height: 34px;
@@ -83,7 +82,7 @@ a { text-decoration: none; color: inherit; }
 }
 .portal-copy h1 { margin: 15px 0 10px; font-size: 38px; line-height: 1.18; color: #10243f; }
 .portal-copy p { max-width: 780px; margin: 0; color: #52627a; line-height: 1.85; }
-.portal-search { margin-top: 22px; display: grid; grid-template-columns: 260px minmax(0, 1fr) auto auto; gap: 10px; }
+.portal-search { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
 .database-refresh-button { height: 32px; min-height: 32px; padding: 8px 15px; border-radius: 4px; font-size: 14px; line-height: 1; }
 .portal-actions { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .portal-actions button {
@@ -300,7 +299,8 @@ a { text-decoration: none; color: inherit; }
 .analysis-page-head p { margin: 0; color: #52627a; line-height: 1.7; }
 .analysis-actions { display: flex; align-items: center; gap: 10px; }
 .single-event-tag {
-  height: 38px;
+  height: auto;
+  min-height: 38px;
   min-width: 220px;
   max-width: 280px;
   display: inline-flex;
@@ -310,8 +310,10 @@ a { text-decoration: none; color: inherit; }
   background: #eef5ff;
   color: #205bc3;
   font-weight: 800;
+  padding: 8px 12px;
+  white-space: normal;
 }
-.portal-search .single-event-tag { width: 100%; max-width: none; }
+.single-event-tag .el-tag__content { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
 .timeline-list { display: grid; gap: 10px; }
 .timeline-list div, .insight-list div {
   padding: 10px;
@@ -1087,6 +1089,12 @@ a { text-decoration: none; color: inherit; }
   .screen-rank { height: calc(100% - 23px); }
 }
 
+@media (max-width: 1200px) {
+  .front-header { height: auto; min-height: 66px; padding: 10px 16px; flex-wrap: wrap; }
+  .front-nav { order: 3; flex-basis: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
+  .front-actions { margin-left: auto; }
+}
+
 @media (max-width: 1100px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
@@ -1107,7 +1115,7 @@ a { text-decoration: none; color: inherit; }
   .portal-filters { width: 100%; justify-items: start; }
   .portal-filters .el-radio-group { max-width: 100%; overflow-x: auto; }
   .portal-search, .hero-search, .feed-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .portal-search > :nth-child(2), .hero-search > :nth-child(2) { grid-column: 1 / -1; }
+  .portal-search > .el-input, .hero-search > :nth-child(2) { grid-column: 1 / -1; }
   .portal-search > .el-button, .hero-search > .el-button { width: 100%; }
   .category-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .recommend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1123,12 +1131,12 @@ a { text-decoration: none; color: inherit; }
 }
 
 @media (max-width: 780px) {
-  .front-brand b { font-size: 14px; }
+  .front-brand b { white-space: normal; overflow-wrap: anywhere; }
   .front-actions .screen-link { display: none; }
   .portal-copy, .analysis-hero-copy, .hero-copy { padding: 20px; }
   .portal-copy h1, .analysis-hero-copy h1, .hero-copy h1 { font-size: 30px; overflow-wrap: anywhere; }
   .portal-search, .hero-search, .feed-toolbar { grid-template-columns: 1fr; }
-  .portal-search > :nth-child(2), .hero-search > :nth-child(2) { grid-column: auto; }
+  .portal-search > .el-input, .hero-search > :nth-child(2) { grid-column: auto; }
   .portal-side, .analysis-side, .consumer-side, .front-side { grid-template-columns: 1fr; }
   .category-strip, .recommend-grid { grid-template-columns: 1fr 1fr; }
   .portal-feed-card, .review-card { grid-template-columns: 1fr; }

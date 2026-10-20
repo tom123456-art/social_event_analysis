@@ -61,14 +61,14 @@
 </template>
 
 <script setup lang="ts">
-// 个人资料页：查看并修改当前用户的基础资料。
+import { clearSession, readSession } from '../../utils/session'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getData, getErrorMessage, putData } from '../../api/client'
 import { roleName, statusName } from '../../utils/userText'
 
-const currentUser = localStorage.getItem('social_user') || 'student'
+const currentUser = readSession().user || 'student'
 const profile = reactive<any>({ username: currentUser, role: 'USER', status: 'ENABLED' })
 const password = reactive({ old: '', next: '', confirm: '' })
 const passwordBusy = ref(false)
@@ -106,7 +106,7 @@ async function resetPassword() {
   try {
     await putData('/auth/password', { oldPassword: password.old, password: password.next, confirmPassword: password.confirm })
     password.old = ''; password.next = ''; password.confirm = ''
-    localStorage.removeItem('social_token'); localStorage.removeItem('social_user'); localStorage.removeItem('social_role')
+    clearSession()
     ElMessage.success('密码已更新，请重新登录')
     await router.replace('/login')
   } catch (error) { ElMessage.error(getErrorMessage(error, '更新密码失败，请稍后重试。')) }

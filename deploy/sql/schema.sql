@@ -1,3 +1,4 @@
+-- Current MySQL schema for new installations; not an upgrade script for legacy databases.
 CREATE DATABASE IF NOT EXISTS social_hotspot_analytics
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_0900_ai_ci;
@@ -177,6 +178,55 @@ CREATE TABLE IF NOT EXISTS app_user (
   bio VARCHAR(300),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS app_user_credential (
+  user_id BIGINT PRIMARY KEY,
+  password_hash VARCHAR(100) NOT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_credential_user FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS app_user_session (
+  token_hash CHAR(64) PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_session_user (user_id),
+  KEY idx_session_expiry (expires_at),
+  CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS data_quality_review (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  source_key CHAR(64) NOT NULL,
+  source_version CHAR(64) NOT NULL,
+  source_row BIGINT,
+  event_id VARCHAR(64) NOT NULL DEFAULT 'public_rss_latest',
+  platform VARCHAR(50),
+  content_id VARCHAR(128),
+  title VARCHAR(300),
+  original_data LONGTEXT NOT NULL,
+  corrected_data LONGTEXT NOT NULL,
+  reasons TEXT NOT NULL,
+  manual_sentiment VARCHAR(20),
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  apply_status VARCHAR(20) NOT NULL DEFAULT 'WAITING',
+  revision BIGINT NOT NULL DEFAULT 1,
+  effective_decision VARCHAR(20),
+  effective_data LONGTEXT,
+  effective_sentiment VARCHAR(20),
+  reviewer VARCHAR(64),
+  review_note VARCHAR(1000),
+  reviewed_at DATETIME,
+  applied_batch VARCHAR(64),
+  last_seen_batch VARCHAR(64),
+  apply_error VARCHAR(1000),
+  is_deleted TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_review_source (source_key, source_version),
+  KEY idx_review_queue (is_deleted, status, apply_status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS user_interaction (

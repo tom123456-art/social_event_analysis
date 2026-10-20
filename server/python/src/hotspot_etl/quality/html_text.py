@@ -1,6 +1,4 @@
-# 用于将提取后的连续空白压缩为单个空格。
 import re
-# 使用标准 HTML 解析器处理标签和字符实体。
 from html.parser import HTMLParser
 
 # 标识 HTML 清洗策略版本。
@@ -10,11 +8,9 @@ POLICY = "HTML_TEXT_V1"
 class TextExtractor(HTMLParser):
     # 初始化文本片段和隐藏标签栈。
     def __init__(self):
-        # 开启 HTML 字符实体解码。
+        # 开启 HTML 字符实体解码；保存可见文本及块级标签产生的分隔空格；记录尚未闭合的脚本、样式和模板标签。
         super().__init__(convert_charrefs=True)
-        # 保存可见文本及块级标签产生的分隔空格。
         self.parts = []
-        # 记录尚未闭合的脚本、样式和模板标签。
         self.hidden = []
 
     # 处理起始标签，记录隐藏区域和块级文本边界。
@@ -49,11 +45,9 @@ def clean_html(source):
     # 空输入原样返回，保持空值语义。
     if not source:
         return source
-    # 为每段输入创建独立解析器，避免标签状态相互影响。
+    # 为每段输入创建独立解析器，避免标签状态相互影响；将输入交给标准 HTML 解析器；处理解析缓冲区中尚未完成的文本。
     parser = TextExtractor()
-    # 将输入交给标准 HTML 解析器。
     parser.feed(source)
-    # 处理解析缓冲区中尚未完成的文本。
     parser.close()
     # 拼接可见片段并规范化空白。
     return re.sub(r"\s+", " ", "".join(parser.parts)).strip()

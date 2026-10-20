@@ -1,21 +1,14 @@
-# 读取规则文件并解析 JSON 配置。
 import json
-# 定位项目内的规则文件。
 from pathlib import Path
-# 使用正则表达式执行文本损坏模式匹配。
 import re
 
-# 计算规则配置文件的绝对路径。
+# 计算规则配置文件的绝对路径；加载文本质量规则；暴露当前规则版本。
 RULES_PATH = Path(__file__).resolve().parents[5] / "resources" / "rules" / "text-quality-rules.json"
-# 加载文本质量规则。
 RULES = json.loads(RULES_PATH.read_text(encoding="utf-8"))
-# 暴露当前规则版本。
 VERSION = RULES["version"]
-# 指定需要检查的文本字段。
+# 指定需要检查的文本字段；编译明确编码损坏模式；编译混合编码损坏模式。
 FIELDS = ("title", "content_text", "author_name", "keywords", "category")
-# 编译明确编码损坏模式。
 EXPLICIT = re.compile(RULES["explicitDamagePattern"])
-# 编译混合编码损坏模式。
 MIXED = re.compile(RULES["mixedDamagePattern"])
 # 编译疑似缺字模式。
 MISSING = re.compile(RULES["missingCharactersPattern"])

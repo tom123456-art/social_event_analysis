@@ -38,6 +38,19 @@ mybatis:
     map-underscore-to-camel-case: false
 
 # 应用日志级别，排查问题时可临时调整为 debug。
+ai:
+  # Chat completions endpoint; keep secrets on the backend only.
+  model: ${AI_MODEL:qwen-plus}
+  api-key: ${AI_API_KEY:}
+  request-url: ${AI_REQUEST_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
+  timeout-seconds: ${AI_TIMEOUT_SECONDS:90}
+  query:
+    url: ${AI_QUERY_DB_URL:}
+    username: ${AI_QUERY_DB_USERNAME:}
+    password: ${AI_QUERY_DB_PASSWORD:}
+  search:
+    api-key: ${AI_SEARCH_API_KEY:}
+
 logging:
   level:
     com.social.hotspot: info

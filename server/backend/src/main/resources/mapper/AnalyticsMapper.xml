@@ -131,7 +131,7 @@
     </select>
 
     <select id="sentimentAnalysisRows" resultType="map">
-        SELECT content_id, title, UPPER(TRIM(platform)) AS platform, publish_time, keywords, clean_text AS content_text,
+        SELECT content_id, title, UPPER(TRIM(platform)) AS platform, author_name, publish_time, keywords, clean_text AS content_text,
                sentiment_label, sentiment_source, category, content_type, sentiment_positive_score, sentiment_neutral_score, sentiment_negative_score,
                hot_score, platform_heat_index, like_count, favorite_count, comment_count, repost_count, source_url
         FROM ads_content_hot_rank

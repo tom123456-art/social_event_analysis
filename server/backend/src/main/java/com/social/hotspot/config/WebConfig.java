@@ -13,7 +13,7 @@ public class WebConfig implements WebMvcConfigurer {
     private final AuthInterceptor auth;
     public WebConfig(AuthInterceptor auth) { this.auth = auth; }
     @Override public void addInterceptors(org.springframework.web.servlet.config.annotation.InterceptorRegistry registry) {
-        registry.addInterceptor(auth).addPathPatterns("/api/events", "/api/events/**", "/api/admin/**", "/api/etl/**", "/api/front/**", "/api/auth/me", "/api/auth/logout", "/api/auth/password");
+        registry.addInterceptor(auth).addPathPatterns("/api/ai/**", "/api/events", "/api/events/**", "/api/admin/**", "/api/etl/**", "/api/front/**", "/api/auth/me", "/api/auth/logout", "/api/auth/password");
     }
     @Override
     // 配置 /api 下的跨域访问规则。

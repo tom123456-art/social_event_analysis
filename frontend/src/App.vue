@@ -69,6 +69,7 @@
       </router-view>
     </main>
   </div>
+  <AiAssistant v-if="!route.meta.public && isLoggedIn" :key="session.token" />
 </template>
 
 <script setup lang="ts">
@@ -78,6 +79,7 @@ import { DataLine, Files, Monitor, User, Postcard } from '@element-plus/icons-vu
 import { clearGetCache, postData } from './api/client'
 import { clearSession, readSession } from './utils/session'
 import { ANALYSIS_EVENT_NAME } from './config/analysisDataset'
+import AiAssistant from './components/ai/AiAssistant.vue'
 
 const route = useRoute()
 const router = useRouter()

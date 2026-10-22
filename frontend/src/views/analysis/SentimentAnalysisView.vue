@@ -18,13 +18,44 @@
           <div class="analysis-card trend-card"><div class="card-title"><span>微博情感趋势 <small>按日观察评论情绪结构变化</small></span><el-radio-group v-model="trendRange" size="small"><el-radio-button label="3">3天</el-radio-button><el-radio-button label="7">7天</el-radio-button><el-radio-button label="30">30天</el-radio-button></el-radio-group></div><ChartBox :option="weiboTrendOption" /></div>
           <div class="analysis-card reversal-card"><div class="card-title">微博风险观察 <small>只保留可行动的变化</small></div><div class="insight-list"><div><b>主导情感</b><span>{{ sentimentName(mainSentiment) }} {{ mainSentimentShare }}。{{ mainSentimentInsight }}</span></div><div><b>负向峰值</b><span>{{ negativePeak ? `${negativePeak.date}，${negativePeak.negative} 条，占当日 ${percent(negativePeak.negativeRate)}` : '暂无足够数据' }}。{{ negativePeakInsight }}</span></div><div><b>反转判断</b><span>{{ reversalText }}</span></div><div class="insight-action"><b>建议动作</b><span>{{ reversalAction }}</span></div></div></div>
         </div>
-        <div class="grid two sentiment-middle-grid"><div class="analysis-card heat-card"><div class="card-title">情感-话题交叉热力图 <small>Top 10 主题，显示各情感占比</small></div><ChartBox :option="topicHeatOption" /></div><div class="analysis-card table-card"><div class="card-title">微博评论明细 <small>{{ filteredWeiboRows.length }} 条清洗后评论</small></div><DetailTable :rows="filteredWeiboRows" :page="page" :page-size="pageSize" :filter="sentimentFilter" :keyword="keywordQuery" @update:page="page = $event" @update:filter="sentimentFilter = $event" @update:keyword="keywordQuery = $event" /></div></div>
+        <section class="analysis-card weibo-detail-card">
+          <div class="comment-section-head">
+            <div><h3>微博评论明细</h3><p>逐条核查情感判断、评论语境与互动表现</p></div>
+            <span class="result-count">筛选结果 {{ filteredWeiboRows.length }} / {{ weiboRows.length }} 条</span>
+          </div>
+          <div class="comment-toolbar">
+            <el-radio-group v-model="sentimentFilter" size="small">
+              <el-radio-button label="all">全部 {{ weiboRows.length }}</el-radio-button>
+              <el-radio-button label="negative">负面 {{ weiboTotals.negative }}</el-radio-button>
+              <el-radio-button label="positive">正面 {{ weiboTotals.positive }}</el-radio-button>
+            </el-radio-group>
+            <div class="comment-filter-fields">
+              <el-select v-model="weiboDateFilter" size="small" aria-label="发布日期" style="width: 142px"><el-option label="全部日期" value="all" /><el-option v-for="day in weiboDateOptions" :key="day" :label="day" :value="day" /></el-select>
+              <el-select v-model="weiboSort" size="small" aria-label="评论排序" style="width: 128px"><el-option label="最新发布" value="latest" /><el-option label="最早发布" value="earliest" /><el-option label="置信度最高" value="confidence" /></el-select>
+              <el-input v-model="keywordQuery" class="comment-search" size="small" clearable placeholder="搜索评论正文、话题或作者" />
+            </div>
+          </div>
+          <div class="filter-summary"><span>正面 {{ filteredWeiboTotals.positive }}</span><span>负面 {{ filteredWeiboTotals.negative }}</span><span>负面占比 {{ share(filteredWeiboTotals.negative, filteredWeiboRows.length) }}</span><button v-if="hasWeiboFilters" type="button" @click="resetWeiboFilters">清除筛选</button></div>
+          <div v-if="pagedWeiboRows.length" class="comment-list">
+            <article v-for="row in pagedWeiboRows" :key="row.content_id" class="comment-item" @click="openWeiboDetail(row)">
+              <div class="comment-sentiment" :class="label(row.sentiment_label)"><span>{{ sentimentName(row.sentiment_label) }}</span><strong>{{ confidenceDisplay(row) }}</strong></div>
+              <div class="comment-main">
+                <div class="comment-meta"><b>{{ row.author_name || '微博用户' }}</b><span>{{ fullTime(row.publish_time) }}</span><span>{{ sourceName(row.sentiment_source) }}</span></div>
+                <p>{{ row.content_text || '暂无评论正文' }}</p>
+                <div v-if="tokens(row.keywords).length" class="comment-topics"><span v-for="topic in tokens(row.keywords).slice(0, 5)" :key="topic">#{{ topic }}</span></div>
+              </div>
+              <span class="comment-detail-link">查看详情</span>
+            </article>
+          </div>
+          <el-empty v-else description="没有符合当前条件的评论" :image-size="72" />
+          <el-pagination v-if="filteredWeiboRows.length" class="table-pagination" v-model:current-page="page" :page-size="weiboPageSize" layout="total, prev, pager, next" :total="filteredWeiboRows.length" />
+        </section>
       </el-tab-pane>
       <el-tab-pane label="新闻传播导向" name="news">
         <MetricGrid :items="newsMetrics" />
         <div class="news-filter-bar"><el-select v-model="newsPlatform" size="small" style="width:170px"><el-option label="全部新闻平台" value="ALL" /><el-option v-for="platform in NEWS_PLATFORMS" :key="platform" :label="platformName(platform)" :value="platform" /></el-select><el-radio-group v-model="trendRange" size="small"><el-radio-button label="3">3天</el-radio-button><el-radio-button label="7">7天</el-radio-button><el-radio-button label="30">30天</el-radio-button></el-radio-group></div>
         <div class="grid two sentiment-top-grid"><div class="analysis-card trend-card"><div class="card-title"><span>新闻情感导向与热度趋势 <small>按新闻各自发布时间聚合</small></span></div><ChartBox :option="newsTrendOption" @chart-click="openTrendEvidence" /></div><div class="analysis-card risk-card"><div class="card-title">传播关注研判</div><div class="risk-summary"><button class="evidence-link" type="button" @click="openConclusionEvidence"><div class="risk-grade" :class="riskClass">{{ riskGrade }}</div><strong>{{ newsConclusion }}</strong></button><p>关注指数 = 负面概率 × 平台相对热度。缺少热度不等于低风险，高指数也不等于引导效果已被证实。</p></div><div class="risk-platform-list"><button v-for="row in newsPlatformRows" :key="row.platform" class="risk-platform-row" type="button" @click="openPlatformEvidence(row)"><span class="platform-dot" :style="{ background: platformColor(row.platform) }"></span><b>{{ platformName(row.platform) }}</b><span>{{ row.negativeRate.toFixed(1) }}% 负面 · {{ row.validCount ? row.risk.toFixed(2) : '无法计算' }} 指数合计</span><span class="row-arrow">查看依据</span></button></div></div></div>
-        <div class="grid two sentiment-middle-grid"><div class="analysis-card quadrant-card"><div class="card-title">负面报道占比与传播热度</div><ChartBox class="negative-spread-chart" :option="quadrantOption" @chart-click="openQuadrantEvidence" /><div class="negative-sample-list"><button v-for="row in newsPlatformRows" :key="row.platform" type="button" @click="openPlatformEvidence(row)">{{ platformName(row.platform) }}：负面 {{ row.negative }} 条 · 热度有效 {{ row.negativeHeatCount }} 条<span v-if="row.negativeHeat === null"> · 暂无有效热度</span></button></div><p class="evidence-explain">负面占比反映报道基调；下图仅统计负面报道的热度，不混入正面新闻。相对热度是同平台样本中的互动位置，不是跨平台阅读量，也不能证明情绪引导效果。</p></div><div class="analysis-card table-card"><div class="card-title">新闻关注明细 <small>{{ filteredNewsRows.length }} 条新闻正文</small></div><div class="table-filters"><el-select v-model="newsSentimentFilter" size="small" style="width:120px"><el-option label="全部情感" value="all" /><el-option label="只看正面" value="positive" /><el-option label="只看负面" value="negative" /></el-select><el-input v-model="newsKeyword" size="small" clearable placeholder="搜索标题或正文" style="width:190px" /></div><table class="table fixed-rows sentiment-detail-table news-detail-table"><thead><tr><th>平台</th><th>时间</th><th>导向</th><th>关注指数</th><th>新闻标题</th></tr></thead><tbody><tr v-for="(row,index) in pagedNewsRows" :key="`${row.content_id}-${index}`" class="clickable-row" @click="openNewsEvidence(row)"><td><span class="platform-name"><i class="platform-dot" :style="{ background: platformColor(row.platform) }"></i>{{ platformName(row.platform) }}</span></td><td>{{ fullTime(row.publish_time) }}</td><td><span class="sentiment-pill" :class="label(row.sentiment_label)">{{ sentimentName(row.sentiment_label) }}</span></td><td><b :class="riskTextClass(row)">{{ riskDisplay(row) }}</b></td><td class="content-cell" :title="row.title || row.content_text">{{ row.title || row.content_text || '-' }}</td></tr><tr v-for="i in newsEmptyRows" :key="`news-empty-${i}`"><td colspan="5"></td></tr></tbody></table><el-pagination class="table-pagination" v-model:current-page="newsPage" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredNewsRows.length" /></div></div>
+        <div class="grid two sentiment-middle-grid news-detail-grid"><div class="analysis-card quadrant-card"><div class="card-title">负面报道占比与传播热度</div><ChartBox class="negative-spread-chart" :option="quadrantOption" @chart-click="openQuadrantEvidence" /></div><div class="analysis-card table-card news-attention-card"><div class="card-title">新闻关注明细 <small>{{ filteredNewsRows.length }} 条新闻正文</small></div><div class="table-filters"><el-select v-model="newsSentimentFilter" size="small" style="width:120px"><el-option label="全部情感" value="all" /><el-option label="只看正面" value="positive" /><el-option label="只看负面" value="negative" /></el-select><el-input v-model="newsKeyword" size="small" clearable placeholder="搜索标题或正文" style="width:190px" /></div><table class="table fixed-rows sentiment-detail-table news-detail-table"><thead><tr><th>平台</th><th>时间</th><th>导向</th><th>关注指数</th><th>新闻标题</th></tr></thead><tbody><tr v-for="(row,index) in pagedNewsRows" :key="`${row.content_id}-${index}`" class="clickable-row" @click="openNewsEvidence(row)"><td><span class="platform-name"><i class="platform-dot" :style="{ background: platformColor(row.platform) }"></i>{{ platformName(row.platform) }}</span></td><td>{{ fullTime(row.publish_time) }}</td><td><span class="sentiment-pill" :class="label(row.sentiment_label)">{{ sentimentName(row.sentiment_label) }}</span></td><td><b :class="riskTextClass(row)">{{ riskDisplay(row) }}</b></td><td class="content-cell" :title="row.title || row.content_text">{{ row.title || row.content_text || '-' }}</td></tr><tr v-for="i in newsEmptyRows" :key="`news-empty-${i}`"><td colspan="5"></td></tr></tbody></table><el-pagination class="table-pagination" v-model:current-page="newsPage" :page-size="pageSize" layout="total, prev, pager, next" :total="filteredNewsRows.length" /></div></div>
       </el-tab-pane>
     </el-tabs>
     <el-dialog v-model="evidenceVisible" :title="evidenceTitle" width="min(860px, 94vw)">
@@ -51,11 +82,27 @@
         <el-button v-if="evidenceUrl" type="primary" @click="openSource">打开新闻原文</el-button>
       </div>
     </el-dialog>
+    <el-drawer v-model="weiboDetailVisible" title="微博评论详情" size="min(560px, 92vw)">
+      <div v-if="selectedWeiboRow" class="weibo-detail-drawer">
+        <div class="detail-sentiment-row"><span class="sentiment-pill" :class="label(selectedWeiboRow.sentiment_label)">{{ sentimentName(selectedWeiboRow.sentiment_label) }}</span><b>{{ confidenceLabel(selectedWeiboRow) }} {{ confidenceDisplay(selectedWeiboRow) }}</b></div>
+        <div class="detail-comment-text">{{ selectedWeiboRow.content_text || '暂无评论正文' }}</div>
+        <div class="detail-topic-list"><span v-for="topic in tokens(selectedWeiboRow.keywords)" :key="topic">#{{ topic }}</span></div>
+        <dl class="detail-grid">
+          <div><dt>发布账号</dt><dd>{{ selectedWeiboRow.author_name || '微博用户' }}</dd></div>
+          <div><dt>发布时间</dt><dd>{{ fullTime(selectedWeiboRow.publish_time) }}</dd></div>
+          <div><dt>判定来源</dt><dd>{{ sourceName(selectedWeiboRow.sentiment_source) }}</dd></div>
+          <div><dt>内容编号</dt><dd>{{ selectedWeiboRow.content_id || '-' }}</dd></div>
+          <div><dt>正面概率</dt><dd>{{ probabilityDisplay(selectedWeiboRow.sentiment_positive_score) }}</dd></div>
+          <div><dt>负面概率</dt><dd>{{ probabilityDisplay(selectedWeiboRow.sentiment_negative_score) }}</dd></div>
+        </dl>
+        <el-button v-if="validSourceUrl(selectedWeiboRow.source_url)" type="primary" @click="openWeiboSource">打开微博原文</el-button>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 import ChartBox from '../../components/common/ChartBox.vue'
@@ -67,11 +114,11 @@ const NEWS_PLATFORMS = ['SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS'
 const PLATFORM_NAMES: Record<string, string> = { SOHU_NEWS: '搜狐新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻' }
 const PLATFORM_COLORS: Record<string, string> = { SOHU_NEWS: '#e11d48', TENCENT_NEWS: '#0ea5e9', NETEASE_NEWS: '#f97316', SINA_NEWS: '#dc2626', THE_PAPER: '#334155' }
 const SENTIMENT_COLORS: Record<string, string> = { positive: '#16a34a', negative: '#dc2626' }
-const eventId = ref(ANALYSIS_EVENT_ID), sentimentRows = ref<any[]>([]), refreshing = ref(false), activeTab = ref('weibo'), page = ref(1), newsPage = ref(1), pageSize = 5, sentimentFilter = ref('all'), newsSentimentFilter = ref('all'), keywordQuery = ref(''), newsKeyword = ref(''), trendRange = ref('7'), newsPlatform = ref('ALL'), evidenceVisible = ref(false), evidenceTitle = ref('计算依据'), evidenceItems = ref<any[]>([]), evidenceText = ref(''), evidenceUrl = ref(''), evidenceArticle = ref<any>(null), evidenceNews = ref<any[]>([]), evidenceComparisons = ref<any[]>([]), evidenceLimit = ref(100)
+const eventId = ref(ANALYSIS_EVENT_ID), sentimentRows = ref<any[]>([]), refreshing = ref(false), activeTab = ref('weibo'), page = ref(1), newsPage = ref(1), pageSize = 8, weiboPageSize = 8, sentimentFilter = ref('all'), newsSentimentFilter = ref('all'), keywordQuery = ref(''), newsKeyword = ref(''), weiboDateFilter = ref('all'), weiboSort = ref('latest'), trendRange = ref('7'), newsPlatform = ref('ALL'), evidenceVisible = ref(false), evidenceTitle = ref('计算依据'), evidenceItems = ref<any[]>([]), evidenceText = ref(''), evidenceUrl = ref(''), evidenceArticle = ref<any>(null), evidenceNews = ref<any[]>([]), evidenceComparisons = ref<any[]>([]), evidenceLimit = ref(100), weiboDetailVisible = ref(false), selectedWeiboRow = ref<any>(null)
 const currentEventName = ANALYSIS_EVENT_NAME
 const binarySentimentRows = computed(() => sentimentRows.value.filter(row => ['positive', 'negative'].includes(String(row.sentiment_label))))
 const isWeibo = (v: any) => String(v || '').trim().toUpperCase() === 'WEIBO', label = (v: any) => ['positive', 'negative'].includes(String(v)) ? String(v) : 'unknown', sentimentName = (v: string) => v === 'positive' ? '正面' : v === 'negative' ? '负面' : '未分类', fullTime = (v: any) => v ? String(v).replace('T', ' ').replace(/\.\d+$/, '').slice(0, 19) : '-', date = (v: any) => fullTime(v).slice(0, 10), time = (v: any) => Date.parse(String(v || '').replace('T', ' ')) || 0, percent = (v: any) => `${Number(v || 0).toFixed(1)}%`, platformName = (v: any) => PLATFORM_NAMES[String(v)] || (isWeibo(v) ? '微博' : '其他平台'), platformColor = (v: any) => PLATFORM_COLORS[String(v)] || '#64748b'
-const tokens = (v: any) => [...new Set(String(v || '').split(/[,，、/\\#\s]+/).map(x => x.trim()).filter(x => x.length > 1 && !/^(关键词|话题)$/.test(x)))], displayKeywords = (v: any) => tokens(v).slice(0, 3).join('、') || '-'
+const tokens = (v: any) => [...new Set(String(v || '').split(/[,，、/\\#\s]+/).map(x => x.trim()).filter(x => x.length > 1 && !/^(关键词|话题)$/.test(x)))]
 const weiboRows = computed(() => binarySentimentRows.value.filter(row => isWeibo(row.platform))), newsRows = computed(() => binarySentimentRows.value.filter(row => NEWS_PLATFORMS.includes(String(row.platform || '').toUpperCase())))
 const totals = (rows: any[]) => rows.reduce((out: any, row: any) => { const key = label(row.sentiment_label); out[key] = (out[key] || 0) + 1; return out }, { positive: 0, negative: 0 }), share = (v: any, total: number) => total ? percent(Number(v || 0) / total * 100) : '0.0%'
 const weiboTotals = computed(() => totals(weiboRows.value)), weiboTotal = computed(() => weiboRows.value.length)
@@ -79,9 +126,19 @@ const weiboMetrics = computed(() => [{ label: '正面评论', value: weiboTotals
 const daily = (rows: any[]) => { const map: Record<string, any> = {}; rows.forEach(row => { const day = date(row.publish_time); if (!day || day === '-') return; const item = map[day] ||= { date: day, total: 0, positive: 0, negative: 0, heat: 0, heatCount: 0, risk: 0 }; item.total++; item[label(row.sentiment_label)]++; item.heat += heatValue(row) ?? 0; if (heatValue(row) !== null) item.heatCount++; item.risk += riskScore(row) }); return Object.values(map).sort((a: any, b: any) => a.date.localeCompare(b.date)).map((x: any) => ({ ...x, negativeRate: x.total ? x.negative / x.total * 100 : 0, direction: x.total ? (x.positive - x.negative) / x.total * 100 : 0 })) }
 const dailyWeibo = computed(() => daily(weiboRows.value)), trendDays = computed(() => dailyWeibo.value.slice(-Number(trendRange.value)).map(x => x.date))
 const weiboTrendOption = computed(() => ({ tooltip: { trigger: 'axis' }, legend: { top: 0 }, grid: { left: 42, right: 16, top: 40, bottom: 34 }, xAxis: { type: 'category', data: trendDays.value, axisLabel: { formatter: (v: string) => v.slice(5) } }, yAxis: { type: 'value', minInterval: 1 }, series: ['positive', 'negative'].map(key => ({ name: sentimentName(key), type: 'line', smooth: true, lineStyle: { color: SENTIMENT_COLORS[key] }, itemStyle: { color: SENTIMENT_COLORS[key] }, data: trendDays.value.map(day => dailyWeibo.value.find(x => x.date === day)?.[key] || 0) })) }))
-function topicStats(rows: any[]) { const map: Record<string, any> = {}; rows.forEach(row => tokens(row.keywords).forEach(topic => { const item = map[topic] ||= { topic, positive: 0, negative: 0, total: 0 }; item[label(row.sentiment_label)]++; item.total++ })); return Object.values(map).map((item: any) => ({ ...item, positiveRate: item.positive / item.total * 100, negativeRate: item.negative / item.total * 100 })).sort((a: any, b: any) => b.total - a.total) }
-const topics = computed(() => topicStats(weiboRows.value)), topicHeatOption = computed(() => ({ tooltip: { formatter: (p: any) => `${p.name} · ${sentimentName(['negative', 'positive'][p.value[1]])}：${p.value[2]}%` }, grid: { left: 64, right: 22, top: 18, bottom: 88, containLabel: true }, xAxis: { type: 'category', data: topics.value.slice(0, 10).map(x => x.topic), axisLabel: { rotate: 32 } }, yAxis: { type: 'category', data: ['负面', '正面'] }, visualMap: { min: 0, max: 100, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#f3f4f6', '#fecaca', '#ef4444'] } }, series: [{ type: 'heatmap', data: topics.value.slice(0, 10).flatMap((topic: any, x: number) => ['negative', 'positive'].map((key, y) => [x, y, Number((topic[key] / topic.total * 100 || 0).toFixed(1))])), label: { show: true, formatter: (p: any) => `${p.value[2]}%` } }] }))
-const filteredWeiboRows = computed(() => weiboRows.value.filter(row => (sentimentFilter.value === 'all' || label(row.sentiment_label) === sentimentFilter.value) && (!keywordQuery.value.trim() || `${row.keywords || ''}${row.content_text || ''}`.toLowerCase().includes(keywordQuery.value.trim().toLowerCase()))).sort((a, b) => time(b.publish_time) - time(a.publish_time)))
+const confidence = (row: any) => label(row.sentiment_label) === 'positive' ? Number(row.sentiment_positive_score) || 0 : Number(row.sentiment_negative_score) || 0
+const filteredWeiboRows = computed(() => weiboRows.value.filter(row => (sentimentFilter.value === 'all' || label(row.sentiment_label) === sentimentFilter.value) && (weiboDateFilter.value === 'all' || date(row.publish_time) === weiboDateFilter.value) && (!keywordQuery.value.trim() || `${row.author_name || ''} ${row.keywords || ''} ${row.content_text || ''}`.toLowerCase().includes(keywordQuery.value.trim().toLowerCase()))).sort((a, b) => weiboSort.value === 'earliest' ? time(a.publish_time) - time(b.publish_time) : weiboSort.value === 'confidence' ? confidence(b) - confidence(a) : time(b.publish_time) - time(a.publish_time)))
+const pagedWeiboRows = computed(() => filteredWeiboRows.value.slice((page.value - 1) * weiboPageSize, page.value * weiboPageSize))
+const filteredWeiboTotals = computed(() => totals(filteredWeiboRows.value))
+const weiboDateOptions = computed(() => [...new Set(weiboRows.value.map(row => date(row.publish_time)).filter(day => day !== '-'))].sort().reverse())
+const hasWeiboFilters = computed(() => sentimentFilter.value !== 'all' || weiboDateFilter.value !== 'all' || keywordQuery.value.trim() !== '' || weiboSort.value !== 'latest')
+const sourceName = (value: any) => String(value || '').toUpperCase() === 'MANUAL' ? '人工审核' : '模型预测'
+const confidenceLabel = (row: any) => String(row.sentiment_source || '').toUpperCase() === 'MANUAL' ? '判定方式' : '模型置信度'
+const confidenceDisplay = (row: any) => String(row.sentiment_source || '').toUpperCase() === 'MANUAL' ? '人工确认' : confidence(row) ? percent(confidence(row) * 100) : '未提供'
+const validSourceUrl = (value: any) => /^https?:\/\//i.test(String(value || ''))
+function resetWeiboFilters() { sentimentFilter.value = 'all'; weiboDateFilter.value = 'all'; keywordQuery.value = ''; weiboSort.value = 'latest' }
+function openWeiboDetail(row: any) { selectedWeiboRow.value = row; weiboDetailVisible.value = true }
+function openWeiboSource() { const url = selectedWeiboRow.value?.source_url; if (validSourceUrl(url)) window.open(url, '_blank', 'noopener,noreferrer') }
 const mainSentiment = computed(() => weiboTotal.value ? Object.entries(weiboTotals.value).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || 'unknown' : 'unknown'), mainSentimentShare = computed(() => share(weiboTotals.value[mainSentiment.value], weiboTotal.value)), mainSentimentInsight = computed(() => mainSentiment.value === 'negative' ? '当前评论存在明显风险，应优先查看负向峰值对应的主题。' : mainSentiment.value === 'positive' ? '整体反馈偏积极，仍需关注少数高频负向主题。' : '暂无有效情感记录。')
 const negativePeak = computed(() => [...dailyWeibo.value].sort((a, b) => b.negative - a.negative)[0]), negativePeakInsight = computed(() => negativePeak.value && negativePeak.value.negativeRate >= 50 ? '该日负面评论已过半，建议回看对应传播内容。' : '峰值只代表数量，仍需结合占比判断风险。'), reversalText = computed(() => '当前版本保留微博评论的负向变化观察，不将新闻正文与微博评论混合判断。'), reversalAction = computed(() => negativePeak.value?.negativeRate >= 50 ? '优先核查负面峰值日期的主题与原始评论。' : '继续观察负面占比是否连续上升。')
 const newsScopedRows = computed(() => newsRows.value.filter(row => newsPlatform.value === 'ALL' || row.platform === newsPlatform.value)), newsTotals = computed(() => totals(newsScopedRows.value)), newsTotal = computed(() => newsScopedRows.value.length)
@@ -146,7 +203,7 @@ const quadrantOption = computed(() => {
 })
 const filteredNewsRows = computed(() => newsScopedRows.value.filter(row => (newsSentimentFilter.value === 'all' || label(row.sentiment_label) === newsSentimentFilter.value) && (!newsKeyword.value.trim() || `${row.title || ''}${row.content_text || ''}`.toLowerCase().includes(newsKeyword.value.trim().toLowerCase()))).sort((a, b) => riskScore(b) - riskScore(a) || time(b.publish_time) - time(a.publish_time))), pagedNewsRows = computed(() => filteredNewsRows.value.slice((newsPage.value - 1) * pageSize, newsPage.value * pageSize)), newsEmptyRows = computed(() => Math.max(0, pageSize - pagedNewsRows.value.length))
 const riskTextClass = (row: any) => !hasRiskData(row) ? 'risk-normal' : riskScore(row) >= 70 ? 'risk-danger' : riskScore(row) >= 45 ? 'risk-warn' : 'risk-normal'
-watch([sentimentFilter, keywordQuery], () => page.value = 1); watch([newsSentimentFilter, newsKeyword, newsPlatform], () => newsPage.value = 1)
+watch([sentimentFilter, keywordQuery, weiboDateFilter, weiboSort], () => page.value = 1); watch([newsSentimentFilter, newsKeyword, newsPlatform], () => newsPage.value = 1)
 async function load() { sentimentRows.value = await getData(`/events/${eventId.value}/sentiment-analysis`, true) }
 function openEvidence(title: string, items: any[], text: string) {
   evidenceTitle.value = title; evidenceItems.value = items; evidenceText.value = text
@@ -179,16 +236,16 @@ function openTrendEvidence(params: any) {
   evidenceNews.value = sortedEvidenceNews(newsScopedRows.value.filter(row => date(row.publish_time) === day.date))
 }
 async function refreshData() { refreshing.value = true; try { clearGetCache(); await load(); ElMessage.success('已读取最新数据库快照') } catch (error: any) { ElMessage.error(getErrorMessage(error, '读取数据失败，请稍后重试。')) } finally { refreshing.value = false } }
-const DetailTable = defineComponent({ props: { rows: { type: Array, required: true }, page: { type: Number, required: true }, pageSize: { type: Number, required: true }, filter: { type: String, required: true }, keyword: { type: String, required: true } }, emits: ['update:page', 'update:filter', 'update:keyword'], setup(props, { emit }) { return () => h('div', [h('div', { class: 'table-filters' }, [h('select', { value: props.filter, onChange: (e: any) => emit('update:filter', e.target.value) }, [h('option', { value: 'all' }, '全部情感'), h('option', { value: 'positive' }, '只看正面'), h('option', { value: 'negative' }, '只看负面')]), h('input', { value: props.keyword, placeholder: '搜索关键词', onInput: (e: any) => emit('update:keyword', e.target.value) })]), h('table', { class: 'table fixed-rows sentiment-detail-table' }, [h('thead', [h('tr', ['时间', '情感', '主题/关键词', '评论内容'].map(x => h('th', x)))]), h('tbody', (props.rows as any[]).slice((props.page - 1) * props.pageSize, props.page * props.pageSize).map((row: any) => h('tr', [h('td', fullTime(row.publish_time)), h('td', [h('span', { class: `sentiment-pill ${label(row.sentiment_label)}` }, sentimentName(row.sentiment_label))]), h('td', displayKeywords(row.keywords)), h('td', { class: 'content-cell', title: row.content_text }, row.content_text || '-')]))) ]), h('el-pagination', { class: 'table-pagination', currentPage: props.page, pageSize: props.pageSize, total: props.rows.length, layout: 'total, prev, pager, next', 'onUpdate:currentPage': (value: number) => emit('update:page', value) })]) } })
 onMounted(() => load().catch(() => ElMessage.error('读取情感分析失败')))
 useDatabaseAutoRefresh(load)
 </script>
 
 <style scoped>
-.sentiment-page { display: block; }
+.sentiment-page { display: block; min-width: 0; }
 .negative-spread-chart { height: 440px; min-height: 440px !important; }
-.negative-sample-list { display: grid; gap: 6px; }
-.negative-sample-list button { padding: 4px 0; background: transparent; border: 0; text-align: left; font-size: 12px; color: #475569; cursor: pointer; }
+.news-detail-grid { align-items: stretch; }
+.news-detail-grid > .analysis-card { height: 100%; }
+.news-attention-card { min-height: 0; }
 .evidence-section-title { margin: 8px 0; font-size: 15px; overflow-wrap: anywhere; }
 .evidence-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow-y: auto; line-height: 1.8; }
 .evidence-table-wrap { overflow-x: auto; }
@@ -206,6 +263,38 @@ useDatabaseAutoRefresh(load)
 @media (max-width: 600px) { .risk-platform-row { grid-template-columns: 10px 1fr; } .risk-platform-row > span:nth-child(n+3) { grid-column: 2; } .table-filters { flex-wrap: wrap; } .table-card { overflow-x: auto; } }
 .sentiment-tabs { margin-top: 12px; }
 .sentiment-top-grid, .sentiment-middle-grid { margin-top: 12px; }
+.weibo-detail-card { margin-top: 12px; min-height: 420px; }
+.comment-section-head, .comment-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.comment-section-head h3 { margin: 0; color: #172033; font-size: 16px; }
+.comment-section-head p { margin: 5px 0 0; color: #69778d; font-size: 12px; }
+.result-count { color: #52627a; font-size: 12px; white-space: nowrap; }
+.comment-toolbar { margin-top: 16px; padding: 12px; background: #f6f8fb; border: 1px solid #e3e9f1; border-radius: 6px; }
+.comment-filter-fields { display: flex; justify-content: flex-end; gap: 8px; min-width: 0; }
+.comment-search { width: 260px; }
+.filter-summary { min-height: 38px; display: flex; align-items: center; gap: 18px; padding: 0 4px; border-bottom: 1px solid #e5eaf1; color: #64748b; font-size: 12px; }
+.filter-summary button { margin-left: auto; padding: 4px 0; border: 0; background: transparent; color: #2563eb; cursor: pointer; }
+.comment-list { display: grid; }
+.comment-item { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; gap: 16px; align-items: center; min-height: 112px; padding: 16px 8px; border-bottom: 1px solid #e8edf3; cursor: pointer; }
+.comment-item:hover { background: #f9fbfd; }
+.comment-sentiment { align-self: stretch; display: grid; align-content: center; justify-items: center; gap: 6px; border-left: 3px solid; background: #f8fafc; }
+.comment-sentiment span { font-size: 13px; font-weight: 800; }
+.comment-sentiment strong { color: #64748b; font-size: 11px; font-weight: 600; }
+.comment-sentiment.positive { border-color: #16a34a; color: #166534; background: #f0fdf4; }
+.comment-sentiment.negative { border-color: #dc2626; color: #991b1b; background: #fef2f2; }
+.comment-main { min-width: 0; }
+.comment-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: #7b8798; font-size: 12px; }
+.comment-meta b { color: #27364b; font-size: 13px; }
+.comment-main p { margin: 8px 0 10px; color: #172033; font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.comment-topics { display: flex; flex-wrap: wrap; gap: 6px; color: #2563eb; font-size: 12px; }
+.comment-detail-link { color: #2563eb; font-size: 12px; white-space: nowrap; }
+.weibo-detail-drawer { display: grid; gap: 20px; }
+.detail-sentiment-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #475569; font-size: 13px; }
+.detail-comment-text { padding: 16px; border-left: 3px solid #2563eb; background: #f7f9fc; color: #172033; line-height: 1.8; overflow-wrap: anywhere; }
+.detail-topic-list { display: flex; flex-wrap: wrap; gap: 8px; color: #2563eb; font-size: 13px; }
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin: 0; border-top: 1px solid #e5eaf1; }
+.detail-grid div { min-width: 0; padding: 12px 4px; border-bottom: 1px solid #e5eaf1; }
+.detail-grid dt { margin-bottom: 5px; color: #7b8798; font-size: 12px; }
+.detail-grid dd { margin: 0; color: #27364b; font-size: 13px; overflow-wrap: anywhere; }
 .analysis-card > .chart { min-height: 280px; }
 .card-title small { color: #69778d; font-size: 12px; font-weight: 500; }
 .news-filter-bar { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
@@ -221,5 +310,6 @@ useDatabaseAutoRefresh(load)
 .sentiment-detail-table { table-layout: fixed; }.sentiment-detail-table th:nth-child(1) { width: 145px; }.sentiment-detail-table th:nth-child(2) { width: 68px; }.sentiment-detail-table th:nth-child(3) { width: 150px; }.news-detail-table th:nth-child(1) { width: 100px; }.news-detail-table th:nth-child(2) { width: 145px; }.news-detail-table th:nth-child(3) { width: 68px; }.news-detail-table th:nth-child(4) { width: 85px; }
 .content-cell { max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.sentiment-pill { display: inline-flex; padding: 3px 7px; border-radius: 999px; font-size: 11px; }.sentiment-pill.positive { color: #166534; background: #dcfce7; }.sentiment-pill.negative { color: #991b1b; background: #fee2e2; }
 .risk-normal { color: #64748b; }.risk-warn { color: #c2410c; }.risk-danger { color: #b91c1c; }
-@media (max-width: 1100px) { .news-filter-bar { align-items: flex-start; gap: 8px; flex-direction: column; }.analysis-card > .chart { min-height: 250px; } }
+@media (max-width: 1100px) { .news-filter-bar { align-items: flex-start; gap: 8px; flex-direction: column; }.analysis-card > .chart { min-height: 250px; }.comment-toolbar { align-items: flex-start; flex-direction: column; }.comment-filter-fields { width: 100%; justify-content: flex-start; }.comment-search { flex: 1; width: auto; }.comment-item { grid-template-columns: 72px minmax(0, 1fr) auto; } }
+@media (max-width: 700px) { .comment-section-head { align-items: flex-start; flex-direction: column; gap: 8px; }.comment-filter-fields { flex-wrap: wrap; }.comment-search { flex-basis: 100%; }.filter-summary { flex-wrap: wrap; gap: 8px 14px; padding: 8px 4px; }.comment-item { grid-template-columns: 1fr auto; gap: 10px; padding: 14px 0; }.comment-sentiment { grid-column: 1 / -1; align-self: auto; grid-template-columns: auto auto; justify-content: start; justify-items: start; padding: 7px 10px; }.detail-grid { grid-template-columns: 1fr; } }
 </style>

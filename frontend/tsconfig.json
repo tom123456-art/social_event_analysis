@@ -1,17 +1,31 @@
 {
+  // Vite 负责构建，TypeScript 按现代浏览器和打包器的模块解析规则进行类型检查。
   "compilerOptions": {
+    // 以 ES2020 作为语法目标，供类型检查与转译工具使用。
     "target": "ES2020",
+    // 类字段采用标准 define 语义初始化，与现代 JavaScript 行为一致。
     "useDefineForClassFields": true,
+    // 保留现代模块语法，后续交由 Vite 分析依赖并打包。
     "module": "ESNext",
+    // 使用打包器模块解析规则，兼容依赖包的 exports 等入口声明。
     "moduleResolution": "Bundler",
+    // 启用严格检查，尽早发现空值、隐式类型及函数参数不匹配问题。
     "strict": true,
+    // 保留 JSX 语法，由对应编译工具继续处理。
     "jsx": "preserve",
+    // 允许生成源码映射，便于定位编译结果对应的源码。
     "sourceMap": true,
+    // 允许把 JSON 文件作为模块导入，并推断其结构类型。
     "resolveJsonModule": true,
+    // 要求每个文件可以独立转译，避免依赖跨文件类型信息的写法。
     "isolatedModules": true,
+    // 跳过依赖声明文件的内部检查，减少第三方类型检查耗时。
     "skipLibCheck": true,
+    // 提供现代语言特性、浏览器 DOM 与可迭代 DOM 集合的类型。
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // 提供环境变量、Vue JSX 及 Node 配置代码所需的类型声明。
     "types": ["vite/client", "vue/jsx", "node"]
   },
+  // 业务 TypeScript 与 Vue 单文件组件均纳入类型检查。
   "include": ["src/**/*.ts", "src/**/*.vue"]
 }

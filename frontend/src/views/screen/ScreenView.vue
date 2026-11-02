@@ -1,6 +1,8 @@
 <template>
+  <!-- 独立大屏不使用业务导航外壳，各图表共用同一份分析快照和口径说明。 -->
   <div class="big-screen">
     <header class="screen-head">
+      <!-- 点击“返回前台”时执行 router.push('/overview')。 -->
       <button class="screen-back" type="button" title="返回前台" @click="router.push('/overview')">
         <el-icon><ArrowLeft /></el-icon>
         <span>返回前台</span>
@@ -12,6 +14,7 @@
       </div>
 
       <div class="screen-head-status">
+        <!-- 点击“打开 ETL 管理”时执行 router.push('/admin/etl')。 -->
         <button class="screen-sync screen-etl-link" type="button" title="打开 ETL 管理" @click="router.push('/admin/etl')"><i></i><span>ETL 数据同步<small>ETL 完成后刷新</small></span></button>
         <div class="screen-clock"><small>{{ dateText }}</small><strong>{{ timeText }}</strong></div>
       </div>
@@ -21,6 +24,7 @@
       <aside class="screen-column screen-column-left">
         <section class="screen-card platform-card chart-live screen-explainable" @click="openExplanation('platform')">
           <h3>五源热度矩阵 <small>5个新闻平台</small><button class="screen-info" type="button" title="查看五源热度计算依据" aria-label="查看五源热度计算依据" @click.stop="openExplanation('platform')"><el-icon><InfoFilled /></el-icon></button></h3>
+          <!-- 将 platformRankOption 交给图表组件绘制。 -->
           <ChartBox size="sm" :option="platformRankOption" />
         </section>
 
@@ -32,6 +36,7 @@
               <em :class="{ warning: latestBatch?.status && latestBatch.status !== 'SUCCESS' }">{{ statusName(latestBatch?.status) }}</em>
             </div>
             <div class="screen-quality-list">
+              <!-- 根据 metric in sourceMetrics 循环生成条目，模板中的字段读取当前条目数据。 -->
               <div v-for="metric in sourceMetrics" :key="metric.label">
                 <div class="screen-quality-label"><span>{{ metric.label }}</span><b>{{ countText(metric.value) }}{{ metric.unit }}</b></div>
                 <div class="screen-quality-track"><i :style="{ width: metric.ratio + '%' }"></i></div>
@@ -43,6 +48,7 @@
 
         <section class="screen-card category-card chart-live screen-explainable" @click="openExplanation('category')">
           <h3>热点类型构成 <small>{{ categoryRank.length }}类主题</small><button class="screen-info" type="button" title="查看热点类型计算依据" aria-label="查看热点类型计算依据" @click.stop="openExplanation('category')"><el-icon><InfoFilled /></el-icon></button></h3>
+          <!-- 将 categoryOption 交给图表组件绘制。 -->
           <ChartBox size="sm" :option="categoryOption" />
         </section>
       </aside>
@@ -57,18 +63,21 @@
               <span>峰值 <b>{{ formatTime(peakPoint.time) }}</b></span>
             </div>
           </div>
+          <!-- 将 heatOption 交给图表组件绘制。 -->
           <ChartBox :key="heatRefreshKey" :option="heatOption" />
         </section>
 
         <div class="screen-center-bottom">
           <section class="screen-card spread-card chart-live screen-explainable" @click="openExplanation('spread')">
             <h3>跨平台时序 <small>无父级关系不推断因果</small><button class="screen-info" type="button" title="查看跨平台时序计算依据" aria-label="查看跨平台时序计算依据" @click.stop="openExplanation('spread')"><el-icon><InfoFilled /></el-icon></button></h3>
+            <!-- 将 spreadOption 交给图表组件绘制。 -->
             <ChartBox size="md" :option="spreadOption" />
           </section>
 
           <section class="screen-card keyword-card chart-live screen-explainable" @click="openExplanation('keyword')">
             <h3>关键词情报矩阵 <small>词频 / 来源平台</small><button class="screen-info" type="button" title="查看关键词计算依据" aria-label="查看关键词计算依据" @click.stop="openExplanation('keyword')"><el-icon><InfoFilled /></el-icon></button></h3>
             <div class="screen-keywords">
+              <!-- 根据 (word, index) in keywordRows 循环生成条目，模板中的字段读取当前条目数据。 -->
               <div
                 v-for="(word, index) in keywordRows"
                 :key="word.keyword"
@@ -80,6 +89,7 @@
                 <span>{{ platformName(word.platform_top) }}</span>
                 <em>{{ countText(word.word_count) }}</em>
               </div>
+              <!-- 仅当 !keywordRows.length 成立时显示此处内容，条件变化时自动更新。 -->
               <p v-if="!keywordRows.length" class="screen-empty">暂无关键词结果</p>
             </div>
           </section>
@@ -90,6 +100,7 @@
         <section class="screen-card rank-card chart-live screen-explainable" @click="openExplanation('rank')">
           <h3>高热内容排行 <small>前 {{ rankRows.length }} 条</small><button class="screen-info" type="button" title="查看内容排行计算依据" aria-label="查看内容排行计算依据" @click.stop="openExplanation('rank')"><el-icon><InfoFilled /></el-icon></button></h3>
           <div class="screen-rank">
+            <!-- 根据 (row, index) in rankRows 循环生成条目，模板中的字段读取当前条目数据。 -->
             <div v-for="(row, index) in rankRows" :key="row.content_id">
               <b>{{ String(index + 1).padStart(2, '0') }}</b>
               <span><small :style="{ color: platformColor(row.platform) }">{{ platformName(row.platform) }}</small><strong><a v-if="newsUrl(row.source_url)" :href="newsUrl(row.source_url)" target="_blank" rel="noopener noreferrer" :title="row.title || row.clean_text" @click.stop>{{ row.title || row.clean_text }}</a><template v-else>{{ row.title || row.clean_text }}</template></strong></span>
@@ -113,15 +124,18 @@
 
         <section class="screen-card sentiment-card chart-live screen-explainable" @click="openExplanation('sentiment')">
           <h3>平台情绪结构 <small>正向 / 负向 · 过滤后样本</small><button class="screen-info" type="button" title="查看情绪结构计算依据" aria-label="查看情绪结构计算依据" @click.stop="openExplanation('sentiment')"><el-icon><InfoFilled /></el-icon></button></h3>
+          <!-- 将 sentimentOption 交给图表组件绘制。 -->
           <ChartBox size="sm" :option="sentimentOption" />
         </section>
 
         <section class="screen-card peak-card chart-live screen-explainable" @click="openExplanation('peak')">
           <h3>峰值传播强度 <small>{{ formatTime(peakPoint.time) }}</small><button class="screen-info" type="button" title="查看峰值强度计算依据" aria-label="查看峰值强度计算依据" @click.stop="openExplanation('peak')"><el-icon><InfoFilled /></el-icon></button></h3>
+          <!-- 将 speedOption 交给图表组件绘制。 -->
           <ChartBox size="sm" :option="speedOption" />
         </section>
       </aside>
     </main>
+    <!-- 将弹框显隐与 explanationVisible 绑定，集中展示当前操作的详情或表单。 -->
     <el-dialog v-model="explanationVisible" class="screen-metric-dialog" modal-class="screen-metric-overlay" :title="activeExplanation.title" width="min(520px, calc(100vw - 32px))" top="15vh" append-to-body>
       <div class="screen-metric-kicker">计算依据</div>
       <section class="screen-metric-section"><h4>数据前提</h4><p>{{ activeExplanation.basis }}</p></section>
@@ -202,6 +216,7 @@ const explanations = {
 const explanationKey = ref<keyof typeof explanations>('heat')
 const explanationVisible = ref(false)
 const activeExplanation = computed(() => explanations[explanationKey.value])
+// 保存当前指标说明键，再打开共用弹框显示对应口径。
 function openExplanation(key: keyof typeof explanations) {
   explanationKey.value = key
   explanationVisible.value = true
@@ -215,32 +230,54 @@ function newsUrl(value: unknown): string | undefined {
     return undefined
   }
 }
+// 保存仪表盘完整响应，作为后续指标和图表的统一数据源。
 const data = ref<any>({})
+// 保存大屏显示的当前日期，时钟每秒更新时同步刷新。
 const dateText = ref('')
+// 保存大屏当前时分秒文本。
 const timeText = ref('')
+// 每次热度刷新后递增，触发对应展示区域更新。
 const heatRefreshKey = ref(0)
+// 保存时钟定时器编号，离开页面时取消。
 let clockTimer: number | undefined
+// 保存热度自动刷新定时器编号，与时钟分别管理。
 let heatRefreshTimer: number | undefined
+// 保存上次快照摘要，判断是否需要替换数据以减少重绘。
 let dataSignature = ''
 
+// 提取快照总览，未加载时提供空对象默认值。
 const overview = computed(() => data.value.overview || {})
+// 提取热度时间序列，供趋势和峰值计算使用。
 const heat = computed<any[]>(() => data.value.heatTrend || [])
+// 提取内容排名，供热榜展示。
 const rank = computed<any[]>(() => data.value.contentRank || [])
+// 提取快照中的真实内容，缺失时使用空列表。
 const realContents = computed<any[]>(() => data.value.realPublicContents || [])
+// 提取关键词排名，供关键词区域循环展示。
 const keywords = computed<any[]>(() => data.value.keywordRank || [])
+// 提取情感时间趋势，供大屏情感图生成使用。
 const sentiment = computed<any[]>(() => data.value.sentimentTrend || [])
+// 读取快照关联的最新批次，供同步状态和时间展示。
 const latestBatch = computed(() => data.value.latestBatch || data.value.batch || undefined)
 
+// 读取后端类别排名，供页面汇总展示。
 const categoryRank = computed<any[]>(() => data.value.categoryRank || [])
 
 const timeline = computed<any[]>(() => compactTimeline(data.value.platformTimeline || []))
+// 读取平台总数，缺失时按有效平台列表数量显示。
 const platformCount = computed(() => Number(overview.value.platform_count || timeline.value.length || 0))
+// 优先读取后端源数量，缺失时按当前内容统计平台数。
 const sourceCount = computed(() => Number(latestBatch.value?.source_count || overview.value.content_count || 0))
+// 读取有效记录数，缺少批次统计时回退到总览内容量。
 const validCount = computed(() => Number(latestBatch.value?.valid_count || overview.value.content_count || 0))
+// 优先使用脏记录统计，缺失时用源数减有效数估算并限制非负。
 const dirtyCount = computed(() => Math.max(0, Number(latestBatch.value?.dirty_count ?? (sourceCount.value - validCount.value))))
+// 计算有效数占源记录数百分比，源数为零时返回零。
 const cleanRate = computed(() => sourceCount.value ? Math.min(100, Number((validCount.value / sourceCount.value * 100).toFixed(1))) : 0)
+// 依次从结束、开始和总览更新时间中选取展示时间。
 const batchTime = computed(() => formatTime(latestBatch.value?.end_time || latestBatch.value?.start_time || overview.value.updated_at))
 
+// 把来源数、有效量和清洗率组织为大屏指标。
 const sourceMetrics = computed(() => [
   { label: '有效记录', value: validCount.value, unit: '条', ratio: cleanRate.value },
   { label: '异常记录', value: dirtyCount.value, unit: '条', ratio: dirtyCount.value ? Math.min(100, dirtyCount.value / Math.max(1, sourceCount.value) * 100) : 0 },
@@ -248,7 +285,9 @@ const sourceMetrics = computed(() => [
   { label: '关键词结果', value: keywords.value.length, unit: '项', ratio: Math.min(100, keywords.value.length / 30 * 100) }
 ])
 
+// 整理趋势记录中的时间、内容数和热度值。
 const trendRows = computed(() => {
+  // 按相同时间桶合并平台记录，内容量与热度分别累加。
   const grouped = new Map<string, { time: string; content: number; hot: number }>()
   heat.value.forEach(item => {
     const time = String(item.time_bucket || '')
@@ -257,17 +296,22 @@ const trendRows = computed(() => {
     row.hot += Number(item.hot_score || 0)
     grouped.set(time, row)
   })
+  // 时间升序后只取最近十八个桶，限制大屏横轴的展示密度。
   return [...grouped.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(-18)
 })
 
+// 遍历趋势列表，取热度最高的时间点和数值。
 const peakPoint = computed(() => trendRows.value.reduce((peak, item) => item.hot > peak.hot ? item : peak, { time: '', content: 0, hot: 0 }))
 
+// 整理热榜字段并截取大屏需要展示的条数。
 const rankRows = computed(() => {
+  // 热榜先按热度排序，同热度按发布时间排序，再用内容编号或标题去重。
   const seen = new Set<string>()
   return [...rank.value]
     .sort((a, b) => Number(b.hot_score || 0) - Number(a.hot_score || 0) || String(b.publish_time || '').localeCompare(String(a.publish_time || '')))
     .filter(row => {
       const key = String(row.content_id || row.title || '')
+      // 缺少标识或已经展示过的记录不进入热榜。
       if (!key || seen.has(key)) return false
       seen.add(key)
       return true
@@ -275,12 +319,16 @@ const rankRows = computed(() => {
     .slice(0, 6)
 })
 
+// 从真实内容中整理最新动态，供滚动列表使用。
 const liveRows = computed(() => [...realContents.value]
   .sort((a, b) => String(b.publish_time || '').localeCompare(String(a.publish_time || '')))
   .slice(0, 10))
+// 动态超过五条时复制列表，使滚动内容首尾衔接。
 const tickerRows = computed(() => liveRows.value.length > 5 ? liveRows.value.concat(liveRows.value) : liveRows.value)
 
+// 整理关键词名称、数量和相关统计，供大屏显示。
 const keywordRows = computed(() => {
+  // 去除通用词，并限制词长，最多保留十个可读关键词。
   const ignored = new Set(['热点', '新闻', '内容', '表示', '进行', '来源', '编辑'])
   return keywords.value
     .filter(item => {
@@ -290,7 +338,9 @@ const keywordRows = computed(() => {
     .slice(0, 10)
 })
 
+// 把当前统计数据转换为热度或来源比较图的配置。
 const heatOption = computed(() => {
+  // 根据当前趋势生成横轴时间文本，最后一个位置用作最新节点提示。
   const rows = trendRows.value
   const labels = rows.map(item => formatTime(item.time))
   const lastIndex = Math.max(0, rows.length - 1)
@@ -301,6 +351,7 @@ const heatOption = computed(() => {
       trigger: 'axis',
       axisPointer: { type: 'cross', lineStyle: { color: 'rgba(125,211,252,.55)' } },
       formatter: (params: any) => {
+        // 把图表参数统一为数组，再按数据下标找到对应时间桶。
         const list = Array.isArray(params) ? params : [params]
         const row = rows[list[0]?.dataIndex || 0]
         return row ? `${formatFullTime(row.time)}<br/>新增内容：${countText(row.content)}条<br/>时段热度：${heatText(row.hot)}` : ''
@@ -319,11 +370,13 @@ const heatOption = computed(() => {
     ],
     series: [
       {
+        // 新增内容使用第二个纵轴，避免数量和热度共享刻度而失真。
         name: '新增内容', type: 'bar', yAxisIndex: 1, barMaxWidth: 22,
         data: rows.map(item => item.content),
         itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#6ee7b7' }, { offset: 1, color: 'rgba(16,185,129,.16)' }] }, borderRadius: [2, 2, 0, 0] }
       },
       {
+        // 热度用折线显示，并在下方从同一趋势列表提取数值。
         name: '时段热度', type: 'line', smooth: 0.3, symbol: 'circle', symbolSize: 7,
         lineStyle: { width: 3, color: '#22d3ee', shadowBlur: 10, shadowColor: 'rgba(34,211,238,.45)' },
         itemStyle: { color: '#dffaff', borderColor: '#22d3ee', borderWidth: 2 },
@@ -332,6 +385,7 @@ const heatOption = computed(() => {
         markPoint: { symbol: 'pin', symbolSize: 42, itemStyle: { color: '#fbbf24' }, label: { color: '#07121e', fontWeight: 900 }, data: rows.length ? [{ type: 'max', name: '峰值' }] : [] }
       },
       {
+        // 最新时间点叠加单个提示节点，不额外增加一组统计样本。
         name: '最新节点', type: 'effectScatter', coordinateSystem: 'cartesian2d', symbolSize: 12,
         rippleEffect: { brushType: 'stroke', scale: 3.2, period: 3 }, itemStyle: { color: '#fb7185' },
         data: rows.length ? [[labels[lastIndex], rows[lastIndex].hot]] : [], tooltip: { show: false }, z: 5
@@ -340,7 +394,9 @@ const heatOption = computed(() => {
   }
 })
 
+// 把平台统计转换为排名图的轴和系列数据。
 const platformRankOption = computed(() => {
+  // 排除微博后取热度前五个平台，倒序排列以适配横向柱图的显示顺序。
   const rows = timeline.value.filter(item => canonicalPlatform(item.platform) !== 'WEIBO').sort((a, b) => Number(b.hot_score || 0) - Number(a.hot_score || 0)).slice(0, 5).reverse()
   return {
     backgroundColor: 'transparent', animationDuration: 800,
@@ -356,7 +412,9 @@ const platformRankOption = computed(() => {
   }
 })
 
+// 把类别统计转换为分类分布图配置。
 const categoryOption = computed(() => {
+  // 最多绘制七个类别，提示和标签仍保留原始热度与内容量。
   const rows = categoryRank.value.slice(0, 7)
   return {
     backgroundColor: 'transparent',
@@ -392,6 +450,7 @@ const categoryOption = computed(() => {
         formatter: (params: any) => `${heatText(params.data?.raw_hot_score ?? params.value)}  ${countText(params.data?.content_count)}条`
       },
       data: rows.map(item => {
+        // 柱条最小值设为一保证可见，但另存原值供标签显示真实热度。
         const hotScore = Number(item.hot_score || 0)
         return {
           value: Math.max(1, hotScore),
@@ -404,6 +463,7 @@ const categoryOption = computed(() => {
   }
 })
 
+// 根据平台时间线生成扩散图的展示数据。
 const spreadOption = computed(() => ({
   backgroundColor: 'transparent', animationDuration: 900,
   tooltip: { trigger: 'item', formatter: (params: any) => params.data?.root ? `统一热点事件<br/>覆盖 ${platformCount.value} 个平台` : `${params.name}<br/>内容：${countText(params.data?.content_count)}条<br/>首发：${formatFullTime(params.data?.first_publish_time)}<br/>相对延迟：${delayText(params.data?.delay_minutes)}` },
@@ -421,7 +481,9 @@ const spreadOption = computed(() => ({
   }]
 }))
 
+// 把情感趋势转换为大屏正负分布图配置。
 const sentimentOption = computed(() => {
+  // 按平台归并正负记录，忽略其他标签，不让未知情感进入百分比分母。
   const platforms = timeline.value.map(item => canonicalPlatform(item.platform)).reverse()
   const labels = platforms.map(platformName)
   const grouped = new Map<string, Record<string, number>>()
@@ -429,10 +491,12 @@ const sentimentOption = computed(() => {
     const platform = canonicalPlatform(item.platform)
     const row = grouped.get(platform) || { positive: 0, negative: 0 }
     const label = String(item.sentiment_label || '').toLowerCase()
+    // 当前大屏只统计正面和负面，中性和跳过记录直接忽略。
     if (!['positive', 'negative'].includes(label)) return
     row[label] = (row[label] || 0) + Number(item.sentiment_count || 0)
     grouped.set(platform, row)
   })
+  // 分别生成正负两个堆叠系列，平台内两项占比之和为百分之百或零。
   const seriesConfig = [
     { key: 'positive', name: '正向', color: '#34d399' },
     { key: 'negative', name: '负向', color: '#fb7185' }
@@ -448,6 +512,7 @@ const sentimentOption = computed(() => {
       name: config.name, type: 'bar', stack: 'sentiment', barWidth: 7,
       itemStyle: { color: config.color, borderColor: '#071522', borderWidth: .5 },
       data: platforms.map(platform => {
+        // 每个平台单独以正负样本合计为分母，保留原始数量供提示显示。
         const row = grouped.get(platform) || { positive: 0, negative: 0 }
         const total = Object.values(row).reduce((sum, value) => sum + Number(value || 0), 0)
         const count = Number(row[config.key] || 0)
@@ -457,7 +522,9 @@ const sentimentOption = computed(() => {
   }
 })
 
+// 读取趋势峰值作为仪表盘数值，并为刻度上限预留空间。
 const speedOption = computed(() => {
+  // 最大刻度至少为一百，否则按峰值的一点二倍向上取整到百位。
   const peak = Number(peakPoint.value.hot || 0)
   const max = Math.max(100, Math.ceil(peak * 1.2 / 100) * 100)
   return {
@@ -476,35 +543,45 @@ const speedOption = computed(() => {
   }
 })
 
+// 比较批次、总量、榜首及平台指标签名，仅在摘要变化时替换快照，减少重复渲染。
 async function load() {
+  // 请求快照后，用批次、总量、榜首和平台统计拼接轻量比较签名。
   const dashboard = await getData('/events/public_rss_latest/dashboard').catch(() => ({}))
   const platformSignature = (dashboard.platformTimeline || []).map((item: any) => `${item.platform}:${item.content_count}:${item.hot_score}`).join(',')
   const nextSignature = [dashboard.latestBatch?.batch_id, dashboard.overview?.content_count, dashboard.overview?.hot_score, dashboard.contentRank?.[0]?.content_id, platformSignature].join('|')
+  // 摘要相同则保留原响应式对象，避免相同数据引起图表重绘。
   if (nextSignature !== dataSignature) {
     dataSignature = nextSignature
     data.value = dashboard
   }
 }
 
+// 定时读取数据后推进热度刷新标记，让展示动效与数据读取周期同步。
 async function refreshHeatPulse() {
   await load()
   heatRefreshKey.value += 1
 }
 
+// 读取本地当前时刻，分别更新大屏日期和时分秒。
 function tick() {
   const current = new Date()
   dateText.value = current.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
   timeText.value = current.toLocaleTimeString('zh-CN', { hour12: false })
 }
+// 把热度转换为整数、一位小数或万单位显示，兼容空值。
 function heatText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(num % 1 ? 1 : 0) }
+// 将计数转换为中文数字格式或万单位，减少大数值显示长度。
 function countText(value: any) { const num = Number(value || 0); return num >= 10000 ? `${(num / 10000).toFixed(1)}万` : num.toFixed(0) }
+// 将后端时间转换为当前页面需要的日期时间文本，空值显示占位符。
 function formatTime(value: any) {
   const text = String(value || '').replace('T', ' ')
   if (!text) return '--'
   const stamp = text.match(/\d{2}-\d{2} \d{2}:\d{2}/)
   return stamp ? stamp[0] : text.slice(5, 16)
 }
+// 替换 ISO 时间分隔符并截取到分钟，空值显示占位符。
 function formatFullTime(value: any) { return String(value || '').replace('T', ' ').slice(0, 16) || '--' }
+// 将延迟分钟转换为首发、分钟、小时或天数说明。
 function delayText(value: any) {
   const minutes = Number(value || 0)
   if (!minutes) return '首发平台'
@@ -512,9 +589,11 @@ function delayText(value: any) {
   if (minutes >= 60) return `${(minutes / 60).toFixed(1)}小时`
   return `${minutes}分钟`
 }
+// 过长关键词截断并添加省略号，防止词条宽度超限。
 function shortKeyword(value: any) { const text = String(value || ''); return text.length > 10 ? `${text.slice(0, 10)}…` : text }
 function keywordColor(value: any) { return ({ positive: '#6ee7b7', neutral: '#7dd3fc', negative: '#fb7185' } as Record<string, string>)[String(value || '').toLowerCase()] || '#7dd3fc' }
 function categoryColor(item: any) { return ({ finance: '#d9952f', politics: '#d96078', technology: '#1fa6bd', society: '#7c6ed1', culture: '#db7042', sports: '#2ca66f', general: '#477fc1' } as Record<string, string>)[item.category] || '#3e91b5' }
+// 优先使用已有中文类别，否则翻译类别编码，微博评论不展示新闻类别。
 function categoryName(row: any) { return row.category_label || ({ finance: '财经', politics: '政治', technology: '科技', sports: '体育', culture: '文娱', society: '社会', general: '综合' } as Record<string, string>)[row.category] || '综合' }
 
 function canonicalPlatform(value: any) {
@@ -528,29 +607,37 @@ function canonicalPlatform(value: any) {
   if (!text || upper.includes('RSS') || text.includes('中新网') || text.includes('百度')) return 'NEWS'
   return upper || 'UNKNOWN'
 }
+// 将平台编码映射为中文名称，未知平台使用备用名称。
 function platformName(value: any) { const code = canonicalPlatform(value); return PLATFORM_LABELS[code] || '其他平台' }
+// 读取平台的固定图表颜色，未找到时采用备用颜色。
 function platformColor(value: any) { return PLATFORM_COLORS[canonicalPlatform(value)] || '#7dd3fc' }
+// 归一化平台别名后合并数量与热度、保留最早发布时间，并截取前八个平台。
 function compactTimeline(rows: any[]) {
+  // 先把中英文别名转为同一平台编码，再合并重复平台的数量与热度。
   const grouped = new Map<string, any>()
   rows.forEach(item => {
     const platform = canonicalPlatform(item.platform)
     const row = grouped.get(platform) || { ...item, platform, content_count: 0, hot_score: 0 }
     row.content_count += Number(item.content_count || 0)
     row.hot_score += Number(item.hot_score || 0)
+    // 同平台有多个记录时保留最早发布时间，供首达时间展示。
     if (!row.first_publish_time || String(item.first_publish_time || '') < String(row.first_publish_time)) row.first_publish_time = item.first_publish_time
     grouped.set(platform, row)
   })
   return [...grouped.values()].sort((a, b) => Number(a.delay_minutes || 0) - Number(b.delay_minutes || 0)).slice(0, 8)
 }
 
+// 定义规范平台编码与中文名对应关系，归一化后据此显示。
 const PLATFORM_LABELS: Record<string, string> = {
   TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', WEIBO: '微博', OWN_SITE: '新闻都知道',
   DOUYIN: '抖音', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '其他新闻', UNKNOWN: '未知平台'
 }
+// 为平台定义固定图表颜色，方便跨图表识别。
 const PLATFORM_COLORS: Record<string, string> = {
   TENCENT_NEWS: '#35b9e8', NETEASE_NEWS: '#e95b66', SOHU_NEWS: '#f59e45', SINA_NEWS: '#e6c64c', THE_PAPER: '#8b7de3', WEIBO: '#fb7185', OWN_SITE: '#43c991', NEWS: '#6f8ea3', UNKNOWN: '#6f8ea3'
 }
 
+// 时钟每秒更新，热度每五秒刷新；两个定时器在大屏卸载时分别释放。
 onMounted(() => {
   tick()
   load()

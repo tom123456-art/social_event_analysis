@@ -42,6 +42,7 @@ export function topicMedian(values: number[]): number | null {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+// 均值的分母仅包含指定互动字段有效的文章，未提供互动量的文章单独计数。
 export function observeTopics(topics: any[], records: any[], field: string) {
   // 为每个主题关联命中文章并汇总指定互动字段。
   return topics.map(topic => {
@@ -67,6 +68,7 @@ export function observationPosition(topic: any, countMedian: number | null, inte
   return `${count} · ${interaction}`
 }
 
+// 每个象限最多取五个代表主题，恰好等于中位数时归入高值侧。
 export function representativeTopics(topics: any[], countMedian: number | null, interactionMedian: number | null) {
   // 缺少基准中位数时不生成代表性主题。
   if (countMedian === null || interactionMedian === null) return []
@@ -78,5 +80,6 @@ export function representativeTopics(topics: any[], countMedian: number | null, 
     const index = (topic.content_count >= countMedian ? 1 : 0) + (topic.average_interaction >= interactionMedian ? 2 : 0)
     buckets[index].push(topic)
   }
+  // 每桶先按报道量、再按互动总量排序，最多保留五项后合并为展示列表。
   return buckets.flatMap(bucket => bucket.sort((a, b) => b.content_count - a.content_count || b.interaction_total - a.interaction_total).slice(0, 5))
 }

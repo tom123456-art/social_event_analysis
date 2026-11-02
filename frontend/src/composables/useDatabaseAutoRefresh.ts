@@ -11,6 +11,7 @@ export function notifyDatabaseSynced() {
   window.dispatchEvent(new CustomEvent(DATABASE_SYNCED_EVENT))
 }
 
+// 首次加载仍由页面自行调用；此处只响应同步通知及 KeepAlive 激活期间的可选轮询。
 // 注册数据库更新监听，并按可选间隔为激活页面轮询。
 export function useDatabaseAutoRefresh(load: () => Promise<unknown>, intervalMs = 0) {
   // 保存轮询定时器编号，未启动时为空；防止前一次加载尚未结束时重复进入。
@@ -51,6 +52,7 @@ export function useDatabaseAutoRefresh(load: () => Promise<unknown>, intervalMs 
   // 组件挂载后监听数据库更新通知；keep-alive 页面激活时开始轮询；keep-alive 页面离开时停止轮询。
   onMounted(() => window.addEventListener(DATABASE_SYNCED_EVENT, refresh))
   onActivated(startPolling)
+  // 缓存页面失活时只停轮询，不销毁该页面已经加载的数据。
   onDeactivated(stopPolling)
   // 组件永久销毁时释放全部监听资源。
   onBeforeUnmount(() => {

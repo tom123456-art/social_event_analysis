@@ -7,10 +7,12 @@
 import * as echarts from 'echarts'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+// 统一封装图表实例生命周期，页面只需提供配置并处理点击事件。
 // 接收图表配置及可选尺寸规格。
 const props = defineProps<{
   // 完整的 ECharts 图表配置；允许小号或默认中号图表布局。
   option: any
+  // 可选尺寸只允许小号或中号，未传时使用组件默认布局。
   size?: 'sm' | 'md'
 }>()
 // 将图表点击参数透传给父页面。

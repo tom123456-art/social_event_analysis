@@ -14,6 +14,7 @@ import UserManagementView from '../views/admin/UserManagementView.vue'
 import ProfileView from '../views/user/ProfileView.vue'
 import ScreenView from '../views/screen/ScreenView.vue'
 
+// meta 中的分组用于选择布局，标题用于导航展示，认证与角色标记用于路由守卫。
 // 创建使用浏览器 History API 的路由实例。
 const router = createRouter({
   // 页面 URL 不使用哈希片段；定义分析页、管理页和兼容跳转规则。
@@ -58,6 +59,7 @@ router.beforeEach((to) => {
   if (to.meta.public) return true
   // 未登录用户跳转到登录页并保留目标地址。
   const session = readSession()
+  // 守卫每次读取最新存储，不复用创建路由时的旧登录状态。
   if (!session.token) {
     return `/login?redirect=${encodeURIComponent(to.fullPath)}`
   }

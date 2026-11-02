@@ -2,6 +2,7 @@ import { clearSession, readSession } from '../utils/session'
 import axios from 'axios'
 import { chineseMessage } from '../utils/userText'
 
+// 页面通过下方请求函数统一访问接口，认证、缓存、业务解包和异常提示集中在此处理。
 // 创建统一的 HTTP 客户端，所有前端请求都会使用 /api 前缀。
 export const api = axios.create({
   // 所有请求使用后端统一接口前缀；允许 ETL 等长任务请求等待最多两分钟。
@@ -117,12 +118,14 @@ export async function postData<T = any>(url: string, data: any, config: Record<s
 
 // 提交修改数据，并返回后端处理结果。
 export async function putData<T = any>(url: string, data: any): Promise<T> {
+  // 发送修改请求，再从统一响应体提取业务数据；写成功后的清缓存由拦截器负责。
   const response = await api.put(url, data)
   return unwrap<T>(response)
 }
 
 // 删除数据，并返回后端处理结果。
 export async function deleteData<T = any>(url: string): Promise<T> {
+  // 发送删除请求并统一解包，页面无需重复检查业务响应结构。
   const response = await api.delete(url)
   return unwrap<T>(response)
 }

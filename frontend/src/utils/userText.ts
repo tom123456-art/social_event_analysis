@@ -1,3 +1,4 @@
+// 提示清洗与编码翻译仅作用于展示文本，不改变发送到后端的原始业务值。
 // 所有用户提示经过此入口，第三方英文错误和堆栈不直接进入页面。
 export function chineseMessage(value: unknown, fallback = '操作失败，请稍后重试。'): string {
   // 非字符串输入不直接展示。
@@ -72,5 +73,6 @@ export function taskName(value: unknown): string {
 
 // 将公共数据集标识转换为系统事件名，其余名称执行中文安全过滤。
 export function eventName(value: unknown): string {
+  // 固定数据集使用统一系统名称，其他输入只有通过中文提示过滤后才展示。
   return value === 'public_rss_latest' ? '网络媒体热点事件传播态势与舆情分析' : chineseMessage(value, '热点事件')
 }

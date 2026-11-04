@@ -1,37 +1,72 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!-- MyBatis 映射文件头：声明 XML 版本与编码。 -->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 社区互动数据访问映射：声明用户互动、用户投稿与内容样本的 SQL 语句。 -->
 <mapper namespace="com.social.hotspot.mapper.CommunityMapper">
+    <!-- 查询最近互动列表：关联事件名，按创建时间倒序，限制返回条数。 -->
     <select id="interactions" resultType="map">
+        <!-- 选取用户互动全部字段与事件名，左关联事件信息表。 -->
         SELECT ui.*, ei.event_name FROM user_interaction ui
         LEFT JOIN event_info ei ON ui.event_id = ei.event_id
+        <!-- 按创建时间倒序排列，最新互动在前。 -->
         ORDER BY ui.created_at DESC LIMIT #{limit}
     </select>
+    <!-- 按用户名查询该用户的互动记录：按创建时间倒序，限制返回条数。 -->
     <select id="userInteractions" resultType="map">
+        <!-- 选取用户互动表全部字段。 -->
         SELECT * FROM user_interaction WHERE username = #{username}
+        <!-- 按创建时间倒序排列，限制返回条数。 -->
         ORDER BY created_at DESC LIMIT #{limit}
     </select>
+    <!-- 新增一条用户互动记录：状态默认 NORMAL，回写自增主键到 item.id。 -->
     <insert id="insertInteraction" useGeneratedKeys="true" keyProperty="item.id">
+        <!-- 向用户互动表插入用户、事件、内容、平台、动作、评论、情感与状态字段。 -->
         INSERT INTO user_interaction (user_id, username, event_id, content_id, platform, action_type, comment_text, sentiment_label, status)
+        <!-- 状态默认为 NORMAL。 -->
         VALUES (#{item.user_id}, #{item.username}, #{item.event_id}, #{item.content_id}, #{item.platform}, #{item.action_type}, #{item.comment_text}, #{item.sentiment_label}, 'NORMAL')
     </insert>
-    <delete id="deleteInteraction">DELETE FROM user_interaction WHERE id = #{id}</delete>
+    <!-- 按主键删除一条用户互动记录。 -->
+    <delete id="deleteInteraction">
+        <!-- 按主键删除用户互动记录。 -->
+        DELETE FROM user_interaction WHERE id = #{id}
+    </delete>
+    <!-- 查询最近用户投稿列表：关联事件名，按创建时间倒序，限制返回条数。 -->
     <select id="submissions" resultType="map">
+        <!-- 选取用户投稿全部字段与事件名，左关联事件信息表。 -->
         SELECT us.*, ei.event_name FROM user_submission us
         LEFT JOIN event_info ei ON us.event_id = ei.event_id
+        <!-- 按创建时间倒序排列，限制返回条数。 -->
         ORDER BY us.created_at DESC LIMIT #{limit}
     </select>
+    <!-- 按用户名查询该用户的投稿记录：按创建时间倒序，限制返回条数。 -->
     <select id="userSubmissions" resultType="map">
+        <!-- 选取用户投稿表全部字段。 -->
         SELECT * FROM user_submission WHERE username = #{username}
+        <!-- 按创建时间倒序排列，限制返回条数。 -->
         ORDER BY created_at DESC LIMIT #{limit}
     </select>
+    <!-- 新增一条用户投稿记录：状态默认 PENDING，回写自增主键到 item.id。 -->
     <insert id="insertSubmission" useGeneratedKeys="true" keyProperty="item.id">
+        <!-- 向用户投稿表插入用户、事件、平台、标题、正文、地区与状态字段。 -->
         INSERT INTO user_submission (user_id, username, event_id, platform, title, content_text, location, status)
+        <!-- 状态默认为 PENDING 待审核。 -->
         VALUES (#{item.user_id}, #{item.username}, #{item.event_id}, #{item.platform}, #{item.title}, #{item.content_text}, #{item.location}, 'PENDING')
     </insert>
-    <update id="updateSubmissionStatus">UPDATE user_submission SET status = #{status} WHERE id = #{id}</update>
-    <delete id="deleteSubmission">DELETE FROM user_submission WHERE id = #{id}</delete>
+    <!-- 更新指定投稿的状态，用于审核通过或驳回。 -->
+    <update id="updateSubmissionStatus">
+        <!-- 按主键更新投稿状态。 -->
+        UPDATE user_submission SET status = #{status} WHERE id = #{id}
+    </update>
+    <!-- 按主键删除一条用户投稿记录。 -->
+    <delete id="deleteSubmission">
+        <!-- 按主键删除用户投稿记录。 -->
+        DELETE FROM user_submission WHERE id = #{id}
+    </delete>
+    <!-- 查询某事件下高热度内容样本：按排名升序，限制返回条数。 -->
     <select id="contents" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
         SELECT * FROM ads_content_hot_rank WHERE event_id = #{eventId}
+        <!-- 按排名号升序排列，限制返回条数。 -->
         ORDER BY rank_no ASC LIMIT #{limit}
     </select>
 </mapper>

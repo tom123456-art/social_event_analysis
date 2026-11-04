@@ -164,6 +164,6 @@ CREATE EXTERNAL TABLE IF NOT EXISTS social_ads.ads_topic_key_content (
 STORED AS PARQUET
 LOCATION '/social-hotspot-analytics/warehouse/ads/ads_topic_key_content';
 
--- DWS schemas are generated from the actual Spark summary schemas for each batch.
--- Execute warehouse/manifests/batch_id=<batch>/dws.sql to create the 12 external
--- tables and register that batch. The backend performs this after every ETL.
+-- 每个批次根据实际计算汇总结果生成汇总层字段结构。
+-- 执行对应批次的仓库清单脚本，创建十二张外部表
+-- 并注册该批次；后端会在每次数据处理完成后执行此步骤。

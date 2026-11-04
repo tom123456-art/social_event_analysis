@@ -20,12 +20,16 @@ public class AiModelClient {
     });
     private final AiProperties config;
     private final ObjectMapper json;
+    /** HTTP 客户端，连接超时十秒。 */
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER).build();
+    /** 构造模型客户端，注入配置与 JSON 序列化器。 */
     public AiModelClient(AiProperties config, ObjectMapper json) { this.config = config; this.json = json; }
+    /** 使用内置模型同步回答，返回完整文本。 */
     public String answer(List<Map<String, String>> messages) {
         return answer(new AiModelSettings("qwen", "通义千问", "阿里云百炼", config.getModel(), config.getRequestUrl(), config.getApiKey(), config.getTimeoutSeconds(), null), messages);
     }
+    /** 使用指定模型同步回答，返回完整文本。 */
     public String answer(AiModelSettings settings, List<Map<String, String>> messages) {
         if (!settings.configured()) throw new BusinessException("当前模型尚未配置密钥，请配置后端默认模型或添加其他模型。");
         try {
@@ -50,6 +54,7 @@ public class AiModelClient {
             Thread.currentThread().interrupt(); throw new BusinessException("模型请求已中断，请重新尝试。");
         } catch (Exception ex) { throw new BusinessException("连接模型服务失败，请检查后端请求地址和网络配置。"); }
     }
+    /** 使用指定模型流式回答，逐段回调增量文本，返回完整文本。 */
     public String stream(AiModelSettings settings, List<? extends Map<String, ?>> messages, Consumer<String> delta) {
         if (!settings.configured()) throw new BusinessException("当前模型尚未配置密钥。");
         try {
@@ -73,6 +78,7 @@ public class AiModelClient {
         } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new BusinessException("模型请求已中断。");
         } catch (Exception ex) { throw new BusinessException("模型连接中断或响应超时，请重新尝试。"); }
     }
+    /** 执行一轮工具调用：发送消息与可用工具列表，返回模型回复与工具调用请求。 */
     public Map<String, Object> toolTurn(AiModelSettings settings, List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
         if (!settings.configured()) throw new BusinessException("当前模型尚未配置密钥。");
         try {
@@ -92,6 +98,7 @@ public class AiModelClient {
         } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new BusinessException("模型请求已中断。");
         } catch (Exception ex) { throw new BusinessException("模型工具调用连接失败，请稍后重试。"); }
     }
+    /** 读取 SSE 流并解析增量内容，回调每段文本，返回完整文本。 */
     public String readStream(BufferedReader reader, Consumer<String> delta) throws IOException {
         StringBuilder answer = new StringBuilder();
         StringBuilder event = new StringBuilder();

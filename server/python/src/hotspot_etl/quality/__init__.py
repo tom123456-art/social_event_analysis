@@ -1,1 +1,1 @@
-"""Hotspot ETL Python processing package."""
+"""热点数据处理的脚本包。"""

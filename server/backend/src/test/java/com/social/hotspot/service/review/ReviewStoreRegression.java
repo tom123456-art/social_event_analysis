@@ -11,7 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Isolated state-contract regression; deliberately never connects to the real database. */
+/** 使用隔离替身验证状态约定，测试不会连接真实数据库。 */
 public class ReviewStoreRegression {
     public static void main(String[] args) {
         var jdbc = new MemoryJdbc();
@@ -46,7 +46,7 @@ public class ReviewStoreRegression {
         store.finishApplication(snapshot, null, "late failure");
         if (!"APPLIED".equals(jdbc.row.get("apply_status"))) throw new AssertionError("Successful job reversed");
         store.decide(1, Map.of("revision", 2, "status", "REJECTED", "corrected_data", Map.of()));
-        // Before a new application, the previous effective decision is still used.
+        // 新审核结果应用之前，仍使用此前已生效的审核决定。
         if (!"APPROVED".equals(store.decisions(List.of()).getFirst().get("decision"))) throw new AssertionError("Unapplied edit leaked");
         var failed = store.reserveForApplication();
         store.finishApplication(failed, null, "failure");

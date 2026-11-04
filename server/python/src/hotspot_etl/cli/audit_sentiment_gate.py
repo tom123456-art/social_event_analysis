@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-"""Read-only candidate audit; does not infer sentiment or modify source data."""
+"""只读审核候选记录，不执行情感推理，也不修改源数据。"""
 import argparse
 import csv
 import hashlib
@@ -33,7 +33,7 @@ def main():
                 continue
             title, body = (clean_html(row.get(field, "")) for field in ("title", "content_text"))
             text = body if platform == "WEIBO" else (title + "。" + body).strip("。 ")
-            # A missing full-text cue cannot reappear after truncation.
+            # 全文中不存在的态度线索，不应在截断文本后重新出现。
             keep, reason = eligibility(platform, text)
             if keep:
                 window = tokenizer.decode(tokenizer.encode(text, add_special_tokens=False,

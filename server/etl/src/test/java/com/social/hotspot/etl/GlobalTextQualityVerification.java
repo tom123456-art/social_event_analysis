@@ -4,7 +4,7 @@ import com.social.hotspot.etl.cleaning.TextDamageDetector;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
 
-/** Read-only checks against the completed warehouse snapshot. */
+/** 对已生成的仓库快照执行只读检查。 */
 public class GlobalTextQualityVerification {
     public static void main(String[] args) throws Exception {
         String warehouse = args[0];

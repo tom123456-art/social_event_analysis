@@ -13,9 +13,11 @@ public class AiToolAgent {
     private final AiQueryTools database;
     private final AiWebSearch search;
     private final ObjectMapper json;
+    /** 构造工具代理，注入模型客户端、数据库工具、网页搜索与 JSON 序列化器。 */
     public AiToolAgent(AiModelClient model, AiQueryTools database, AiWebSearch search, ObjectMapper json) {
         this.model = model; this.database = database; this.search = search; this.json = json;
     }
+    /** 返回工具能力清单，标识数据库、SQL、网页搜索是否可用。 */
     public Map<String, Object> capabilities() { return Map.of("database", true, "sql", database.sqlEnabled(), "webSearch", search.enabled()); }
     public String answer(AiModelSettings settings, List<Map<String, String>> history, boolean web,
                          List<Map<String, Object>> sources, Consumer<String> delta, Consumer<String> progress) {
@@ -82,12 +84,15 @@ public class AiToolAgent {
         messages.add(new LinkedHashMap<>(Map.of("role", "system", "content", "工具执行阶段已结束，现在直接依据已获得资料回答，不再调用工具；没有查到的数据请明确说明。")));
         return model.stream(settings, messages, delta);
     }
+    /** 组装单个工具描述对象，包含名称、说明、参数字段与必填字段列表。 */
     private Map<String, Object> tool(String name, String description, Map<String, Object> fields, List<String> required) {
         return Map.of("type", "function", "function", Map.of("name", name, "description", description, "parameters", Map.of("type", "object", "properties", fields, "required", required, "additionalProperties", false)));
     }
+    /** 将网页搜索来源追加到结果列表。 */
     private void addWebSources(List<Map<String, Object>> results, List<Map<String, Object>> sources) {
         for (Map<String, Object> item : results) sources.add(Map.of("name", item.get("title"), "url", item.get("url"), "kind", "web", "detail", item.get("content")));
     }
+    /** 将对象序列化为 JSON 字符串。 */
     private String encode(Object value) {
         try { return json.writeValueAsString(value); } catch (Exception ex) { throw new BusinessException("整理工具数据失败。"); }
     }

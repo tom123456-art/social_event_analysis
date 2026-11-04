@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-/** Verify publication boundaries with JDBC doubles, without a live MySQL write. */
+/** 通过数据库访问替身验证发布边界，不写入真实数据库。 */
 public class AdsSnapshotRegression {
     public static void main(String[] args) throws Exception {
         check(false); check(true);

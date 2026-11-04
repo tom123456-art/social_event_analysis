@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class AnalysisResultAssembler {
+    /** 工具类私有构造，禁止实例化。 */
     private AnalysisResultAssembler() {}
     public static Map<String, Object> normalizeOverview(Map<String, Object> overview,
                                                     // 接收平台时间轴列表，用其中的标准平台代码重新统计平台数。
@@ -30,6 +31,7 @@ public final class AnalysisResultAssembler {
         return result;
     }
 
+    /** 按时间桶与平台聚合热度趋势，累加内容量与热度分，按时间升序输出。 */
     public static List<Map<String, Object>> aggregateHeatTrend(List<Map<String, Object>> rows) {
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
@@ -58,6 +60,7 @@ public final class AnalysisResultAssembler {
                 .toList();
     }
 
+    /** 按平台聚合时间轴：取各平台最早发布时间、累加内容量与热度，并计算相对全局最早时间的分钟延迟。 */
     public static List<Map<String, Object>> aggregatePlatformTimeline(List<Map<String, Object>> rows) {
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         // 空值。
@@ -106,6 +109,7 @@ public final class AnalysisResultAssembler {
                 .toList();
     }
 
+    /** 按时间、平台、情感标签聚合情感趋势，只保留正负面与中性记录，累加样本数，按时间升序输出。 */
     public static List<Map<String, Object>> aggregateSentimentTrend(List<Map<String, Object>> rows) {
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
@@ -136,6 +140,7 @@ public final class AnalysisResultAssembler {
                 .toList();
     }
 
+    /** 按平台聚合噪声与重复记录汇总，累加内容量、重复数、噪声数，按内容量倒序输出。 */
     public static List<Map<String, Object>> aggregateNoise(List<Map<String, Object>> rows) {
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
@@ -165,6 +170,7 @@ public final class AnalysisResultAssembler {
                 .toList();
     }
 
+    /** 以数据最新日期为基准筛选最近指定自然日的记录，无有效时间时返回空列表。 */
     public static List<Map<String, Object>> recentRows(List<Map<String, Object>> rows, String timeField, int days) {
         // 将记录列表转换为数据流，查找最新统计时间。
         LocalDateTime latest = rows.stream()
@@ -192,6 +198,7 @@ public final class AnalysisResultAssembler {
                 .toList();
     }
 
+    /** 聚合最近七自然日平台时间轴：只保留固定新闻平台，按内容量加权计算平均相对热度与分钟延迟。 */
     public static List<Map<String, Object>> aggregateRecentPlatformTimeline(List<Map<String, Object>> rows) {
         // 以数据最新日期为基准筛选最近若干自然日；空值。
         List<Map<String, Object>> recent = recentRows(rows, "time_bucket", 7);
@@ -255,6 +262,7 @@ public final class AnalysisResultAssembler {
                 .toList();
     }
 
+    /** 补充内容记录字段：规范化平台代码、推断类别、写入类别中文名与正文、补页面来源链接。 */
     public static List<Map<String, Object>> enrichContentRows(List<Map<String, Object>> rows) {
         // 创建补充字段后的内容列表。
         List<Map<String, Object>> enriched = new ArrayList<>();
@@ -281,6 +289,7 @@ public final class AnalysisResultAssembler {
         return enriched;
     }
 
+    /** 按类别聚合内容排名：累加内容量与热度分，排除微博，按热度倒序输出。 */
     public static List<Map<String, Object>> categoryRank(List<Map<String, Object>> rows) {
         Map<String, Map<String, Object>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {

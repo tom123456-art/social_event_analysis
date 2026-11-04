@@ -18,7 +18,9 @@ public class AiChatController {
     private final AiChatService chats;
     private final AiModelRegistry models;
     private final AiModelClient client;
+    /** 构造聊天控制器，注入聊天服务、模型注册中心与模型客户端。 */
     public AiChatController(AiChatService chats, AiModelRegistry models, AiModelClient client) { this.chats = chats; this.models = models; this.client = client; }
+    /** 从请求中取出当前登录用户 ID。 */
     private long user(HttpServletRequest request) { return ((Number) AuthService.current(request).get("id")).longValue(); }
     @GetMapping("/config") public ApiResponse<?> config(HttpServletRequest request) { return ApiResponse.ok(Map.of("models", models.list(user(request)), "capabilities", agent.capabilities())); }
     @PostMapping("/models/test-and-save") public ApiResponse<?> add(@RequestBody Map<String, Object> body, HttpServletRequest request) {
@@ -57,7 +59,7 @@ public class AiChatController {
                     "true".equals(body.get("webSearch")), message -> event.accept("status", Map.of("message", message)));
             event.accept("done", result);
         } catch (java.io.UncheckedIOException ex) {
-            // Client disconnected; the service transaction rolls back incomplete turns.
+            // 客户端断开时，由业务事务回滚尚未完成的对话轮次。
         } catch (Exception ex) {
             String message = ex instanceof com.social.hotspot.exception.BusinessException ? ex.getMessage() : "生成回答失败，请稍后重试。";
             try { event.accept("error", Map.of("message", message)); } catch (java.io.UncheckedIOException ignored) { }

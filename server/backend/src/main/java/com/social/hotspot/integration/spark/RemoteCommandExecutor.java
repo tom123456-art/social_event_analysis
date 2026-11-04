@@ -8,8 +8,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 public final class RemoteCommandExecutor {
+    /** 工具类私有构造，禁止实例化。 */
     private RemoteCommandExecutor() {}
     private static final Logger LOG = LoggerFactory.getLogger(RemoteCommandExecutor.class);
+    /** 通过 SSH 会话在远程虚拟机执行 shell 命令，返回标准输出、错误输出与退出码。 */
     public static RemoteCommandResult exec(Session session, String command, int timeoutSeconds) throws Exception {
         // 循环读取远程命令的标准输出。
         // 在 SSH 会话中创建远程命令执行通道；创建错误输出缓冲；收集远程错误输出，失败时用于诊断。
@@ -67,6 +69,7 @@ public final class RemoteCommandExecutor {
             channel.disconnect();
         }
     }
+    /** 读取输入流剩余字节到缓冲区，返回实际读到的字节数组。 */
     private static byte[] bufferRead(InputStream input) throws Exception {
         // 创建字节缓冲；读取字节到缓冲区，并保存本次读取的字节数。
         byte[] buffer = new byte[Math.max(1, input.available())];
@@ -78,9 +81,11 @@ public final class RemoteCommandExecutor {
         if (read > 0) System.arraycopy(buffer, 0, result, 0, read);
         return result;
     }
+    /** 将字符串用单引号包裹并对内部单引号做转义，用于拼接到 shell 命令中作为安全参数。 */
     public static String sh(String value) {
         return "'" + value.replace("'", "'\"'\"'") + "'";
     }
+    /** 截取字符串末尾指定长度的内容，空值返回空字符串。 */
     public static String tail(String value, int max) {
         // 空值走默认分支。
         if (value == null) return "";

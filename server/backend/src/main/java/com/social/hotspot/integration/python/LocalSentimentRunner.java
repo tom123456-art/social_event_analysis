@@ -10,8 +10,10 @@ import java.util.concurrent.TimeUnit;
 import static com.social.hotspot.integration.spark.RemoteCommandExecutor.tail;
 
 public final class LocalSentimentRunner {
+    /** 工具类私有构造，禁止实例化。 */
     private LocalSentimentRunner() {}
     private static final Logger LOG = LoggerFactory.getLogger(LocalSentimentRunner.class);
+    /** 以离线模式启动本地 Python 情感推理进程，等待执行完成并返回推理日志，超时或退出码非零时抛出异常。 */
     public static String run(Path input, Path output, Path model, Path script, String sentimentPython, int sentimentBatchSize, int timeoutSeconds) throws Exception {
         // 创建进程启动器。
         ProcessBuilder builder = new ProcessBuilder(

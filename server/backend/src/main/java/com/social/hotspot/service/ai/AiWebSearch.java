@@ -18,7 +18,9 @@ public class AiWebSearch {
     private final ObjectMapper json;
     @Value("${ai.search.key-file:runtime/config/ai/tavily.key}")
     private String keyFile = "";
+    /** 构造网页搜索客户端，注入搜索密钥与 JSON 序列化器。 */
     public AiWebSearch(@Value("${ai.search.api-key:}") String key, ObjectMapper json) { this.key = key; this.json = json; }
+    /** 读取并校验搜索密钥，空值返回空字符串。 */
     private String apiKey() {
         if (!key.isBlank() || keyFile.isBlank()) return key;
         Path file = ProjectPaths.root().resolve(keyFile).normalize();
@@ -26,7 +28,9 @@ public class AiWebSearch {
         try { return Files.readString(file, StandardCharsets.UTF_8).trim(); }
         catch (java.io.IOException ex) { throw new BusinessException("读取搜索服务密钥失败，请检查后端本地配置文件权限。"); }
     }
+    /** 判断网页搜索是否可用：密钥非空即启用。 */
     public boolean enabled() { return !apiKey().isBlank(); }
+    /** 调用搜索接口查询关键词，返回标题、摘要与链接列表。 */
     public List<Map<String, Object>> search(String query) {
         if (!enabled()) throw new BusinessException("联网搜索尚未配置搜索服务密钥，请联系管理员配置。");
         if (query == null || query.isBlank() || query.length() > 300) throw new BusinessException("搜索词须为一至三百字。");

@@ -1,4 +1,4 @@
-"""Prepare a versioned review overlay without modifying source CSV files."""
+"""生成带版本的审核覆盖记录，不修改原始文件。"""
 import argparse
 import csv
 import hashlib
@@ -20,7 +20,7 @@ META = ("_review_id", "_review_approved", "_review_sentiment", "_review_hold")
 
 def identity(row):
     source = {key: str(value or "") for key, value in row.items() if not key.startswith("_")}
-    # Optional empty export columns must not change the source version.
+    # 可选导出列为空时，不应改变数据源版本。
     source = {key: value for key, value in source.items() if value}
     encoded = json.dumps(source, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     key = json.dumps([row.get(k, "") for k in ("event_id", "platform", "content_id", "content_type")])
@@ -155,7 +155,7 @@ def collect_low(input_path, sentiment_path, queue_path, threshold):
             if max(float(result["sentiment_positive_score"]), float(result["sentiment_negative_score"])) >= threshold:
                 continue
             if row.get("_review_id"):
-                # Report the existing original review rather than a new corrected source version.
+                # 返回已有原始审核记录，不将修正结果误记为新的数据源版本。
                 output.write(json.dumps({"existing_id": int(row["_review_id"]), "reasons": ["LOW_CONFIDENCE"]}) + "\n")
             else:
                 key, version = identity(row)

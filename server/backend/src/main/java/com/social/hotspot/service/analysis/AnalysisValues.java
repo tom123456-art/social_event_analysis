@@ -11,9 +11,11 @@ import java.util.Map;
 import java.util.Set;
 
 public final class AnalysisValues {
+    /** 工具类私有构造，禁止实例化。 */
     private AnalysisValues() {}
     public static final Set<String> GENERIC_SOURCE_CATEGORIES = Set.of("未分类", "新闻", "微博", "微博文章");
     private static final Set<String> CATEGORY_LABELS = Set.of("财经", "政治", "科技", "体育", "文娱", "社会", "综合");
+    /** 规范化筛选值：空值、全部、all 返回 null 表示不筛选，其余去首尾空白。 */
     public static String normalizeFilter(String value) {
         // 空值走默认分支。
         if (value == null || value.isBlank() || "全部".equals(value) || "all".equalsIgnoreCase(value)) {
@@ -23,6 +25,7 @@ public final class AnalysisValues {
         return value.trim();
     }
 
+    /** 规范化平台代码：统一大写，新浪微博归为 WEIBO，未知平台归为 UNKNOWN，新闻类文本归为 NEWS。 */
     public static String normalizePlatform(Object value) {
         // 将平台值转换为去除首尾空白的文本，空值转为空字符串；将平台代码转换为大写。
         String platform = value == null ? "" : String.valueOf(value).trim();
@@ -44,6 +47,7 @@ public final class AnalysisValues {
                 ? "NEWS" : "UNKNOWN";
     }
 
+    /** 规范化类别标签：排除泛化类别与纯数字，将英文与别名映射为标准中文类别，未匹配的合法标签原样返回。 */
     public static String normalizeCategoryLabel(Object value) {
         // 将值转换为去除首尾空白的文本，空值转为空字符串。
         String text = value == null ? "" : String.valueOf(value).trim();
@@ -68,6 +72,7 @@ public final class AnalysisValues {
         };
     }
 
+    /** 基于标题、正文、作者名做关键词匹配，返回粗分类中文类别，未命中关键词时返回综合。 */
     public static String categoryLabel(Map<String, Object> row) {
         // 读取文本，缺失时使用默认值。
         String text = String.join(" ", String.valueOf(row.getOrDefault("title", "")),
@@ -101,6 +106,7 @@ public final class AnalysisValues {
         return "综合";
     }
 
+    /** 将中文类别标签转换为英文类别代码，未匹配时返回 general。 */
     public static String categoryCode(String label) {
         // 返回Map.of("财经", "finance", "政治", "politics", "科技", "technology", "体育", "sports",。
         return Map.of("财经", "finance", "政治", "politics", "科技", "technology", "体育", "sports",
@@ -108,6 +114,7 @@ public final class AnalysisValues {
                 "文娱", "culture", "社会", "society", "综合", "general").getOrDefault(label, "general");
     }
 
+    /** 判断文本是否包含任意一个给定关键词。 */
     public static boolean containsAny(String text, String... values) {
         // 遍历待匹配的关键词。
         for (String value : values) {
@@ -119,16 +126,19 @@ public final class AnalysisValues {
         return false;
     }
 
+    /** 将值转为长整数后累加到目标 Map 的指定字段。 */
     public static void addLong(Map<String, Object> target, String key, Object value) {
         // 将旧字段值和新增值都转为长整数后相加，写回汇总字段。
         target.put(key, longValue(target.get(key)) + longValue(value));
     }
 
+    /** 将值转为小数后累加到目标 Map 的指定字段。 */
     public static void addDouble(Map<String, Object> target, String key, Object value) {
         // 将旧字段值和新增值都转为小数后相加，写回汇总字段。
         target.put(key, doubleValue(target.get(key)) + doubleValue(value));
     }
 
+    /** 安全转为长整数，空值与格式错误按零处理。 */
     public static long longValue(Object value) {
         // 空值走默认分支。
         if (value == null) {
@@ -145,6 +155,7 @@ public final class AnalysisValues {
         }
     }
 
+    /** 安全转为小数，空值与格式错误按零处理。 */
     public static double doubleValue(Object value) {
         // 空值走默认分支。
         if (value == null) {
@@ -160,6 +171,7 @@ public final class AnalysisValues {
         }
     }
 
+    /** 兼容多种日期时间格式解析，无法解析时返回 LocalDateTime.MAX 标记无效值，调用方需排除。 */
     public static LocalDateTime timestampValue(Object value) {
         // 空值走默认分支。
         if (value == null) {

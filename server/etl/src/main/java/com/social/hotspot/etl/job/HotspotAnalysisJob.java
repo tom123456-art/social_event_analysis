@@ -40,7 +40,7 @@ import static org.apache.spark.sql.functions.*;
 
 /** Spark ETL 主任务：清洗社交内容、计算指标并写入 MySQL 分析表。 */
 public class HotspotAnalysisJob {
-    // A field must be non-zero in at least 1% of one platform's records before it participates in that platform''s score.
+    // 字段在某平台至少百分之一的记录中非零，才参与该平台的热度评分。
     public static void main(String[] args) throws Exception {
         Map<String, String> params = parseArgs(args);
         String input = required(params, "input");
@@ -153,7 +153,7 @@ public class HotspotAnalysisJob {
                 previous = previous.join(damagedKeys,
                         new String[]{"event_id", "platform", "content_id", "content_type"}, "left_anti");
                 previous = previous.filter(textQualityReason(previous).isNull());
-                // Replace stale predictions without discarding newer usable content.
+                // 替换过期预测结果，同时保留较新的有效内容。
                 Dataset<Row> combined = previous.unionByName(scoredIncoming, true);
                 // 增量合并规则也由清洗包维护，按最近采集版本覆盖历史。
                 Dataset<Row> merged = CleaningStage.rankIncremental(combined);
@@ -179,8 +179,8 @@ public class HotspotAnalysisJob {
                 detail = spark.read().parquet(warehouseOutput + "/dwd/dwd_social_content_detail/batch_id=" + batchId);
             }
 
-            // Replace the committed ADS snapshot only after the input has passed
-            // validation. A malformed CSV must not erase the last good result.
+            // 只有输入数据通过校验后才替换已发布的应用层快照，
+            // 格式异常的原始文件不得覆盖上一次有效分析结果。
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWS", startedAt, null, null, sourceCount, processedValidCount, dirtyCount, duplicateCount);
             Map<String, Dataset<Row>> summaries = buildDwsSummaries(detail, duplicateCount);
             Map<String, Dataset<Row>> dws = DwsSnapshotMaterializer.materialize(spark, warehouseOutput, batchId, summaries);
@@ -232,7 +232,7 @@ public class HotspotAnalysisJob {
         }
     }
 
-    /** Projects a prior DWD snapshot onto the current cleaned-row schema before unioning a delta. */
+    /** 合并增量前，先将历史明细快照映射到当前清洗字段结构。 */
 
     // 从关键词或标题中提取前两个词，作为热点话题的稳定标识。
 

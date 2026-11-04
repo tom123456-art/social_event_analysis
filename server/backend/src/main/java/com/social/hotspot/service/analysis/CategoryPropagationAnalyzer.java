@@ -17,11 +17,14 @@ import java.util.Map;
 import java.util.Set;
 
 public final class CategoryPropagationAnalyzer {
+    /** 工具类私有构造，禁止实例化。 */
     private CategoryPropagationAnalyzer() {}
+    /** 参与传播态势分析的固定新闻平台集合，微博不纳入类别先后关系分析。 */
     public static final Set<String> SPREAD_PLATFORMS = Set.of("TENCENT_NEWS", "NETEASE_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER");
     private record CategoryActivation(String category, String platform, LocalDateTime firstHotTime,
                                       LocalDateTime peakTime, double peakAttention) {
     }
+    /** 基于各平台类别关注指数序列，计算类别首达时间、平台先后关系与平台首达时间轴，输出传播态势分析结果。 */
     public static Map<String, Object> analyzeCategoryPropagation(List<Map<String, Object>> rows) {
         // 创建类别、平台、时间三级映射；创建小时计算依据列表。
         Map<String, Map<String, Map<LocalDateTime, Double>>> series = new HashMap<>();

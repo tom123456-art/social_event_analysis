@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# The large Erlangshen model stays on the Windows ETL host. This VM script
-# only consumes the CSV and the small sidecar produced by local inference.
+# 大型情感模型保留在本地数据处理主机上，虚拟机脚本
+# 只读取原始文件及本地推理生成的小型结果文件。
 SPARK_HOME=/opt/bigdata/spark
 APP_HOME=/opt/apps/social-hotspot-analytics
 BATCH_ID=$(date +%Y%m%d%H%M%S)

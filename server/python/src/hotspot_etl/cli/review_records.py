@@ -1,4 +1,4 @@
-"""Stable file-based review preparation entry point."""
+"""提供稳定的文件式审核准备入口。"""
 import sys
 from pathlib import Path
 

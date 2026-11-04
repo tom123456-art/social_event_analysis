@@ -11,7 +11,7 @@ import java.util.List;
 
 import static org.apache.spark.sql.functions.*;
 
-/** In-memory regression only: no JDBC, Hive registration or warehouse writes. */
+/** 仅执行内存回归，不连接数据库、不注册数仓分区、不写入仓库。 */
 public class SourceRankRegression {
     public static void main(String[] args) throws Exception {
         try (SparkSession spark = SparkSession.builder().master("local[1]").appName("source-rank-regression")

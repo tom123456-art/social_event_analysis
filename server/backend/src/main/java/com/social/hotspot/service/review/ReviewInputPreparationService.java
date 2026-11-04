@@ -24,15 +24,19 @@ public class ReviewInputPreparationService {
     private final ThreadLocal<List<Map<String, Object>>> application = new ThreadLocal<>();
     @Value("${vm.etl.sentiment-python:python}") private String python;
 
+    /** 构造质检输入准备服务，注入质检存储与 JSON 序列化器。 */
     public ReviewInputPreparationService(DataQualityReviewStore store, ObjectMapper json) { this.store = store; this.json = json; }
 
+    /** 在预留快照作用域内执行动作，动作完成后自动结束应用流程。 */
     public <T> T withSnapshot(List<Map<String, Object>> snapshot, Callable<T> action) throws Exception {
         application.set(snapshot);
         try { return action.call(); } finally { application.remove(); }
     }
 
+    /** 判断是否存在待应用的有效决策。 */
     public boolean hasEffectiveDecisions() { return !store.decisions(List.of()).isEmpty(); }
 
+    /** 准备质检输入：预留决策、导出待处理队列、生成工作目录。 */
     public Prepared prepare(Path source, String batch) throws Exception {
         Path directory = Files.createTempDirectory("social-review-");
         try {
@@ -58,6 +62,7 @@ public class ReviewInputPreparationService {
         }
     }
 
+    /** 收集低置信度情感样本，调用质检脚本并写入队列。 */
     public void collectLow(Prepared prepared, Path sentiment, String batch, double threshold) throws Exception {
         Path queue = prepared.directory().resolve("low-confidence.jsonl");
         execute(List.of("--input", prepared.input().toString(), "--sentiment", sentiment.toString(), "--queue", queue.toString(),
@@ -65,6 +70,7 @@ public class ReviewInputPreparationService {
         collect(queue, batch);
     }
 
+    /** 读取队列目录下的样本文件并组装为记录列表。 */
     private List<Map<String, Object>> collect(Path queue, String batch) throws Exception {
         List<Map<String, Object>> entries = new ArrayList<>();
         try (var reader = Files.newBufferedReader(queue, StandardCharsets.UTF_8)) {
@@ -74,7 +80,7 @@ public class ReviewInputPreparationService {
             }
         }
         store.collect(entries, batch);
-        // Existing-id confidence entries only occur for applied or application records.
+        // 已有内容编号的置信度记录仅来自已生效或正在应用的审核记录。
         List<Map<String, Object>> all = new ArrayList<>();
         try (var reader = Files.newBufferedReader(queue, StandardCharsets.UTF_8)) {
             for (String line; (line = reader.readLine()) != null;) if (!line.isBlank()) all.add(json.readValue(line, new TypeReference<>() {}));
@@ -82,8 +88,10 @@ public class ReviewInputPreparationService {
         return all;
     }
 
+    /** 在指定目录执行质检脚本并返回日志输出。 */
     private String execute(List<String> arguments, Path directory) throws Exception { return ReviewScriptRunner.execute(python, arguments, directory); }
 
+    /** 清理工作目录下的临时文件。 */
     private static void cleanup(Path directory) throws Exception {
         try (var files = Files.list(directory)) { for (Path file : files.toList()) Files.deleteIfExists(file); }
         Files.deleteIfExists(directory);

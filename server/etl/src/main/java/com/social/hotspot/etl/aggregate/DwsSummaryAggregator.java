@@ -72,8 +72,8 @@ public final class DwsSummaryAggregator {
         Dataset<Row> contentRank = detail
                 .withColumn("rank_no", row_number().over(rankWindow))
                 .select("event_id", "rank_no", "platform", "content_id", "parent_content_id", "content_type", "title", "clean_text", "author_name", "publish_time", "keywords", "category", "like_count", "favorite_count", "comment_count", "repost_count", "sentiment_label", "sentiment_source", "sentiment_positive_score", "sentiment_neutral_score", "sentiment_negative_score", "hot_score", "platform_heat_index", "source_url");
-        // ads_event_overview was pruned to the current four-column contract.
-        // Keep event_name in event_info, where it is maintained by upsertEvent.
+        // 事件概览表已精简为当前约定的四个字段。
+        // 事件名称保存在事件信息表中，由事件更新方法统一维护。
         Dataset<Row> overview = detail.groupBy(col("event_id"))
                 .agg(
                     count(lit(1)).alias("content_count"),

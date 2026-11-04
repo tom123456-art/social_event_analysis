@@ -6,7 +6,8 @@ import java.util.*;
 
 public record AiModelSettings(String id, String name, String provider, String model, String requestUrl,
                               String apiKey, int timeoutSeconds, Double temperature) {
-    public static AiModelSettings from(Map<String, Object> item) {
+        /** 从前端提交的配置表单字段构建 AiModelSettings 记录，校验必填项、长度、地址安全性与取值范围后生成新实例。 */
+        public static AiModelSettings from(Map<String, Object> item) {
         String name = required(item, "name", "显示名称", 60);
         String model = required(item, "model", "模型 ID", 120);
         String url = required(item, "requestUrl", "请求地址", 2048);
@@ -29,22 +30,26 @@ public record AiModelSettings(String id, String name, String provider, String mo
         } catch (NumberFormatException ex) { throw new BusinessException("超时时间须为五至一百秒的整数，温度须为零至二之间的数字。"); }
         return new AiModelSettings(UUID.randomUUID().toString(), name, provider, model, url, key, timeout, temperature);
     }
+    /** 校验必填字段非空且不超过最大长度，返回去首尾空白后的值，否则抛出业务异常。 */
     private static String required(Map<String, Object> item, String key, String label, int max) {
         String value = Objects.toString(item.get(key), "").trim();
         if (value.isEmpty() || value.length() > max) throw new BusinessException("请填写有效的" + label + "，长度不能超过" + max + "个字符。");
         return value;
     }
+    /** 判断模型是否已完成必要配置：密钥、模型、请求地址均非空。 */
     public boolean configured() { return !apiKey.isBlank() && !model.isBlank() && !requestUrl.isBlank(); }
+    /** 返回不含密钥的对外展示视图，包含标识、名称、厂商、模型与配置状态。 */
     public Map<String, Object> publicView() {
         return Map.of("id", id, "name", name, "provider", provider, "model", model, "configured", configured());
     }
+    /** 校验请求地址为完整 HTTPS 且非本机、内网或保留地址，返回安全 URI。 */
     public URI validatedUri() {
         try {
             URI uri = URI.create(requestUrl);
             if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
                     || uri.getFragment() != null || uri.getQuery() != null || (uri.getPort() != -1 && uri.getPort() != 443))
                 throw new BusinessException("请使用完整的 HTTPS 模型接口地址，不要包含账号、查询参数或非标准端口。");
-            // User-entered endpoints must never reach local services or cloud metadata.
+            // 用户提供的模型地址不得访问本地服务或云平台元数据。
             for (InetAddress address : InetAddress.getAllByName(uri.getHost())) {
                 byte[] bytes = address.getAddress();
                 if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()

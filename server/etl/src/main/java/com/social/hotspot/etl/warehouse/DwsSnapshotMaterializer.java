@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Persists batch-scoped DWS snapshots before any ADS consumer reads them. */
+/** 应用层读取数据前，先持久化当前批次的汇总层快照。 */
 public final class DwsSnapshotMaterializer {
     private DwsSnapshotMaterializer() {}
 
@@ -28,7 +28,7 @@ public final class DwsSnapshotMaterializer {
             String partition = tableRoot + "/batch_id=" + batch;
             Dataset<Row> data = entry.getValue().drop("batch_id");
             data.write().mode(SaveMode.ErrorIfExists).parquet(partition);
-            // Re-read the committed batch: ADS cannot silently keep using an in-memory DWD aggregate.
+            // 重新读取已提交批次，避免应用层继续使用内存中的明细汇总结果。
             stored.put(name, spark.read().parquet(partition).drop("batch_id"));
             ddl.append("CREATE EXTERNAL TABLE IF NOT EXISTS social_dws.").append(name).append(" (\n");
             StructField[] fields = data.schema().fields();

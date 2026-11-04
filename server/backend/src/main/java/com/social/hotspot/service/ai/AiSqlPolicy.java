@@ -4,9 +4,11 @@ import com.social.hotspot.exception.BusinessException;
 import java.util.*;
 import java.util.regex.*;
 
-/** Deliberately small SELECT grammar: no joins, subqueries, arbitrary functions or expressions. */
+/** 查询语法只允许受限的读取操作，禁止联表、子查询及任意函数或表达式。 */
 public final class AiSqlPolicy {
+    /** 工具类私有构造，禁止实例化。 */
     private AiSqlPolicy() { }
+    /** 校验 AI 生成的 SQL 是否符合白名单简单查询语法，校验通过则补充默认 LIMIT 并返回，否则抛出业务异常。 */
     public static String validate(String sql, Map<String, Set<String>> schema) {
         if (sql == null || sql.length() > 4000 || sql.contains(";") || sql.contains("--") || sql.contains("/*")
                 || sql.contains("#") || sql.contains("\\") || sql.contains("`")) reject();
@@ -49,5 +51,6 @@ public final class AiSqlPolicy {
         }
         return sql.trim() + (match.group(3) == null ? " LIMIT 100" : "");
     }
+    /** 校验失败时抛出业务异常，提示只允许白名单简单查询。 */
     private static void reject() { throw new BusinessException("只允许白名单分析表的单条简单查询，最多一百行；不允许联表、子查询、注释或写入操作。"); }
 }

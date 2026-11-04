@@ -1,4 +1,4 @@
-"""Stable file-based entry point for the Java backend."""
+"""提供供后端调用的稳定文件式入口。"""
 import sys
 from pathlib import Path
 

@@ -5,7 +5,9 @@ import com.social.hotspot.integration.spark.RemoteCommandResult;
 import static com.social.hotspot.integration.spark.RemoteCommandExecutor.*;
 
 public final class HivePartitionRegistrar {
+    /** 工具类私有构造，禁止实例化。 */
     private HivePartitionRegistrar() {}
+    /** 在远程虚拟机上执行 Hive SQL，为指定批次注册 ODS、DWD 分区并应用 DWS 建表脚本，同步补齐缺失字段。 */
     public static void register(Session session, String batchId, String rawPath, String dwdPath, String appHome, String warehouseOutput, int timeoutSeconds) throws Exception {
         // 将批次号中的单引号转义为 SQL 字符串格式；构造注册 ODS、DWD 和 DWS 批次分区的 Hive SQL。
         String partition = batchId.replace("'", "''");
@@ -37,8 +39,9 @@ public final class HivePartitionRegistrar {
         if (manifest.stdout().isBlank()) throw new IllegalStateException("Missing DWS Hive manifest");
         exec(session, hiveCli() + " -e " + sh(manifest.stdout()), timeoutSeconds);
     }
+    /** 构造 beeline 命令行：预加载兼容库并设置 Hive 连接参数，返回完整命令字符串。 */
     private static String hiveCli() {
-        // Older VM glibc exposes openpty through libutil; Jansi needs that symbol loaded.
+        // 旧版虚拟机的系统库通过工具库导出伪终端符号，需预先加载以供终端组件使用。
         return "if [ -r /lib64/libutil.so.1 ]; then export LD_PRELOAD=/lib64/libutil.so.1; fi; "
                 + "env HADOOP_HOME=/opt/bigdata/hadoop-client HADOOP_CONF_DIR=/opt/bigdata/hadoop-client/etc/hadoop "
                 + "HADOOP_OPTS='-Djline.terminal=jline.UnsupportedTerminal -Djansi.passthrough=true -Djansi.force=false' "

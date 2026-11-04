@@ -8,7 +8,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import java.beans.Introspector;
 import java.util.HashSet;
 
-/** Resolve relocated components and SQL bindings without a database connection. */
+/** 在不连接数据库的情况下检查组件迁移和查询参数绑定。 */
 public class SourceLayoutRegression {
     public static void main(String[] args) throws Exception {
         var configuration = new Configuration();

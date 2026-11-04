@@ -1,2 +1,0 @@
--- Main schema is maintained in deploy/sql/schema.sql.
--- Import deploy/sql/schema.sql into MySQL before starting the backend.

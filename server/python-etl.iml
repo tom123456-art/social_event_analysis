@@ -4,9 +4,6 @@
     <content url="file://$MODULE_DIR$/python/src">
       <sourceFolder url="file://$MODULE_DIR$/python/src" isTestSource="false" />
     </content>
-    <content url="file://$MODULE_DIR$/python/tests">
-      <sourceFolder url="file://$MODULE_DIR$/python/tests" isTestSource="true" />
-    </content>
     <orderEntry type="jdk" jdkName="Python 3.13 (server)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>

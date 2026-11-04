@@ -15,7 +15,7 @@
       <div class="front-actions">
         <router-link class="screen-link" to="/screen">数据大屏</router-link>
         <!-- 点击当前按钮时执行 goAdmin。 -->
-        <el-button type="primary" @click="goAdmin">{{ adminEntryText }}</el-button>
+        <el-button type="primary" @click="goAdmin">后台管理</el-button>
       </div>
     </header>
     <!-- 在此处渲染当前路由匹配的页面组件。 -->
@@ -29,7 +29,7 @@
 
   <!-- 后台管理外壳：左侧导航栏 + 右侧主区域（顶部状态条 + 页面内容） -->
 <div v-else class="app-shell">
-        <!-- 左侧导航：品牌区 + 按角色分组的菜单项 -->
+        <!-- 左侧导航按业务分组。 -->
     <aside class="sidebar">
       <div class="brand">
         <div>
@@ -48,20 +48,15 @@
 
         <!-- 右侧主区域 -->
     <main class="main">
-            <!-- 顶部状态条：面包屑、角色权限说明、操作入口与用户卡 -->
+            <!-- 顶部状态条：面包屑、操作入口与账号信息。 -->
       <header class="topbar">
         <div>
           <div class="crumb">{{ groupName }} / {{ route.meta.title }}</div>
           <h1>{{ route.meta.title }}</h1>
         </div>
-        <div class="admin-status">
-          <span>{{ roleLabel }}</span>
-          <b>{{ isAdmin ? '权限边界已启用' : '普通用户权限' }}</b>
-          <em>{{ isAdmin ? '原始数据、处理任务与分析结果管理' : '仅可维护本人资料' }}</em>
-        </div>
         <div class="top-actions">
           <router-link class="screen-link" to="/overview">返回前台</router-link>
-          <router-link v-if="isAdmin" class="screen-link" to="/screen">数据大屏</router-link>
+          <router-link class="screen-link" to="/screen">数据大屏</router-link>
           <div class="user-card">
             <span class="avatar">{{ userInitial }}</span>
             <div>
@@ -87,9 +82,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataLine, Files, Monitor, User, Postcard } from '@element-plus/icons-vue'
+import { DataLine, Files, Monitor, Postcard } from '@element-plus/icons-vue'
 import { clearGetCache, postData } from './api/client'
 import { clearSession, readSession } from './utils/session'
 import { ANALYSIS_EVENT_NAME } from './config/analysisDataset'
@@ -110,8 +105,8 @@ const frontMenus = [
   { path: '/contents', name: '内容明细' }
 ]
 
-// 管理员可见的完整后台菜单分组：运营总览、数据维护、系统权限。
-const fullAdminMenuGroups = [
+// 登录后统一显示运营总览、数据维护和系统设置。
+const adminMenuGroups = [
   {
     title: '运营总览',
     children: [
@@ -122,24 +117,13 @@ const fullAdminMenuGroups = [
   {
     title: '数据维护',
     children: [
-      { path: '/admin/data', name: '数据管理', icon: Files },
-      { path: '/admin/users', name: '用户管理', icon: User }
+      { path: '/admin/data', name: '数据管理', icon: Files }
     ]
   },
   {
-    title: '系统权限',
+    title: '系统设置',
     children: [
-      { path: '/admin/profile', name: '个人信息', icon: Postcard }
-    ]
-  }
-]
-
-// 普通用户仅可见个人中心，无法访问运营与数据维护入口。
-const userMenuGroups = [
-  {
-    title: '个人中心',
-    children: [
-      { path: '/admin/profile', name: '个人信息', icon: Postcard }
+      { path: '/admin/profile', name: '账号设置', icon: Postcard }
     ]
   }
 ]
@@ -149,36 +133,20 @@ const groupName = computed(() => route.meta.group === 'admin' ? '后台管理' :
 // 会话状态保存在响应式引用中，路由切换时刷新以反映登录/退出变化。
 const session = ref(readSession())
 // 读取会话中的用户名，缺少时使用默认显示名称。
-const userName = computed(() => session.value.user || '管理员')
+const userName = computed(() => session.value.user || '系统账号')
 // 用户名首字符作为头像占位文字。
 const userInitial = computed(() => userName.value.slice(0, 1))
 // 根据会话令牌是否存在判断当前是否登录。
 const isLoggedIn = computed(() => Boolean(session.value.token))
-// 将角色转为小写后判断是否为管理员。
-const isAdmin = computed(() => session.value.role.toLowerCase() === 'admin')
-// 根据角色切换侧栏菜单：管理员显示全部，普通用户只显示个人中心。
-const adminMenuGroups = computed(() => isAdmin.value ? fullAdminMenuGroups : userMenuGroups)
-// 根据当前角色计算界面显示的中文身份名称。
-const roleLabel = computed(() => isAdmin.value ? '管理员' : '普通用户')
-// 顶部"后台"按钮文案随登录状态和角色变化。
-const adminEntryText = computed(() => !isLoggedIn.value ? '后台登录' : isAdmin.value ? '后台管理' : '个人信息')
-
 // 路由切换时重新读取本地会话，确保退出或换号后界面身份同步。
 watch(() => route.fullPath, () => {
   session.value = readSession()
 }, { immediate: true })
 
-// 普通用户误入需要管理员权限的页面时，重定向到个人资料页。
-watchEffect(() => {
-  if (route.meta.requiresAdmin && isLoggedIn.value && !isAdmin.value) {
-    router.replace('/admin/profile')
-  }
-})
-
-// 点击顶部"后台"按钮：已登录按角色跳转，未登录跳登录页并记录回跳地址。
+// 后台入口与分析入口使用相同的登录会话。
 function goAdmin() {
   if (isLoggedIn.value) {
-    router.push(isAdmin.value ? '/admin' : '/admin/profile')
+    router.push('/admin')
     return
   }
   router.push('/login?redirect=/admin')

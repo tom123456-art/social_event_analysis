@@ -16,15 +16,30 @@ import jakarta.servlet.http.HttpServletRequest;
 /** 全局异常处理器：将后端异常转换成统一的中文接口提示。 */
 // 定义全局异常处理器类。
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    public org.springframework.http.ResponseEntity<ApiResponse<Void>> handleValidation(
+            org.springframework.web.bind.MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> UserMessages.chinese(error.getDefaultMessage(), "资料字段格式或长度不正确。"))
+                .findFirst().orElse("请求参数不正确。");
+        return org.springframework.http.ResponseEntity.badRequest().body(ApiResponse.fail(message));
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public org.springframework.http.ResponseEntity<ApiResponse<Void>> handleNotFound() {
+        return org.springframework.http.ResponseEntity.status(404).body(ApiResponse.fail("接口不存在。"));
+    }
     @ExceptionHandler(AuthException.class)
+    /** 处理认证异常，返回未授权响应。 */
     public org.springframework.http.ResponseEntity<ApiResponse<Void>> handleAuth(AuthException ex) {
         return org.springframework.http.ResponseEntity.status(ex.status()).body(ApiResponse.fail(ex.getMessage()));
     }
     // 完整异常只记录到后端日志，不返回浏览器。
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    // A failed response connection cannot receive a second JSON error response.
+    // 响应连接失效后无法再次发送错误响应，避免重复写入。
     @ExceptionHandler({AsyncRequestNotUsableException.class, ClientAbortException.class})
+    /** 处理响应已提交时的异常，仅记录日志。 */
     public void handleDisconnectedResponse(Exception ex, HttpServletRequest request) {
         LOG.warn("HTTP response connection unavailable: {} {}; {}", request.getMethod(),
                 request.getRequestURI(), ex.getMessage());

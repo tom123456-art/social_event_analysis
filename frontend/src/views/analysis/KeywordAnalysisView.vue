@@ -197,7 +197,7 @@ import { ElMessage } from 'element-plus'
 import ChartBox from '../../components/common/ChartBox.vue'
 import { clearGetCache, getData, getErrorMessage } from '../../api/client'
 import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 import { INTERACTION_METRICS, isContextOnlyKeyword, numericInteraction, observeTopics, observationPosition, representativeTopics, topicMedian } from '../../utils/topicObservation'
 
 type Granularity = 'day' | 'week'
@@ -215,8 +215,6 @@ const TOPIC_LINE_COLORS = ['#2563eb', '#0f766e', '#d97706', '#7c3aed', '#dc2626'
 // 保存不参与主题提取的词，关键词拆分后据此过滤。
 const STOPWORDS = new Set(['没有', '为什么', '就是', '不是', '这个', '发文', '感谢', '不要', '除了', '还有', '运气', '切片', '包场', '效率', '方面', '理性', '这一', '导弹', '群众', '效果', '美军', '经验总结', '习近平'])
 
-// 保存统一分析事件编号，各分析页面使用同一份当前数据集。
-const eventId = ref(ANALYSIS_EVENT_ID)
 // 控制刷新按钮的加载状态，请求结束后解除。
 const refreshing = ref(false)
 // 保存接口返回的记录，作为筛选、聚合和详情展示的数据源。
@@ -646,7 +644,7 @@ async function refreshData() {
 }
 
 async function load() {
-  rows.value = await getData(`/events/${eventId.value}/keyword-analysis`, true)
+  rows.value = await getData('/analysis/keyword-analysis', true)
   selectedTopic.value = ''
   setObservationRange()
 }
@@ -751,7 +749,7 @@ function toggleCloudCategory(category: string) {
   hiddenCloudCategories.value = next
 }
 function cloudStyle(topic: any, index: number) {
-  // A loose spiral avoids a dense center while keeping every word inside the cloud silhouette.
+  // 使用疏松的螺旋布局，避免中心拥挤并让词条保持在词云轮廓内。
   const positions = [
     [50, 48, 0], [30, 31, -10], [71, 29, 10], [29, 65, 90], [72, 66, -90],
     [50, 15, 8], [51, 83, -8], [19, 47, 0], [82, 48, 0], [39, 42, -12],

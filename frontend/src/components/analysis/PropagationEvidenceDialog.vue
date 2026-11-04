@@ -93,7 +93,7 @@
 import { computed, ref, watch } from 'vue'
 import { getData, getErrorMessage } from '../../api/client'
 // 声明父组件传入的数据与控制状态，供模板和计算属性读取。
-const props = defineProps<{ mode: string; eventId: string; dashboard: any }>()
+const props = defineProps<{ mode: string; dashboard: any }>()
 defineEmits<{ close: [] }>()
 // 将证据模式转换为弹框标题。
 const titles: Record<string, string> = { lead: '最早达到阈值 · 结论来源', heat: '累计热度最高 · 结论来源', span: '各平台首达时间跨度 · 结论来源', relations: '同类别先后关系 · 结论来源' }
@@ -140,7 +140,7 @@ async function load() {
   // 热度证据按整个平台查看，其余结论再限定类别；选择小时后继续缩小范围。
   if (props.mode !== 'heat') params.set('category', category.value)
   if (hour.value) params.set('hour', hour.value)
-  try { const data = await getData(`/events/${props.eventId}/propagation-evidence?${params}`); if (id === requestId) result.value = data }
+  try { const data = await getData(`/analysis/propagation-evidence?${params}`); if (id === requestId) result.value = data }
   catch (e: any) { if (id === requestId) error.value = getErrorMessage(e, '读取来源失败，请稍后重试。') }
   finally { if (id === requestId) loading.value = false }
 }

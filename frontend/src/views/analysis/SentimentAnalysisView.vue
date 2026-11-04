@@ -124,7 +124,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 import ChartBox from '../../components/common/ChartBox.vue'
 import MetricGrid from '../../components/common/MetricGrid.vue'
 import { clearGetCache, getData, getErrorMessage } from '../../api/client'
@@ -138,8 +138,7 @@ const PLATFORM_NAMES: Record<string, string> = { SOHU_NEWS: '搜狐新闻', TENC
 const PLATFORM_COLORS: Record<string, string> = { SOHU_NEWS: '#e11d48', TENCENT_NEWS: '#0ea5e9', NETEASE_NEWS: '#f97316', SINA_NEWS: '#dc2626', THE_PAPER: '#334155' }
 // 固定正面和负面配色，避免系列顺序改变后颜色混淆。
 const SENTIMENT_COLORS: Record<string, string> = { positive: '#16a34a', negative: '#dc2626' }
-// 保存统一分析事件编号，各分析页面使用同一份当前数据集。
-const eventId = ref(ANALYSIS_EVENT_ID), sentimentRows = ref<any[]>([]), refreshing = ref(false), activeTab = ref('weibo'), page = ref(1), newsPage = ref(1), pageSize = 8, weiboPageSize = 8, sentimentFilter = ref('all'), newsSentimentFilter = ref('all'), keywordQuery = ref(''), newsKeyword = ref(''), weiboDateFilter = ref('all'), weiboSort = ref('latest'), trendRange = ref('7'), newsPlatform = ref('ALL'), evidenceVisible = ref(false), evidenceTitle = ref('计算依据'), evidenceItems = ref<any[]>([]), evidenceText = ref(''), evidenceUrl = ref(''), evidenceArticle = ref<any>(null), evidenceNews = ref<any[]>([]), evidenceComparisons = ref<any[]>([]), evidenceLimit = ref(100), weiboDetailVisible = ref(false), selectedWeiboRow = ref<any>(null)
+const sentimentRows = ref<any[]>([]), refreshing = ref(false), activeTab = ref('weibo'), page = ref(1), newsPage = ref(1), pageSize = 8, weiboPageSize = 8, sentimentFilter = ref('all'), newsSentimentFilter = ref('all'), keywordQuery = ref(''), newsKeyword = ref(''), weiboDateFilter = ref('all'), weiboSort = ref('latest'), trendRange = ref('7'), newsPlatform = ref('ALL'), evidenceVisible = ref(false), evidenceTitle = ref('计算依据'), evidenceItems = ref<any[]>([]), evidenceText = ref(''), evidenceUrl = ref(''), evidenceArticle = ref<any>(null), evidenceNews = ref<any[]>([]), evidenceComparisons = ref<any[]>([]), evidenceLimit = ref(100), weiboDetailVisible = ref(false), selectedWeiboRow = ref<any>(null)
 // 引用统一中文名称，供页面事件标签显示。
 const currentEventName = ANALYSIS_EVENT_NAME
 // 只保留正负二分类样本，不把中性或跳过记录计入分母。
@@ -286,7 +285,7 @@ const riskTextClass = (row: any) => !hasRiskData(row) ? 'risk-normal' : riskScor
 // 评论筛选变化重置评论页码，新闻筛选变化只重置新闻页码，两组分页互不影响。
 watch([sentimentFilter, keywordQuery, weiboDateFilter, weiboSort], () => page.value = 1); watch([newsSentimentFilter, newsKeyword, newsPlatform], () => newsPage.value = 1)
 // 强制读取当前事件的情感明细，后续计算属性自动重新统计。
-async function load() { sentimentRows.value = await getData(`/events/${eventId.value}/sentiment-analysis`, true) }
+async function load() { sentimentRows.value = await getData('/analysis/sentiment-analysis', true) }
 // 每次打开共用证据弹框先清空原文、链接和对照，避免残留旧结论。
 function openEvidence(title: string, items: any[], text: string) {
   // 先保存本次标题、指标和说明，再清空上次原文、来源和平台对照数据。

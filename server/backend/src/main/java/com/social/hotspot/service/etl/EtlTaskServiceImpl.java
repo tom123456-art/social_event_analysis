@@ -1,5 +1,7 @@
 package com.social.hotspot.service.etl;
 
+import com.social.hotspot.config.AnalysisDataset;
+
 import com.social.hotspot.cache.AnalyticsCache;
 import com.social.hotspot.config.ProjectPaths;
 import com.social.hotspot.common.ApiResponse;
@@ -33,7 +35,7 @@ public class EtlTaskServiceImpl implements EtlTaskService {
     // 定义并初始化正式原始 CSV 路径。
     private static final Path RAW_CSV_PATH = PROJECT_ROOT.resolve(Path.of("data", "crawler", "social_event_real.csv"));
     // 配置统一事件标识、统一事件名称。
-    private static final String CANONICAL_EVENT_ID = "public_rss_latest";
+    private static final String CANONICAL_EVENT_ID = AnalysisDataset.EVENT_ID;
     private static final String CANONICAL_EVENT_NAME = "网络媒体热点事件传播态势与舆情分析";
     // 定义当前标准 CSV 字段顺序，按列名统一口径。
     private static final List<String> RAW_COLUMNS = Arrays.asList(
@@ -433,10 +435,12 @@ public class EtlTaskServiceImpl implements EtlTaskService {
         return projected;
     }
 
+    /** 按引号外换行符切分 CSV 内容为记录列表。 */
     private List<String> parseCsvRecords(String content) {
         return com.social.hotspot.common.CsvRecords.records(content);
     }
 
+    /** 按引号外逗号切分单行 CSV 字段，并还原双引号转义。 */
     private List<String> parseCsvLine(String line) {
         return com.social.hotspot.common.CsvRecords.cells(line);
     }

@@ -12,7 +12,6 @@ async function main() {
     await page.addInitScript(() => {
       localStorage.setItem('social_token', 'test')
       localStorage.setItem('social_user', 'admin')
-      localStorage.setItem('social_role', 'admin')
     })
     const original = { platform: 'TENCENT_NEWS', content_id: 'news-001', title: '待核对的新闻标题',
       content_text: '待人工核对的完整正文内容', publish_time: '2026-10-12 09:00:00', crawl_time: '2026-10-12 10:00:00',

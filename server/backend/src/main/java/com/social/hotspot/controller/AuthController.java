@@ -20,16 +20,9 @@ public class AuthController {
     // 创建认证控制器并保存业务服务引用。
     public AuthController(AuthService auth) { this.auth = auth; }
 
-    // 接收注册请求并执行地址级限流。
-    @PostMapping("/register")
-    public ApiResponse<Map<String, Object>> register(@RequestBody Map<String, Object> item, HttpServletRequest request) {
-        // 在调用注册业务前限制异常高频请求。
-        throttle(request.getRemoteAddr());
-        // 返回注册后的用户信息。
-        return ApiResponse.ok(auth.register(item));
-    }
     // 接收登录请求并执行地址级限流。
     @PostMapping("/login")
+    /** 用户登录接口：校验账号密码，返回用户信息与会话令牌。 */
     public ApiResponse<Map<String, Object>> login(@RequestBody Map<String, Object> item, HttpServletRequest request) {
         // 在校验账号密码前限制异常高频请求。
         throttle(request.getRemoteAddr());

@@ -6,9 +6,6 @@ import java.util.Map;
 /** 分析服务接口：定义前端分析页面需要的数据能力。 */
 // 定义分析业务接口，约定调用方式。
 public interface AnalyticsService {
-    // 查询可展示的事件列表。
-    List<Map<String, Object>> events();
-
     // 组装热点概览并利用 Redis 缓存。
     Map<String, Object> dashboard(String eventId);
 

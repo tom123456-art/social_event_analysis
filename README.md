@@ -71,6 +71,8 @@ Spark ETL 负责批量处理内容数据、关联分析结果并计算面向页�
 
 ## 技术组成
 
+系统使用单账号登录，不提供注册、角色权限和用户管理。已有数据库升级步骤见 [单账号迁移说明](deploy/sql/migrations/README.md)。分析接口统一为 `/api/analysis/...`，数据集由后端确定。
+
 - **前端**：Vue 3、TypeScript、Vite、Element Plus、ECharts，用于页面开发、组件交互和数据可视化。
 - **后端**：Java、Spring Boot、MyBatis，用于构建业务接口和数据库访问服务。
 - **离线计算**：Apache Spark SQL，用于批量数据清洗、关联与聚合分析。

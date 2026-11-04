@@ -1,5 +1,7 @@
 package com.social.hotspot.service.community;
 
+import com.social.hotspot.config.AnalysisDataset;
+
 import com.social.hotspot.mapper.CommunityMapper;
 import com.social.hotspot.service.user.UserProfileService;
 import org.springframework.stereotype.Service;
@@ -10,7 +12,7 @@ import java.util.Map;
 // 定义互动与投稿业务服务类。
 public class CommunityService {
     // 定义并初始化统一事件标识；保存数据库映射接口；保存个人资料服务。
-    private static final String CANONICAL_EVENT_ID = "public_rss_latest";
+    private static final String CANONICAL_EVENT_ID = AnalysisDataset.EVENT_ID;
     private final CommunityMapper mapper;
     private final UserProfileService userProfileService;
     // 构造互动与投稿业务服务，接收所需组件并保存依赖。

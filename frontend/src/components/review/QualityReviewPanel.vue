@@ -89,7 +89,6 @@
 </template>
 
 <script setup lang="ts">
-import { readSession } from '../../utils/session'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Upload, Refresh, Edit, Folder, Check, Close } from '@element-plus/icons-vue'
@@ -166,8 +165,7 @@ async function save(nextStatus: string) {
   try {
     // 同时提交修订号、修正内容、决定、人工标签和当前审核人。
     await putData(`/admin/reviews/${detail.value.id}`, { revision: detail.value.revision, corrected_data: correction.value,
-      status: nextStatus, manual_sentiment: manualSentiment.value || '', review_note: note.value,
-      reviewer: readSession().user || 'admin' })
+      status: nextStatus, manual_sentiment: manualSentiment.value || '', review_note: note.value })
     visible.value = false; ElMessage.success('审核决定已保存'); await load()
   } catch (e) { ElMessage.error(getErrorMessage(e, '保存审核失败')) }
   finally { saving.value = false }

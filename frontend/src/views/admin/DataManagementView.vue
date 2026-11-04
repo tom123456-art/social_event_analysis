@@ -96,14 +96,13 @@ import QualityReviewPanel from '../../components/review/QualityReviewPanel.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteData, getData, getErrorMessage } from '../../api/client'
 import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 import { platformName, categoryName, sentimentName, actionName, eventName } from '../../utils/userText'
 
 const router = useRouter()
 // 默认显示内容标签页，切换时保留其他标签页的数据状态。
 const activeTab = ref('content')
 // 保存当前事件编号及本地文本检索条件。
-const eventId = ref(ANALYSIS_EVENT_ID)
 const query = ref('')
 // 分开保存内容记录和互动记录，分别供对应表格展示。
 const contents = ref<any[]>([])
@@ -134,18 +133,13 @@ const pagedInteractions = computed(() => interactions.value.slice((interactionPa
 const emptyContentRows = computed(() => Math.max(0, pageSize - pagedContents.value.length - (filteredContents.value.length ? 0 : 1)))
 const emptyInteractionRows = computed(() => Math.max(0, pageSize - pagedInteractions.value.length))
 
-// 读取内容与互动记录；旧事件无内容时回退到统一分析数据集。
+// 读取当前数据集内容及近期互动记录。
 async function load() {
   // 每次加载前清除旧错误并启动加载状态。
   loading.value = true
   loadError.value = ''
   try {
-    let rows = await getData<any[]>(`/admin/contents?eventId=${encodeURIComponent(eventId.value)}&limit=200`)
-    // 指定的历史事件没有数据时，重新查询当前统一数据集。
-    if (!rows.length && eventId.value !== 'public_rss_latest') {
-      rows = await getData<any[]>('/admin/contents?eventId=public_rss_latest&limit=200')
-      eventId.value = 'public_rss_latest'
-    }
+    const rows = await getData<any[]>('/admin/contents?limit=200')
     // 更新内容列表后，单独读取最近两百条互动记录。
     contents.value = rows
     interactions.value = await getData('/admin/interactions?limit=200')

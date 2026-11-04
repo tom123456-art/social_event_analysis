@@ -11,7 +11,6 @@ async function main() {
       page.on('pageerror', error => errors.push(error.message))
       await page.addInitScript(() => {
         localStorage.setItem('social_token', 'test')
-        localStorage.setItem('social_role', 'admin')
       })
       const rows = ['WEIBO', 'SOHU_NEWS'].flatMap(platform => ['positive', 'negative', 'neutral', null].map((sentiment_label, i) => ({
         platform, sentiment_label, content_id: platform + i, title: 'sample-' + i, content_text: 'sample-' + i,

@@ -11,9 +11,6 @@ import java.util.Map;
 /** 分析数据访问接口：声明各类分析结果的数据库查询方法。 */
 // 定义分析数据访问接口，约定调用方式。
 public interface AnalyticsMapper {
-    // 查询可展示的事件列表。
-    List<Map<String, Object>> events();
-
     // 查询事件内容量与热度概览。
     Map<String, Object> overview(@Param("eventId") String eventId);
 

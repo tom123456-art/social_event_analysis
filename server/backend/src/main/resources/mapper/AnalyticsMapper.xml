@@ -1,299 +1,486 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!-- MyBatis 映射文件头：声明 XML 版本与编码。 -->
 <!DOCTYPE mapper
   PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 分析数据访问映射：声明事件、概览、热度趋势、平台传播、内容排名、情感、关键词、主题、ETL 批次等查询语句。 -->
 <mapper namespace="com.social.hotspot.mapper.AnalyticsMapper">
+    <!-- 公共 SQL 片段：将英文类别与源类别统一映射为标准中文类别标签，供多处复用。 -->
     <sql id="propagationCategory">
+        <!-- 对去首尾空白后的类别字段做小写转换后匹配。 -->
         CASE LOWER(TRIM(category))
+            <!-- 英文类别映射为中文标签。 -->
             WHEN 'finance' THEN '财经' WHEN 'politics' THEN '政治' WHEN 'technology' THEN '科技'
             WHEN 'sports' THEN '体育' WHEN 'culture' THEN '文娱' WHEN 'society' THEN '社会'
+            <!-- 综合类与中文别名归并到标准类别。 -->
             WHEN 'general' THEN '综合' WHEN '娱乐' THEN '文娱' WHEN '影视' THEN '文娱'
             WHEN '音乐' THEN '文娱' WHEN '社会新闻' THEN '社会' WHEN '民生' THEN '社会'
+            <!-- 综合类别名归并为综合，其余类别原样返回。 -->
             WHEN '综合类' THEN '综合' ELSE TRIM(category)
         END
     </sql>
-    <select id="events" resultType="map">
-        SELECT event_id, event_name, description, start_time, end_time, status, created_at
-        FROM event_info
-        WHERE event_id = 'public_rss_latest' AND status = 'ACTIVE'
-        ORDER BY created_at DESC
-    </select>
-
+    <!-- 查询指定事件的内容量与热度概览，返回单行结果。 -->
     <select id="overview" resultType="map">
+        <!-- 选取概览表全部字段。 -->
         SELECT *
         FROM ads_event_overview
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
     </select>
 
+    <!-- 查询指定事件按时间与平台汇总的热度趋势，按时间桶升序。 -->
     <select id="heatTrend" resultType="map">
+        <!-- 选取热度趋势表全部字段。 -->
         SELECT *
         FROM ads_event_heat_trend
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按时间桶升序排列，便于绘制趋势曲线。 -->
         ORDER BY time_bucket ASC
     </select>
 
+    <!-- 查询指定事件各平台最早发布时间与汇总指标，按首次发布时间升序。 -->
     <select id="platformTimeline" resultType="map">
+        <!-- 选取平台传播时间轴表全部字段。 -->
         SELECT *
         FROM ads_platform_spread_timeline
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按首次发布时间升序排列，最早发布的平台在前。 -->
         ORDER BY first_publish_time ASC
     </select>
 
+    <!-- 查询趋势页高热度内容样本：排除微博，按平台热度、热度分、发布时间排序，限制返回条数。 -->
     <select id="trendContentRank" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
         SELECT *
         FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+          <!-- 排除微博平台，仅保留新闻类平台。 -->
           AND platform &lt;&gt; 'WEIBO'
+        <!-- 按平台热度指数、热度分、发布时间倒序排列。 -->
         ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
     </select>
 
+    <!-- 查询指定日期范围内高热度内容样本：排除微博，限定发布时间区间，按平台热度、热度分、发布时间排序，限制条数。 -->
     <select id="trendContentRankByRange" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
         SELECT *
         FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+          <!-- 排除微博平台。 -->
           AND platform &lt;&gt; 'WEIBO'
+          <!-- 发布时间非空。 -->
           AND publish_time IS NOT NULL
+          <!-- 发布时间大于等于起始日期零点。 -->
           AND publish_time &gt;= CONCAT(#{startDate}, ' 00:00:00')
+          <!-- 发布时间小于结束日期次日零点，形成左闭右开区间。 -->
           AND publish_time &lt; DATE_ADD(CONCAT(#{endDate}, ' 00:00:00'), INTERVAL 1 DAY)
+        <!-- 按平台热度指数、热度分、发布时间倒序排列。 -->
         ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
     </select>
 
+    <!-- 查询指定事件平台日度热度，按时间桶、平台升序。 -->
     <select id="platformDailyHeat" resultType="map">
+        <!-- 选取平台日度热度表全部字段。 -->
         SELECT *
         FROM ads_platform_daily_heat
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按时间桶、平台升序排列。 -->
         ORDER BY time_bucket ASC, platform ASC
     </select>
+    <!-- 查询指定事件平台日度类别热度：排除微博，按时间桶、平台、类别升序。 -->
     <select id="platformCategoryHeat" resultType="map">
+        <!-- 选取平台类别热度表全部字段。 -->
         SELECT *
         FROM ads_platform_category_heat
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+          <!-- 排除微博平台。 -->
           AND platform &lt;&gt; 'WEIBO'
+        <!-- 按时间桶、平台、类别升序排列。 -->
         ORDER BY time_bucket ASC, platform ASC, category ASC
     </select>
+    <!-- 查询指定事件平台小时类别热度：先按平台、小时、类别聚合内容量与平均相对热度，再关联平台小时总量，按时间、平台、类别升序。 -->
     <select id="platformCategoryHourlyHeat" resultType="map">
+        <!-- 小时类别 CTE：按平台、小时、类别聚合内容量与平均相对热度。 -->
         WITH hourly_category AS (
             SELECT event_id,
                    platform,
+                   <!-- 将发布时间截断到整点作为时间桶。 -->
                    DATE_FORMAT(publish_time, '%Y-%m-%d %H:00:00') AS time_bucket,
+                   <!-- 引用公共片段将类别标准化为中文标签。 -->
                    <include refid="propagationCategory" /> AS category,
+                   <!-- 统计该分组下的内容数量。 -->
                    COUNT(*) AS content_count,
+                   <!-- 计算平台热度指数的均值，保留两位小数，空值按零处理。 -->
                    ROUND(AVG(COALESCE(platform_heat_index, 0)), 2) AS average_relative_heat_index
             FROM ads_content_hot_rank
+            <!-- 按事件标识筛选。 -->
             WHERE event_id = #{eventId}
+              <!-- 限定参与分析的固定新闻平台。 -->
               AND platform IN ('TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER')
+              <!-- 发布时间非空。 -->
               AND publish_time IS NOT NULL
+              <!-- 类别非空且非空白。 -->
               AND NULLIF(TRIM(category), '') IS NOT NULL
+            <!-- 按事件、平台、时间桶、标准化类别分组。 -->
             GROUP BY event_id, platform, DATE_FORMAT(publish_time, '%Y-%m-%d %H:00:00'), <include refid="propagationCategory" />
         ), hourly_total AS (
+            <!-- 平台小时总量 CTE：按平台、时间桶汇总内容数量。 -->
             SELECT event_id, platform, time_bucket, SUM(content_count) AS platform_content_count
             FROM hourly_category
+            <!-- 按事件、平台、时间桶分组。 -->
             GROUP BY event_id, platform, time_bucket
         )
+        <!-- 关联小时类别与平台小时总量，输出类别占比相关字段。 -->
         SELECT category.event_id,
                category.platform,
                category.time_bucket,
                category.category,
+               <!-- 类别内容数量。 -->
                category.content_count,
+               <!-- 平台小时内容总量。 -->
                total.platform_content_count,
+               <!-- 类别平均相对热度指数。 -->
                category.average_relative_heat_index
         FROM hourly_category category
         JOIN hourly_total total
+          <!-- 关联条件：事件、平台、时间桶一致。 -->
           ON total.event_id = category.event_id
          AND total.platform = category.platform
          AND total.time_bucket = category.time_bucket
+        <!-- 按时间桶、平台、类别升序排列。 -->
         ORDER BY category.time_bucket ASC, category.platform ASC, category.category ASC
     </select>
 
+    <!-- 查询指定事件平台内容量与热度汇总，按热度分倒序。 -->
     <select id="interaction" resultType="map">
+        <!-- 选取互动汇总表全部字段。 -->
         SELECT *
         FROM ads_interaction_summary
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按热度分倒序排列。 -->
         ORDER BY hot_score DESC
     </select>
 
+    <!-- 查询指定事件关键词频次排名，过滤停用词与敏感词，按词频倒序，限制条数。 -->
     <select id="keywordRank" resultType="map">
+        <!-- 选取关键词排名表全部字段。 -->
         SELECT *
         FROM ads_keyword_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
-          AND TRIM(keyword) NOT IN ('效率', '方面', '理性', '这一', '导弹', '群众', '效果', '美军', '经验总结', '习近平')
+        <!-- 按词频倒序排列。 -->
         ORDER BY word_count DESC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
     </select>
 
+    <!-- 查询指定事件按情感标签汇总的时序，按时间桶、情感标签升序。 -->
     <select id="sentimentTrend" resultType="map">
+        <!-- 选取情感趋势表全部字段。 -->
         SELECT *
         FROM ads_sentiment_trend
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按时间桶、情感标签升序排列。 -->
         ORDER BY time_bucket ASC, sentiment_label ASC
     </select>
 
+    <!-- 查询情感分析样本：取正负面内容，覆盖微博与新闻平台，按发布时间、主键升序。 -->
     <select id="sentimentAnalysisRows" resultType="map">
+        <!-- 选取内容标识、标题、平台、作者、发布时间、关键词、正文及情感与互动指标字段。 -->
         SELECT content_id, title, UPPER(TRIM(platform)) AS platform, author_name, publish_time, keywords, clean_text AS content_text,
                sentiment_label, sentiment_source, category, content_type, sentiment_positive_score, sentiment_neutral_score, sentiment_negative_score,
                hot_score, platform_heat_index, like_count, favorite_count, comment_count, repost_count, source_url
         FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+          <!-- 限定微博与新闻平台，统一大写比较。 -->
           AND UPPER(TRIM(platform)) IN ('WEIBO', 'SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          <!-- 只取正面与负面情感样本。 -->
           AND sentiment_label IN ('positive', 'negative')
+        <!-- 按发布时间、主键升序排列。 -->
         ORDER BY publish_time ASC, id ASC
     </select>
 
+    <!-- 分页查询平台类别窗口内的原始内容：支持类别、时间区间筛选，按发布时间升序，使用偏移量分页。 -->
     <select id="propagationContents" resultType="map">
+        <!-- 选取内容标识、标题、正文、链接、平台、发布时间、类别及互动指标字段。 -->
         SELECT content_id, title, clean_text, source_url, platform, publish_time, category,
                hot_score, platform_heat_index, like_count, comment_count, repost_count, favorite_count
         FROM ads_content_hot_rank
+        <!-- 按事件标识与平台筛选。 -->
         WHERE event_id = #{eventId}
           AND platform = #{platform}
+          <!-- 类别非空时按标准化类别筛选。 -->
           <if test="category != null">AND <include refid="propagationCategory" /> = #{category}</if>
+          <!-- 起始时间非空时筛选发布时间下限。 -->
           <if test="start != null">AND publish_time &gt;= #{start}</if>
+          <!-- 结束时间非空时筛选发布时间上限。 -->
           <if test="end != null">AND publish_time &lt; #{end}</if>
+        <!-- 按发布时间升序、平台热度倒序、主键升序排列。 -->
         ORDER BY publish_time ASC, platform_heat_index DESC, id ASC
+        <!-- 偏移量分页，从 offset 起取 limit 条。 -->
         LIMIT #{offset}, #{limit}
     </select>
 
+    <!-- 统计平台类别窗口内满足筛选条件的内容数量，返回长整数。 -->
     <select id="propagationContentCount" resultType="long">
+        <!-- 统计满足条件的记录总数。 -->
         SELECT COUNT(*)
         FROM ads_content_hot_rank
+        <!-- 按事件标识与平台筛选。 -->
         WHERE event_id = #{eventId}
           AND platform = #{platform}
+          <!-- 类别非空时按标准化类别筛选。 -->
           <if test="category != null">AND <include refid="propagationCategory" /> = #{category}</if>
+          <!-- 起始时间非空时筛选发布时间下限。 -->
           <if test="start != null">AND publish_time &gt;= #{start}</if>
+          <!-- 结束时间非空时筛选发布时间上限。 -->
           <if test="end != null">AND publish_time &lt; #{end}</if>
     </select>
+    <!-- 查询指定事件高热度内容排名：按排名号升序，限制条数。 -->
     <select id="contentRank" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
         SELECT *
         FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按排名号升序排列。 -->
         ORDER BY rank_no ASC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
-    </select>    <select id="realPublicContents" resultType="map">
+    </select>
+
+    <!-- 查询公开内容样本：按类别分区取最新若干条，保证各类别均有代表内容。 -->
+    <select id="realPublicContents" resultType="map">
+        <!-- 排序内容 CTE：按类别分区编号。 -->
         WITH ranked_contents AS (
             SELECT content.*,
+                   <!-- 按类别分区，发布时间、主键倒序编号，取每类最新若干条。 -->
                    ROW_NUMBER() OVER (
+                       <!-- 类别为空时归为综合。 -->
                        PARTITION BY COALESCE(NULLIF(TRIM(category), ''), '综合')
                        ORDER BY publish_time DESC, id DESC
                    ) AS category_row_no
             FROM ads_content_hot_rank content
+            <!-- 按事件标识筛选。 -->
             WHERE event_id = #{eventId}
         )
+        <!-- 从分区编号结果中取每类前若干条。 -->
         SELECT *
         FROM ranked_contents
+        <!-- 只保留每类前 limit 条。 -->
         WHERE category_row_no &lt;= #{limit}
+        <!-- 按发布时间、主键倒序排列。 -->
         ORDER BY publish_time DESC, id DESC
     </select>
 
-    <sql id="contentPageFilters">
+    <!-- 按关键词、平台、情感、类别条件分页查询内容：类别用 CASE 翻译英文为中文，按发布时间倒序，偏移量分页。 -->
+    <select id="contentPage" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
+        SELECT *
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 关键词非空时在标题、正文、作者名中模糊匹配。 -->
         <if test="query != null and query != ''">
             AND (title LIKE CONCAT('%', #{query}, '%')
                  OR clean_text LIKE CONCAT('%', #{query}, '%')
                  OR author_name LIKE CONCAT('%', #{query}, '%'))
         </if>
+        <!-- 平台非空时按平台精确匹配。 -->
         <if test="platform != null and platform != ''">
             AND platform = #{platform}
         </if>
+        <!-- 情感非空时按情感标签精确匹配。 -->
         <if test="sentiment != null and sentiment != ''">
             AND sentiment_label = #{sentiment}
         </if>
+        <!-- 类别非空时排除微博并按标准化类别匹配。 -->
         <if test="category != null and category != ''">
+            <!-- 排除微博与新浪微博。 -->
             AND UPPER(TRIM(platform)) NOT IN ('WEIBO', 'SINA_WEIBO')
+            <!-- 类别为空时归为综合，再与传入英文类别翻译后的中文比较。 -->
             AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
-            <choose>
-                <when test="category == 'finance'">'财经'</when>
-                <when test="category == 'politics'">'政治'</when>
-                <when test="category == 'technology'">'科技'</when>
-                <when test="category == 'sports'">'体育'</when>
-                <when test="category == 'culture'">'文娱'</when>
-                <when test="category == 'society'">'社会'</when>
-                <otherwise>'综合'</otherwise>
-            </choose>
+            <!-- 将传入的英文类别代码翻译为中文标签。 -->
+            CASE #{category}
+                WHEN 'finance' THEN '财经'
+                WHEN 'politics' THEN '政治'
+                WHEN 'technology' THEN '科技'
+                WHEN 'sports' THEN '体育'
+                WHEN 'culture' THEN '文娱'
+                WHEN 'society' THEN '社会'
+                ELSE '综合'
+            END
         </if>
-    </sql>
-
-    <select id="contentPage" resultType="map">
-        SELECT *
-        FROM ads_content_hot_rank
-        <include refid="contentPageFilters" />
+        <!-- 按发布时间、主键倒序排列。 -->
         ORDER BY publish_time DESC, id DESC
+        <!-- 偏移量分页，从 offset 起取 pageSize 条。 -->
         LIMIT #{offset}, #{pageSize}
     </select>
 
+    <!-- 按关键词、平台、情感、类别条件统计内容数量：类别用 CASE 翻译英文为中文，返回长整数。 -->
     <select id="contentCount" resultType="long">
+        <!-- 统计满足条件的记录总数。 -->
         SELECT COUNT(*)
         FROM ads_content_hot_rank
-        <include refid="contentPageFilters" />
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 关键词非空时在标题、正文、作者名中模糊匹配。 -->
+        <if test="query != null and query != ''">
+            AND (title LIKE CONCAT('%', #{query}, '%')
+                 OR clean_text LIKE CONCAT('%', #{query}, '%')
+                 OR author_name LIKE CONCAT('%', #{query}, '%'))
+        </if>
+        <!-- 平台非空时按平台精确匹配。 -->
+        <if test="platform != null and platform != ''">
+            AND platform = #{platform}
+        </if>
+        <!-- 情感非空时按情感标签精确匹配。 -->
+        <if test="sentiment != null and sentiment != ''">
+            AND sentiment_label = #{sentiment}
+        </if>
+        <!-- 类别非空时排除微博并按标准化类别匹配。 -->
+        <if test="category != null and category != ''">
+            <!-- 排除微博与新浪微博。 -->
+            AND UPPER(TRIM(platform)) NOT IN ('WEIBO', 'SINA_WEIBO')
+            <!-- 类别为空时归为综合，再与传入英文类别翻译后的中文比较。 -->
+            AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
+            <!-- 将传入的英文类别代码翻译为中文标签。 -->
+            CASE #{category}
+                WHEN 'finance' THEN '财经'
+                WHEN 'politics' THEN '政治'
+                WHEN 'technology' THEN '科技'
+                WHEN 'sports' THEN '体育'
+                WHEN 'culture' THEN '文娱'
+                WHEN 'society' THEN '社会'
+                ELSE '综合'
+            END
+        </if>
     </select>
 
+    <!-- 查询关键词分析样本：限定新闻平台且关键词非空，按发布时间倒序，限制条数。 -->
     <select id="keywordAnalysisRows" resultType="map">
+        <!-- 选取内容标识、标题、链接、平台、发布时间、关键词、类别、作者及互动指标字段。 -->
         SELECT content_id, title, source_url, platform, publish_time, keywords, category, author_name,
                like_count, comment_count, repost_count, favorite_count
         FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+          <!-- 限定新闻平台。 -->
           AND platform IN ('SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          <!-- 关键词非空且非空白。 -->
           AND NULLIF(TRIM(keywords), '') IS NOT NULL
+        <!-- 按发布时间、主键倒序排列。 -->
         ORDER BY publish_time DESC, id DESC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
     </select>
 
+    <!-- 统计指定事件的主题数量：按标题去重计数。 -->
     <select id="topicCount" resultType="map">
+        <!-- 统计去重主题数。 -->
         SELECT COUNT(*) topic_count
         FROM (
+            <!-- 按去首尾空白的标题去重。 -->
             SELECT TRIM(title) topic
             FROM ads_content_hot_rank
+            <!-- 按事件标识筛选。 -->
             WHERE event_id = #{eventId}
+              <!-- 标题非空。 -->
               AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+            <!-- 按标题分组去重。 -->
             GROUP BY TRIM(title)
         ) topics
     </select>
 
+    <!-- 查询主题排名：按标题聚合内容数、平台数、首末发布时间与热度分，按热度、内容数倒序，限制条数。 -->
     <select id="topicRank" resultType="map">
+        <!-- 选取主题、内容数、平台数、首末发布时间与热度分。 -->
         SELECT TRIM(title) topic,
+               <!-- 内容数量。 -->
                COUNT(*) content_count,
+               <!-- 涉及平台数量。 -->
                COUNT(DISTINCT platform) platform_count,
+               <!-- 最早发布时间。 -->
                MIN(publish_time) first_publish_time,
+               <!-- 最晚发布时间。 -->
                MAX(publish_time) latest_publish_time,
+               <!-- 热度分求和，空值按零处理。 -->
                SUM(COALESCE(hot_score, 0)) hot_score
         FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+          <!-- 标题非空。 -->
           AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+        <!-- 按标题分组。 -->
         GROUP BY TRIM(title)
+        <!-- 按热度分、内容数倒序排列。 -->
         ORDER BY hot_score DESC, content_count DESC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
     </select>
 
+    <!-- 查询指定事件最近一个 ETL 批次：按开始时间倒序取一条。 -->
     <select id="latestBatch" resultType="map">
+        <!-- 选取批次表全部字段。 -->
         SELECT *
         FROM etl_batch
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按开始时间倒序排列。 -->
         ORDER BY started_at DESC
+        <!-- 只取最新一条。 -->
         LIMIT 1
     </select>
 
+    <!-- 查询指定事件噪声与重复记录汇总，按时间桶升序。 -->
     <select id="noiseSummary" resultType="map">
+        <!-- 选取噪声汇总表全部字段。 -->
         SELECT *
         FROM ads_noise_summary
+        <!-- 按事件标识筛选。 -->
         WHERE event_id = #{eventId}
+        <!-- 按时间桶升序排列。 -->
         ORDER BY time_bucket ASC
     </select>
 
+    <!-- 查询 ETL 批次列表：按开始时间倒序，限制条数。 -->
     <select id="batches" resultType="map">
+        <!-- 选取批次表全部字段。 -->
         SELECT *
         FROM etl_batch
+        <!-- 按开始时间倒序排列。 -->
         ORDER BY started_at DESC
+        <!-- 限制返回条数。 -->
         LIMIT #{limit}
     </select>
 
+    <!-- 按批次查询 ETL 任务日志，按开始时间升序。 -->
     <select id="taskLogs" resultType="map">
+        <!-- 选取任务日志表全部字段。 -->
         SELECT *
         FROM etl_task_log
+        <!-- 按批次标识筛选。 -->
         WHERE batch_id = #{batchId}
+        <!-- 按开始时间升序排列。 -->
         ORDER BY started_at ASC
     </select>
 
+    <!-- 统计事件总数。 -->
     <select id="eventCount" resultType="map">
+        <!-- 统计事件信息表记录数。 -->
         SELECT COUNT(*) event_count
         FROM event_info
     </select>

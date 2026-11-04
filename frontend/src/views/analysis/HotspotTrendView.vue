@@ -113,14 +113,12 @@ import ChartBox from '../../components/common/ChartBox.vue'
 import MetricGrid from '../../components/common/MetricGrid.vue'
 import { clearGetCache, getData, getErrorMessage } from '../../api/client'
 import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 // 为新闻平台定义固定颜色，使不同图表中的同一平台保持一致。
 const platformColors: Record<string, string> = {
   TENCENT_NEWS: '#2563eb', NETEASE_NEWS: '#172033', SOHU_NEWS: '#d97706', SINA_NEWS: '#7c3aed', THE_PAPER: '#0f766e'
 }
-// 保存统一分析事件编号，各分析页面使用同一份当前数据集。
-const eventId = ref(ANALYSIS_EVENT_ID)
 // 保存仪表盘完整响应，作为后续指标和图表的统一数据源。
 const data = ref<any>({})
 // 保存所选日期范围内的内容热榜，供各平台高热内容展示。
@@ -401,7 +399,7 @@ const categoryChartOption = computed(() => selectedPlatform.value === 'ALL' ? ca
 
 async function load() {
   // 先取得日统计并初始化有效日期范围，再请求该范围的内容热榜。
-  data.value = await getData(`/events/${eventId.value}/dashboard`)
+  data.value = await getData('/analysis/dashboard')
   setDefaultDateRange()
   await loadTrendContentRank()
 }
@@ -413,7 +411,7 @@ async function loadTrendContentRank() {
     return
   }
   trendContentRows.value = await getData(
-    `/events/${eventId.value}/trend-content-rank?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`,
+    `/analysis/trend-content-rank?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`,
     true
   )
 }

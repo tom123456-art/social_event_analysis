@@ -12,7 +12,7 @@ const exportsObject = {}
 vm.runInNewContext(ts.transpileModule(config, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { exports: exportsObject })
 
 test('dataset identity remains canonical and its label is valid Unicode', () => {
-  assert.equal(exportsObject.ANALYSIS_EVENT_ID, 'public_rss_latest')
+  assert.equal(exportsObject.ANALYSIS_EVENT_ID, undefined)
   assert.equal(exportsObject.ANALYSIS_EVENT_NAME, '网络媒体热点事件传播态势与舆情分析系统')
   assert.doesNotMatch(exportsObject.ANALYSIS_EVENT_NAME, /[?\uFFFD]/)
 })
@@ -25,20 +25,23 @@ for (const page of pages) {
     assert.deepEqual(compileTemplate({ source: descriptor.template.content, filename: `${page}.vue`, id: page }).errors, [])
     assert.doesNotMatch(descriptor.template.content, /<el-select[^>]*v-model=\x22eventId\x22/)
     assert.doesNotMatch(source, /events\.length|events\.value|\/events['\x22]|events\[0\]/)
-    assert.match(source, /const eventId = ref\(ANALYSIS_EVENT_ID\)/)
+    assert.doesNotMatch(source, /eventId|public_rss_latest|\/events\//)
     assert.match(source, /const currentEventName = ANALYSIS_EVENT_NAME/)
     if (page === 'analysis/OverviewView') assert.doesNotMatch(descriptor.template.content, /<el-tag class=\x22single-event-tag\x22/)
     else assert.match(descriptor.template.content, /<el-tag class=\x22single-event-tag\x22/)
   })
 }
 
-test('event API excludes legacy imports and normalizes the canonical label', () => {
+test('已移除的事件列表接口不保留底层查询，分析接口由后端选择固定数据集', () => {
   const root = path.join(__dirname, '../..')
   const mapper = readFileSync(path.join(root, 'server/backend/src/main/resources/mapper/AnalyticsMapper.xml'), 'utf8')
-  const query = mapper.match(/<select id=\x22events\x22[\s\S]*?<\/select>/)[0]
-  assert.match(query, /WHERE event_id = 'public_rss_latest' AND status = 'ACTIVE'/)
-  const service = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/service/analysis/AnalyticsServiceImpl.java'), 'utf8')
-  const method = service.slice(service.indexOf('public List<Map<String, Object>> events()'), service.indexOf('public Map<String, Object> dashboard('))
-  assert.match(method, /CANONICAL_EVENT_ID\.equals\(row\.get\(\x22event_id\x22\)\)/)
-  assert.match(method, /event\.put\(\x22event_name\x22,/)
+  assert.doesNotMatch(mapper, /<select\s+id="events"/)
+  for (const file of ['mapper/AnalyticsMapper.java', 'service/analysis/AnalyticsService.java', 'service/analysis/AnalyticsServiceImpl.java']) {
+    const source = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot', file), 'utf8')
+    assert.doesNotMatch(source, /\bevents\s*\(/)
+  }
+  const controller = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/controller/AnalyticsController.java'), 'utf8')
+  assert.doesNotMatch(controller, /@GetMapping\("\/events/)
+  assert.doesNotMatch(controller, /@(?:PathVariable|RequestParam)\([^)]*eventId/)
+  assert.match(controller, /service\.dashboard\(EVENT_ID\)/)
 })

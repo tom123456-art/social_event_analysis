@@ -10,11 +10,10 @@ import ContentListView from '../views/analysis/ContentListView.vue'
 import AdminHomeView from '../views/admin/AdminHomeView.vue'
 import DataManagementView from '../views/admin/DataManagementView.vue'
 import EtlTaskView from '../views/admin/EtlTaskView.vue'
-import UserManagementView from '../views/admin/UserManagementView.vue'
 import ProfileView from '../views/user/ProfileView.vue'
 import ScreenView from '../views/screen/ScreenView.vue'
 
-// meta 中的分组用于选择布局，标题用于导航展示，认证与角色标记用于路由守卫。
+// 分组用于选择布局，标题用于导航展示，所有非公开路由要求登录。
 // 创建使用浏览器 History API 的路由实例。
 const router = createRouter({
   // 页面 URL 不使用哈希片段；定义分析页、管理页和兼容跳转规则。
@@ -38,22 +37,21 @@ const router = createRouter({
     { path: '/sentiment', component: SentimentAnalysisView, meta: { title: '情感分析', group: 'front' } },
     // 内容页提供分析明细查询入口。
     { path: '/contents', component: ContentListView, meta: { title: '内容明细', group: 'front' } },
-    // 管理首页只允许管理员访问。
-    { path: '/admin', component: AdminHomeView, meta: { title: '后台首页', group: 'admin', requiresAuth: true, requiresAdmin: true } },
-    // 数据管理页只允许管理员维护原始数据和审核队列。
-    { path: '/admin/data', component: DataManagementView, meta: { title: '数据管理', group: 'admin', requiresAuth: true, requiresAdmin: true } },
-    // ETL 任务页只允许管理员提交和查看处理任务。
-    { path: '/admin/etl', component: EtlTaskView, meta: { title: 'ETL任务', group: 'admin', requiresAuth: true, requiresAdmin: true } },
-    // 用户管理页只允许管理员维护账号。
-    { path: '/admin/users', component: UserManagementView, meta: { title: '用户管理', group: 'admin', requiresAuth: true, requiresAdmin: true } },
+    // 后台各页面与分析页面使用相同的登录认证。
+    { path: '/admin', component: AdminHomeView, meta: { title: '后台首页', group: 'admin' } },
+    // 数据管理页维护原始数据和审核队列。
+    { path: '/admin/data', component: DataManagementView, meta: { title: '数据管理', group: 'admin' } },
+    // ETL 任务页提交和查看处理任务。
+    { path: '/admin/etl', component: EtlTaskView, meta: { title: 'ETL任务', group: 'admin' } },
     // 个人资料页允许所有已登录用户进入。
-    { path: '/admin/profile', component: ProfileView, meta: { title: '个人信息', group: 'admin', requiresAuth: true } },
+    { path: '/admin/profile', component: ProfileView, meta: { title: '账号设置', group: 'admin' } },
     // 数据大屏使用独立的 screen 页面分组。
-    { path: '/screen', component: ScreenView, meta: { title: '数据大屏', group: 'screen' } }
+    { path: '/screen', component: ScreenView, meta: { title: '数据大屏', group: 'screen' } },
+    { path: '/:pathMatch(.*)*', redirect: '/overview' }
   ]
 })
 
-// 在每次导航前检查本地会话及管理页面角色。
+// 每次导航检查最新的本地登录状态。
 router.beforeEach((to) => {
   // 公开页面无需认证。
   if (to.meta.public) return true
@@ -63,13 +61,7 @@ router.beforeEach((to) => {
   if (!session.token) {
     return `/login?redirect=${encodeURIComponent(to.fullPath)}`
   }
-  // 读取本地角色，仅用于界面路由控制，接口权限仍由后端校验。
-  const isAdmin = session.role === 'admin'
-  // 普通用户访问管理员页面时转到本人资料页。
-  if (to.meta.requiresAdmin && !isAdmin) {
-    return '/admin/profile'
-  }
-  // 已登录且角色满足目标页面要求时放行导航。
+  // 已登录时放行，令牌的有效性由后端验证。
   return true
 })
 

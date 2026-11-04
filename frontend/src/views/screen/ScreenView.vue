@@ -546,7 +546,7 @@ const speedOption = computed(() => {
 // 比较批次、总量、榜首及平台指标签名，仅在摘要变化时替换快照，减少重复渲染。
 async function load() {
   // 请求快照后，用批次、总量、榜首和平台统计拼接轻量比较签名。
-  const dashboard = await getData('/events/public_rss_latest/dashboard').catch(() => ({}))
+  const dashboard = await getData('/analysis/dashboard').catch(() => ({}))
   const platformSignature = (dashboard.platformTimeline || []).map((item: any) => `${item.platform}:${item.content_count}:${item.hot_score}`).join(',')
   const nextSignature = [dashboard.latestBatch?.batch_id, dashboard.overview?.content_count, dashboard.overview?.hot_score, dashboard.contentRank?.[0]?.content_id, platformSignature].join('|')
   // 摘要相同则保留原响应式对象，避免相同数据引起图表重绘。

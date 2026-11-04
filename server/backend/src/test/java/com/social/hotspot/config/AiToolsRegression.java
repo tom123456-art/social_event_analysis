@@ -11,7 +11,8 @@ public class AiToolsRegression {
     static void reject(Runnable action) { try { action.run(); throw new AssertionError("Expected rejection"); } catch (BusinessException expected) { } }
     public static void main(String[] args) {
         ObjectMapper json = new ObjectMapper();
-        AiQueryTools query = new AiQueryTools(null, "", "", "");
+        // 显式使用受禁止的查询账号，避免本机配置意外启用测试中的真实数据库连接。
+        AiQueryTools query = new AiQueryTools(null, "", "root", "");
         var schema = query.schema();
         check(AiSqlPolicy.validate("SELECT platform, COUNT(*) AS total FROM ads_content_hot_rank GROUP BY platform ORDER BY total DESC", schema).endsWith("LIMIT 100"), "automatic row limit");
         check(AiSqlPolicy.validate("SELECT title FROM ads_content_hot_rank WHERE platform='WEIBO' AND publish_time >= '2026-01-01' LIMIT 5", schema).endsWith("LIMIT 5"), "safe filtered query");

@@ -1,4 +1,4 @@
--- Current MySQL schema for new installations; not an upgrade script for legacy databases.
+-- 当前数据库结构用于全新安装，不用于直接升级历史数据库。
 CREATE DATABASE IF NOT EXISTS social_hotspot_analytics
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_0900_ai_ci;
@@ -173,11 +173,13 @@ CREATE TABLE IF NOT EXISTS app_user (
   nickname VARCHAR(100) NOT NULL,
   phone VARCHAR(32),
   email VARCHAR(120),
-  role VARCHAR(32) DEFAULT 'USER',
+  account_slot TINYINT NOT NULL DEFAULT 1,
   status VARCHAR(32) DEFAULT 'ENABLED',
   bio VARCHAR(300),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_single_account (account_slot),
+  CONSTRAINT chk_single_account CHECK (account_slot = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS app_user_credential (
@@ -261,6 +263,5 @@ CREATE TABLE IF NOT EXISTS user_submission (
   KEY idx_submission_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO app_user(id, username, nickname, phone, email, role, status, bio) VALUES
-  (1, 'admin', '系统管理员', '13800000000', 'admin@example.com', 'ADMIN', 'ENABLED', '负责后台数据、ETL和用户管理'),
-  (2, 'student', '演示用户', '13900000000', 'student@example.com', 'USER', 'ENABLED', '前台普通用户，用于产生互动数据');
+INSERT IGNORE INTO app_user(id, username, nickname, phone, email, status, bio) VALUES
+  (1, 'admin', '系统账号', '13800000000', 'admin@example.com', 'ENABLED', '负责数据分析、ETL和审核');

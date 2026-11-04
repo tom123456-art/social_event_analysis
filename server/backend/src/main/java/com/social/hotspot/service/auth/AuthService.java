@@ -6,7 +6,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -31,60 +30,35 @@ public class AuthService {
     private final SecureRandom random = new SecureRandom();
     private final String dummyHash = passwords.encode("unavailable-account-placeholder");
     private final String bootstrapAdmin;
-    private final String bootstrapStudent;
 
     public AuthService(JdbcTemplate jdbc, TransactionTemplate transactions,
-            @Value("${AUTH_BOOTSTRAP_ADMIN_PASSWORD:123456}") String bootstrapAdmin,
-            @Value("${AUTH_BOOTSTRAP_STUDENT_PASSWORD:123456}") String bootstrapStudent) {
+            @Value("${AUTH_BOOTSTRAP_ADMIN_PASSWORD:123456}") String bootstrapAdmin) {
         this.jdbc = jdbc; this.transactions = transactions;
-        this.bootstrapAdmin = bootstrapAdmin; this.bootstrapStudent = bootstrapStudent;
+        this.bootstrapAdmin = bootstrapAdmin;
     }
 
     @PostConstruct
+    /** 仅为预先配置的唯一账号初始化缺失的密码凭据。 */
     public void initialize() {
         new ResourceDatabasePopulator(new ClassPathResource("db/auth-schema.sql")).execute(jdbc.getDataSource());
-        seedLegacy("admin", "ADMIN", bootstrapAdmin);
-        seedLegacy("student", "USER", bootstrapStudent);
+        seedAccount();
     }
 
-    private void seedLegacy(String username, String role, String password) {
-        if (password.isEmpty()) return;
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT u.id FROM app_user u LEFT JOIN app_user_credential c ON c.user_id=u.id WHERE u.username=? AND u.role=? AND c.user_id IS NULL", username, role);
+    private void seedAccount() {
+        if (bootstrapAdmin.isEmpty()) return;
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT u.id FROM app_user u LEFT JOIN app_user_credential c ON c.user_id=u.id WHERE u.account_slot=1 AND c.user_id IS NULL");
         for (Map<String, Object> row : rows) {
-            jdbc.update("INSERT IGNORE INTO app_user_credential(user_id,password_hash) VALUES (?,?)", row.get("id"), passwords.encode(password));
+            jdbc.update("INSERT IGNORE INTO app_user_credential(user_id,password_hash) VALUES (?,?)", row.get("id"), passwords.encode(bootstrapAdmin));
         }
     }
 
-    public Map<String, Object> register(Map<String, Object> item) {
-        String username = username(item.get("username"));
-        String password = newPassword(item.get("password"));
-        if (!password.equals(text(item.get("confirmPassword")))) throw new BusinessException("两次输入的密码不一致。");
-        String nickname = profileText(item.get("nickname"), "昵称", 100);
-        if (nickname == null) throw new BusinessException("请填写昵称。");
-        String phone = profileText(item.get("phone"), "手机号", 32);
-        String email = profileText(item.get("email"), "邮箱", 120);
-        String bio = profileText(item.get("bio"), "个人简介", 300);
-        if (phone != null && !phone.matches("\\+?[0-9][0-9 ()-]{5,31}")) throw new BusinessException("手机号格式不正确。");
-        if (email != null && !email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) throw new BusinessException("邮箱格式不正确。");
-        String hash = passwords.encode(password);
-        try {
-            return transactions.execute(status -> {
-                jdbc.update("INSERT INTO app_user(username,nickname,phone,email,bio,role,status) VALUES (?,?,?,?,?,'USER','ENABLED')", username, nickname, phone, email, bio);
-                Map<String, Object> user = jdbc.queryForMap("SELECT id,username,nickname,role,status FROM app_user WHERE username=?", username);
-                jdbc.update("INSERT INTO app_user_credential(user_id,password_hash) VALUES (?,?)", user.get("id"), hash);
-                return publicUser(user);
-            });
-        } catch (DuplicateKeyException ex) {
-            throw new BusinessException("该账号已存在，请更换账号或直接登录。");
-        }
-    }
-
+    /** 用户登录：校验用户名与密码，生成会话令牌并返回用户信息。 */
     public Map<String, Object> login(Map<String, Object> item) {
         String username = text(item.get("username")).trim();
         String password = text(item.get("password"));
         if (username.isEmpty() || username.length() > 64 || password.isEmpty() || password.getBytes(StandardCharsets.UTF_8).length > 72)
             throw new AuthException(401, "账号或密码不正确。");
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT u.id,u.username,u.nickname,u.role,u.status,c.password_hash FROM app_user u JOIN app_user_credential c ON c.user_id=u.id WHERE u.username=?", username);
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT u.id,u.username,u.nickname,u.status,c.password_hash FROM app_user u JOIN app_user_credential c ON c.user_id=u.id WHERE u.username=? AND u.account_slot=1", username);
         Map<String, Object> user = rows.isEmpty() ? Map.of() : rows.getFirst();
         boolean valid = passwords.matches(password, text(user.getOrDefault("password_hash", dummyHash)));
         if (!valid || user.isEmpty()) throw new AuthException(401, "账号或密码不正确。");
@@ -92,7 +66,7 @@ public class AuthService {
         byte[] bytes = new byte[32]; random.nextBytes(bytes);
         String token = HexFormat.of().formatHex(bytes);
         return transactions.execute(status -> {
-            // Serialize session creation with password changes for this user.
+            // 会话创建与密码修改串行执行，避免改密后仍创建旧凭据会话。
             Map<String, Object> locked = jdbc.queryForMap("SELECT password_hash FROM app_user_credential WHERE user_id=? FOR UPDATE", user.get("id"));
             if (!hashEquals(text(user.get("password_hash")), text(locked.get("password_hash")))) throw new AuthException(401, "账号密码已更新，请重新登录。");
             jdbc.update("DELETE FROM app_user_session WHERE expires_at <= CURRENT_TIMESTAMP");
@@ -103,20 +77,23 @@ public class AuthService {
         });
     }
 
+    /** 校验会话令牌，返回当前用户信息，令牌无效时抛出认证异常。 */
     public Map<String, Object> authenticate(String authorization) {
         if (authorization == null || !authorization.matches("Bearer [0-9a-f]{64}")) throw new AuthException(401, "请先登录系统。");
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT u.id,u.username,u.nickname,u.role,u.status FROM app_user_session s JOIN app_user u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>CURRENT_TIMESTAMP", digest(authorization.substring(7)));
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT u.id,u.username,u.nickname,u.status FROM app_user_session s JOIN app_user u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>CURRENT_TIMESTAMP AND u.account_slot=1", digest(authorization.substring(7)));
         if (rows.isEmpty()) throw new AuthException(401, "登录已失效，请重新登录。");
         Map<String, Object> user = rows.getFirst();
         if (!"ENABLED".equals(user.get("status"))) throw new AuthException(403, "该账号已被禁用，请联系管理员。");
         return publicUser(user);
     }
 
+    /** 注销会话：从会话表移除指定令牌。 */
     public void logout(String authorization) {
         if (authorization != null && authorization.matches("Bearer [0-9a-f]{64}"))
             jdbc.update("DELETE FROM app_user_session WHERE token_hash=?", digest(authorization.substring(7)));
     }
 
+    /** 修改密码：校验旧密码后更新为新密码。 */
     public void changePassword(long userId, Map<String, Object> item) {
         String next = newPassword(item.get("password"));
         if (!next.equals(text(item.get("confirmPassword")))) throw new BusinessException("两次输入的密码不一致。");
@@ -131,24 +108,7 @@ public class AuthService {
         });
     }
 
-    public void setInitialPassword(long userId, String password) {
-        jdbc.update("INSERT INTO app_user_credential(user_id,password_hash) VALUES (?,?)", userId, passwords.encode(newPassword(password)));
-    }
-
-    public void resetPassword(long userId, String password) {
-        String encoded = passwords.encode(newPassword(password));
-        transactions.executeWithoutResult(status -> {
-            jdbc.update("INSERT INTO app_user_credential(user_id,password_hash) VALUES (?,?) ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash)", userId, encoded);
-            jdbc.update("DELETE FROM app_user_session WHERE user_id=?", userId);
-        });
-    }
-
-    public static String username(Object value) {
-        String username = text(value).trim();
-        if (!username.matches("[A-Za-z0-9_]{3,32}")) throw new BusinessException("账号须为三至三十二位字母、数字或下划线。");
-        return username;
-    }
-
+    /** 校验新密码强度并返回哈希后的密码，不符合要求时抛出异常。 */
     public static String newPassword(Object value) {
         String password = text(value);
         if (password.length() < 8 || password.length() > 64 || password.getBytes(StandardCharsets.UTF_8).length > 72 || password.isBlank())
@@ -156,30 +116,29 @@ public class AuthService {
         return password;
     }
 
+    /** 返回不含敏感字段的对外用户视图。 */
     public static Map<String, Object> publicUser(Map<String, Object> user) {
         Map<String, Object> result = new LinkedHashMap<>();
         for (String key : List.of("id", "username", "nickname", "status")) result.put(key, user.get(key));
-        result.put("role", "ADMIN".equalsIgnoreCase(text(user.get("role"))) ? "admin" : "user");
         return result;
     }
 
     @SuppressWarnings("unchecked")
+    /** 从请求属性中取出当前登录用户，未登录抛出认证异常。 */
     public static Map<String, Object> current(HttpServletRequest request) {
         Object value = request.getAttribute(PRINCIPAL);
         if (!(value instanceof Map)) throw new AuthException(401, "请先登录系统。");
         return (Map<String, Object>) value;
     }
 
+    /** 对令牌做 SHA-256 摘要，返回十六进制字符串。 */
     public static String digest(String token) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8))); }
         catch (NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }
     }
 
+    /** 常量时间比较两个哈希字符串，避免时序攻击。 */
     private static boolean hashEquals(String a, String b) { return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8)); }
-    private static String profileText(Object value, String label, int limit) {
-        String content = text(value).trim();
-        if (content.codePointCount(0, content.length()) > limit) throw new BusinessException(label + "最多允许" + limit + "个字符。");
-        return content.isEmpty() ? null : content;
-    }
+    /** 将任意值转为字符串，空值返回空字符串。 */
     private static String text(Object value) { return value == null ? "" : String.valueOf(value); }
 }

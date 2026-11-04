@@ -11,9 +11,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 // 定义跨域配置类。
 public class WebConfig implements WebMvcConfigurer {
     private final AuthInterceptor auth;
+    /** 构造 Web 配置，注入认证拦截器。 */
     public WebConfig(AuthInterceptor auth) { this.auth = auth; }
     @Override public void addInterceptors(org.springframework.web.servlet.config.annotation.InterceptorRegistry registry) {
-        registry.addInterceptor(auth).addPathPatterns("/api/ai/**", "/api/events", "/api/events/**", "/api/admin/**", "/api/etl/**", "/api/front/**", "/api/auth/me", "/api/auth/logout", "/api/auth/password");
+        registry.addInterceptor(auth).addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login");
     }
     @Override
     // 配置 /api 下的跨域访问规则。

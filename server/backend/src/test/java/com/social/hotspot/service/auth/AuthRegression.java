@@ -7,8 +7,6 @@ import com.social.hotspot.controller.UserProfileCommunityController;
 import com.social.hotspot.exception.AuthException;
 import com.social.hotspot.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -21,88 +19,77 @@ import java.util.*;
 public class AuthRegression {
     public static void main(String[] args) {
         Store store = new Store();
-        AuthService auth = new AuthService(store, new Transactions(store), "", "");
-        Map<String, Object> registration = new LinkedHashMap<>(Map.of("username", "reader", "nickname", "读者", "phone", "13800138000", "email", "reader@example.com", "bio", "新闻分析", "password", "example-pass-123", "confirmPassword", "example-pass-123", "role", "ADMIN", "status", "DISABLED"));
-        Map<String, Object> registered = auth.register(registration);
-        check("user".equals(registered.get("role")), "public registration cannot create admin");
-        check(!registered.containsKey("password_hash") && !registered.containsKey("password"), "response must not expose password");
-        long id = ((Number) registered.get("id")).longValue();
-        check("读者".equals(registered.get("nickname")) && "ENABLED".equals(registered.get("status")), "registration keeps nickname and forces enabled status");
-        check("13800138000".equals(store.users.get(id).get("phone")) && "reader@example.com".equals(store.users.get(id).get("email")) && "新闻分析".equals(store.users.get(id).get("bio")), "profile fields must be stored");
-        String stored = store.passwords.get(id);
-        check(stored.startsWith("$2a$") && new BCryptPasswordEncoder().matches("example-pass-123", stored), "bcrypt hash must verify");
-        reject(BusinessException.class, () -> auth.register(registration));
-        auth.register(Map.of("username", "reader2", "nickname", "第二位读者", "password", "example-pass-123", "confirmPassword", "example-pass-123"));
-        check(store.users.get(2L).get("phone") == null && store.users.get(2L).get("email") == null && store.users.get(2L).get("bio") == null, "optional empty profile fields remain null");
-        Map<String, Object> invalid = new LinkedHashMap<>(registration); invalid.put("username", "invalid");
-        for (String field : List.of("nickname", "phone", "email", "bio")) {
-            Object original = invalid.get(field);
-            invalid.put(field, switch (field) { case "nickname" -> " "; case "phone" -> "abc"; case "email" -> "bad-email"; default -> "x".repeat(301); });
-            reject(BusinessException.class, () -> auth.register(invalid)); invalid.put(field, original);
-        }
-        check(!store.passwords.get(2L).equals(stored), "same passwords need independent salts");
-        reject(BusinessException.class, () -> auth.register(Map.of("username", "bad name", "password", "example-pass-123", "confirmPassword", "example-pass-123")));
-        reject(BusinessException.class, () -> auth.register(Map.of("username", "other", "password", "short", "confirmPassword", "short")));
-        reject(BusinessException.class, () -> AuthService.newPassword("中".repeat(30)));
-        reject(BusinessException.class, () -> auth.register(Map.of("username", "other", "password", "example-pass-123", "confirmPassword", "mismatch")));
-        store.failCredential = true;
-        reject(DataAccessResourceFailureException.class, () -> auth.register(Map.of("username", "rollback", "nickname", "回滚", "password", "example-pass-123", "confirmPassword", "example-pass-123")));
-        check(store.users.values().stream().noneMatch(row -> "rollback".equals(row.get("username"))), "failed credential creation must roll back user insertion");
-        store.failCredential = false;
-        reject(AuthException.class, () -> auth.login(Map.of("username", "reader", "password", "incorrect")));
-        reject(AuthException.class, () -> auth.login(Map.of("username", "missing", "password", "example-pass-123")));
-        Map<String, Object> logged = auth.login(Map.of("username", "reader", "password", "example-pass-123"));
+        store.users.put(1L, new LinkedHashMap<>(Map.of("id", 1L, "username", "admin", "nickname", "Account", "status", "ENABLED")));
+        store.passwords.put(1L, new BCryptPasswordEncoder().encode("example-pass-123"));
+        AuthService auth = new AuthService(store, new Transactions(store), "");
+        reject(AuthException.class, () -> auth.login(Map.of("username", "admin", "password", "incorrect")));
+        reject(AuthException.class, () -> auth.login(Map.of("username", "student", "password", "example-pass-123")));
+        Map<String, Object> logged = auth.login(Map.of("username", "admin", "password", "example-pass-123"));
+        check(!logged.containsKey("role") && !logged.containsKey("password_hash"), "login exposes neither roles nor credentials");
         String token = (String) logged.get("token"), header = "Bearer " + token;
-        check(token.matches("[0-9a-f]{64}") && !store.sessions.containsKey(token), "session must store only token digest");
-        check("reader".equals(auth.authenticate(header).get("username")), "session authenticates registered account");
+        check(token.matches("[0-9a-f]{64}") && !store.sessions.containsKey(token), "only token digest is stored");
+        check("admin".equals(auth.authenticate(header).get("username")), "account authenticates");
         reject(AuthException.class, () -> auth.authenticate("Bearer local-demo-token"));
         AuthInterceptor interceptor = new AuthInterceptor(auth);
-        reject(AuthException.class, () -> interceptor.preHandle(request("/api/events", null), null, null));
-        reject(AuthException.class, () -> interceptor.preHandle(request("/api/events/example/dashboard", null), null, null));
-        check(interceptor.preHandle(request("/api/events/example/dashboard", header), null, null), "ordinary authenticated users can view event analysis");
-        HttpServletRequest front = request("/api/front/profile", header);
-        check(interceptor.preHandle(front, null, null), "authenticated user can read own profile");
-        reject(AuthException.class, () -> interceptor.preHandle(request("/api/admin/reviews", header), null, null));
-        reject(AuthException.class, () -> interceptor.preHandle(request("/api/etl/run", header), null, null));
-        // 个人资料服务已是具体类，使用隔离替身验证控制器取认证主体，不连接数据库。
+        for (String path : List.of("/api/analysis/dashboard", "/api/admin/reviews", "/api/etl/run", "/api/front/profile")) {
+            reject(AuthException.class, () -> interceptor.preHandle(request(path, null), null, null));
+            check(interceptor.preHandle(request(path, header), null, null), "authenticated account can access " + path);
+        }
         UserProfileService profile = new UserProfileService(null) {
-            @Override public Map<String, Object> profile(String username) {
+            @Override public Map<String, Object> profile(String username) { return Map.of("username", username); }
+            @Override public Map<String, Object> updateProfile(String username, Map<String, Object> fields) {
+                check(fields.keySet().equals(Set.of("nickname", "phone", "email", "bio")), "profile uses an explicit field whitelist");
                 return Map.of("username", username);
             }
         };
+        HttpServletRequest front = request("/api/front/profile?username=student", header);
+        interceptor.preHandle(front, null, null);
         UserProfileCommunityController controller = new UserProfileCommunityController(profile, null);
-        check("reader".equals(controller.profile(front).data().get("username")), "profile must use authenticated principal");
-        reject(AuthException.class, () -> controller.updateProfile("admin", Map.of(), front));
-        store.users.get(id).put("status", "DISABLED");
+        check("admin".equals(controller.profile(front).data().get("username")), "query cannot select another account");
+        var update = new com.social.hotspot.controller.ProfileUpdateRequest("Name", "", "", "");
+        check("admin".equals(controller.updateProfile(update, front).data().get("username")), "update uses principal");
+        var authors = new ArrayList<String>();
+        var reviewStore = new com.social.hotspot.service.review.DataQualityReviewStore(null, null, null) {
+            @Override public void decide(long reviewId, Map<String, Object> body) { authors.add(String.valueOf(body.get("reviewer"))); }
+            @Override public void archive(long reviewId, String actor) { authors.add(actor); }
+        };
+        var reviews = new com.social.hotspot.controller.DataQualityReviewController(reviewStore, null);
+        reviews.decide(1L, Map.of("reviewer", "forged"), front);
+        reviews.archive(1L, front);
+        check(authors.equals(List.of("admin", "admin")), "review and archive authors cannot be forged");
+        store.users.get(1L).put("status", "DISABLED");
         reject(AuthException.class, () -> auth.authenticate(header));
-        reject(AuthException.class, () -> auth.login(Map.of("username", "reader", "password", "example-pass-123")));
-        store.users.get(id).put("status", "ENABLED");
-        store.users.get(id).put("role", "ADMIN");
-        check(interceptor.preHandle(request("/api/admin/reviews", header), null, null), "admin role is resolved from database, not username");
-        store.users.get(id).put("role", "USER");
-        reject(BusinessException.class, () -> auth.changePassword(id, Map.of("oldPassword", "wrong", "password", "new-password-123", "confirmPassword", "new-password-123")));
-        check(store.sessions.containsKey(AuthService.digest(token)), "failed password change must retain sessions");
-        auth.changePassword(id, Map.of("oldPassword", "example-pass-123", "password", "new-password-123", "confirmPassword", "new-password-123"));
+        reject(AuthException.class, () -> auth.login(Map.of("username", "admin", "password", "example-pass-123")));
+        store.users.get(1L).put("status", "ENABLED");
+        reject(BusinessException.class, () -> AuthService.newPassword("short"));
+        reject(BusinessException.class, () -> AuthService.newPassword("中".repeat(30)));
+        reject(BusinessException.class, () -> auth.changePassword(1L, Map.of("oldPassword", "wrong", "password", "new-password-123", "confirmPassword", "new-password-123")));
+        check(store.sessions.containsKey(AuthService.digest(token)), "failed password change retains sessions");
+        auth.changePassword(1L, Map.of("oldPassword", "example-pass-123", "password", "new-password-123", "confirmPassword", "new-password-123"));
         reject(AuthException.class, () -> auth.authenticate(header));
-        reject(AuthException.class, () -> auth.login(Map.of("username", "reader", "password", "example-pass-123")));
-        String next = (String) auth.login(Map.of("username", "reader", "password", "new-password-123")).get("token");
+        reject(AuthException.class, () -> auth.login(Map.of("username", "admin", "password", "example-pass-123")));
+        String next = (String) auth.login(Map.of("username", "admin", "password", "new-password-123")).get("token");
         store.expired.add(AuthService.digest(next));
         reject(AuthException.class, () -> auth.authenticate("Bearer " + next));
-        String finalToken = (String) auth.login(Map.of("username", "reader", "password", "new-password-123")).get("token");
-        auth.logout("Bearer " + finalToken);
-        reject(AuthException.class, () -> auth.authenticate("Bearer " + finalToken));
-        String resetToken = (String) auth.login(Map.of("username", "reader", "password", "new-password-123")).get("token");
-        auth.resetPassword(id, "admin-reset-123");
-        reject(AuthException.class, () -> auth.authenticate("Bearer " + resetToken));
-        reject(AuthException.class, () -> auth.login(Map.of("username", "reader", "password", "new-password-123")));
-        check(auth.login(Map.of("username", "reader", "password", "admin-reset-123")).containsKey("token"), "admin reset enables new password");
-        store.passwords.remove(2L);
-        auth.resetPassword(2L, "legacy-reset-123");
-        check(auth.login(Map.of("username", "reader2", "password", "legacy-reset-123")).containsKey("token"), "admin reset enables legacy user without credentials");
+        String last = (String) auth.login(Map.of("username", "admin", "password", "new-password-123")).get("token");
+        auth.logout("Bearer " + last);
+        reject(AuthException.class, () -> auth.authenticate("Bearer " + last));
         AuthController routes = new AuthController(auth);
-        for (int i = 0; i < 20; i++) reject(BusinessException.class, () -> routes.register(Map.of(), front));
-        reject(AuthException.class, () -> routes.register(Map.of(), front));
-        System.out.println("PASS: registration, BCrypt salts, transactional rollback, login/session expiry/logout/password change, DB roles, disabled users, ownership and request throttling (isolated JDBC double).");
+        for (int i = 0; i < 20; i++) reject(AuthException.class, () -> routes.login(Map.of(), front));
+        reject(AuthException.class, () -> routes.login(Map.of(), front));
+        check(Arrays.stream(AuthController.class.getDeclaredMethods()).noneMatch(m -> m.getName().equals("register")), "registration is removed");
+        var captured = new ArrayList<String>();
+        var analytics = (com.social.hotspot.service.analysis.AnalyticsService) Proxy.newProxyInstance(AuthRegression.class.getClassLoader(), new Class[]{com.social.hotspot.service.analysis.AnalyticsService.class}, (proxy, method, values) -> {
+            captured.add(String.valueOf(values[0]));
+            return method.getReturnType() == List.class ? List.of() : Map.of();
+        });
+        var analysis = new com.social.hotspot.controller.AnalyticsController(analytics);
+        analysis.dashboard(); analysis.keywordAnalysis(); analysis.sentimentAnalysis();
+        analysis.contentPage(null, null, null, null, 1, 5);
+        analysis.propagationEvidence("TENCENT_NEWS", null, null, 1);
+        analysis.trendContentRankByRange("2026-09-01", "2026-09-30");
+        check(captured.size() == 6 && captured.stream().allMatch(com.social.hotspot.config.AnalysisDataset.EVENT_ID::equals), "all analysis endpoints select the server dataset");
+        System.out.println("PASS: single-account authentication, no roles/registration, profile ownership, analysis dataset, password/session lifecycle and throttling.");
     }
 
     static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
@@ -130,17 +117,9 @@ public class AuthRegression {
         Map<Long, String> passwords = new HashMap<>();
         Map<String, Long> sessions = new HashMap<>();
         Set<String> expired = new HashSet<>();
-        long next = 1; boolean failCredential;
         @Override public int update(String sql) { return update(sql, new Object[0]); }
         @Override public int update(String sql, Object... args) {
-            if (sql.startsWith("INSERT INTO app_user(")) {
-                if (users.values().stream().anyMatch(user -> user.get("username").toString().equalsIgnoreCase(args[0].toString()))) throw new DuplicateKeyException("username");
-                users.put(next, new LinkedHashMap<>(Map.of("id", next, "username", args[0], "nickname", args[1], "role", "USER", "status", "ENABLED"))); next++;
-                users.get(next - 1).put("phone", args[2]); users.get(next - 1).put("email", args[3]); users.get(next - 1).put("bio", args[4]);
-            } else if (sql.startsWith("INSERT INTO app_user_credential")) {
-                if (failCredential) throw new DataAccessResourceFailureException("test credential write failed");
-                passwords.put(((Number) args[0]).longValue(), (String) args[1]);
-            } else if (sql.startsWith("INSERT INTO app_user_session")) sessions.put((String) args[0], ((Number) args[1]).longValue());
+            if (sql.startsWith("INSERT INTO app_user_session")) sessions.put((String) args[0], ((Number) args[1]).longValue());
             else if (sql.startsWith("UPDATE app_user_credential")) passwords.put(((Number) args[1]).longValue(), (String) args[0]);
             else if (sql.contains("WHERE token_hash=?")) sessions.remove(args[0]);
             else if (sql.contains("WHERE user_id=?")) sessions.entrySet().removeIf(entry -> entry.getValue().equals(((Number) args[0]).longValue()));
@@ -173,9 +152,9 @@ public class AuthRegression {
             Map<Long, Map<String, Object>> users = new LinkedHashMap<>(); store.users.forEach((id, user) -> users.put(id, new LinkedHashMap<>(user)));
             Map<Long, String> passwords = new HashMap<>(store.passwords);
             Map<String, Long> sessions = new HashMap<>(store.sessions);
-            Set<String> expired = new HashSet<>(store.expired); long next = store.next;
+            Set<String> expired = new HashSet<>(store.expired);
             try { return action.doInTransaction(new SimpleTransactionStatus()); }
-            catch (RuntimeException | Error ex) { store.users = users; store.passwords = passwords; store.sessions = sessions; store.expired = expired; store.next = next; throw ex; }
+            catch (RuntimeException | Error ex) { store.users = users; store.passwords = passwords; store.sessions = sessions; store.expired = expired; throw ex; }
         }
     }
 }

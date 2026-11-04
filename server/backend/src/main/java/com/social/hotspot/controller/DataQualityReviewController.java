@@ -5,6 +5,9 @@ import com.social.hotspot.service.review.DataQualityReviewStore;
 import com.social.hotspot.service.review.ReviewApplicationService;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
+import java.util.LinkedHashMap;
+import jakarta.servlet.http.HttpServletRequest;
+import com.social.hotspot.service.auth.AuthService;
 
 @RestController
 @RequestMapping("/api/admin/reviews")
@@ -25,12 +28,16 @@ public class DataQualityReviewController {
     // 读取指定记录的原始内容、修正内容和审核状态。
     @GetMapping("/{id}") public ApiResponse<Map<String, Object>> detail(@PathVariable("id") long id) { return ApiResponse.ok(store.detail(id)); }
     // 保存修正字段、人工情感和审核决定。
-    @PutMapping("/{id}") public ApiResponse<Boolean> decide(@PathVariable("id") long id, @RequestBody Map<String, Object> body) {
+    @PutMapping("/{id}") public ApiResponse<Boolean> decide(@PathVariable("id") long id, @RequestBody Map<String, Object> body, HttpServletRequest request) {
         // 将审核请求交给存储服务校验并持久化。
-        store.decide(id, body); return ApiResponse.ok(true);
+        Map<String, Object> decision = new LinkedHashMap<>(body);
+        decision.put("reviewer", AuthService.current(request).get("username"));
+        store.decide(id, decision); return ApiResponse.ok(true);
     }
     // 归档审核记录，不物理删除其审计信息。
-    @DeleteMapping("/{id}") public ApiResponse<Boolean> archive(@PathVariable("id") long id) { store.archive(id, "admin"); return ApiResponse.ok(true); }
+    @DeleteMapping("/{id}") public ApiResponse<Boolean> archive(@PathVariable("id") long id, HttpServletRequest request) {
+        store.archive(id, String.valueOf(AuthService.current(request).get("username"))); return ApiResponse.ok(true);
+    }
     // 提交应用审核结果的后台重建任务。
     @PostMapping("/apply") public ApiResponse<Map<String, Object>> apply() { return ApiResponse.ok(application.submit()); }
     // 查询最近一次审核应用任务，供前端轮询进度。

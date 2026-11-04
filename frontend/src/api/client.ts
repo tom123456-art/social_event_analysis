@@ -48,7 +48,7 @@ api.interceptors.response.use(
   },
   (error) => {
     // 非登录注册请求收到未认证响应时清理过期会话。
-    if (error.response?.status === 401 && !['/auth/login', '/auth/register'].includes(error.config?.url)) {
+    if (error.response?.status === 401 && error.config?.url !== '/auth/login') {
       // 删除令牌，防止后续请求继续发送失效凭据；删除旧用户展示信息；删除旧角色标记，避免路由继续按管理员身份放行。
       clearSession()
       // 退出旧会话时一并清理其请求缓存。

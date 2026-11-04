@@ -1,4 +1,6 @@
 package com.social.hotspot.service.analysis;
+
+import com.social.hotspot.config.AnalysisDataset;
 import static com.social.hotspot.service.analysis.AnalysisResultAssembler.aggregateHeatTrend;
 import static com.social.hotspot.service.analysis.AnalysisResultAssembler.aggregateNoise;
 import static com.social.hotspot.service.analysis.AnalysisResultAssembler.aggregatePlatformTimeline;
@@ -30,7 +32,7 @@ import java.util.Map;
 @Service
 public class AnalyticsServiceImpl implements AnalyticsService {
     // 定义并初始化统一事件标识。
-    private static final String CANONICAL_EVENT_ID = "public_rss_latest";
+    private static final String CANONICAL_EVENT_ID = AnalysisDataset.EVENT_ID;
     // 集中保存数据库访问接口、概览缓存组件、事务模板。
     private final AnalyticsMapper mapper;
     private final AnalyticsCache analyticsCache;
@@ -44,25 +46,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         this.analyticsCache = analyticsCache;
         // 使用传入的事务管理器创建事务模板。
         this.transactionTemplate = new TransactionTemplate(transactionManager);
-    }
-
-    @Override
-    // 查询可展示的事件列表。
-    public List<Map<String, Object>> events() {
-        // 查询事件列表并转换为数据流。
-        return mapper.events().stream()
-                // 只保留统一事件标识对应的记录。
-                .filter(row -> CANONICAL_EVENT_ID.equals(row.get("event_id"))
-                        // 同时要求事件状态为启用。
-                        && "ACTIVE".equals(row.get("status")))
-                // 逐条处理事件记录并设置事件名称。
-                .map(row -> {
-                    // 创建事件记录，复制原行；向事件记录写入事件名称。
-                    Map<String, Object> event = new LinkedHashMap<>(row);
-                    event.put("event_name", "网络媒体热点事件传播态势与舆情分析");
-                    // 返回事件记录。
-                    return event;
-                }).toList();
     }
 
     @Override

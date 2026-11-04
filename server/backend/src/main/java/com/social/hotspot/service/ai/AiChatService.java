@@ -1,5 +1,7 @@
 package com.social.hotspot.service.ai;
 
+import com.social.hotspot.config.AnalysisDataset;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.social.hotspot.exception.BusinessException;
@@ -22,13 +24,14 @@ public class AiChatService {
     private final AiModelRegistry models;
     @org.springframework.beans.factory.annotation.Autowired
     private AiToolAgent agent;
+    /** 构造聊天服务，注入数据库、事务、模型客户端与分析服务。 */
     public AiChatService(JdbcTemplate jdbc, TransactionTemplate transactions, AiModelClient model, AnalyticsService analytics, ObjectMapper json, AiModelRegistry models) {
         this.jdbc = jdbc; this.transactions = transactions; this.model = model; this.analytics = analytics; this.json = json;
         this.models = models;
     }
     @PostConstruct public void initialize() {
         new ResourceDatabasePopulator(new ClassPathResource("db/ai-schema.sql")).execute(jdbc.getDataSource());
-        // Upgrade the previous two-table prototype without deleting its messages.
+        // 升级旧版双表结构，同时保留已有对话消息。
         if (jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='ai_conversation' AND column_name='messages'", Integer.class) == 0) {
             jdbc.execute("ALTER TABLE ai_conversation ADD COLUMN messages JSON NULL, ADD COLUMN model_id VARCHAR(64) NOT NULL DEFAULT 'qwen'");
             jdbc.update("UPDATE ai_conversation SET messages=JSON_ARRAY() WHERE messages IS NULL");
@@ -43,30 +46,37 @@ public class AiChatService {
         }
         jdbc.update("UPDATE ai_conversation SET model_id='qwen' WHERE model_id='deepseek'");
     }
+    /** 列出指定用户的全部会话。 */
     public List<Map<String, Object>> list(long user) {
         return jdbc.queryForList("SELECT id,title,model_id AS modelId,created_at,updated_at FROM ai_conversation WHERE user_id=? ORDER BY updated_at DESC,id", user);
     }
+    /** 创建新会话并返回会话详情。 */
     public Map<String, Object> create(long user) {
         String id = UUID.randomUUID().toString();
         jdbc.update("INSERT INTO ai_conversation(id,user_id,messages,model_id) VALUES (?,?,JSON_ARRAY(),'qwen')", id, user);
         return Map.of("id", id, "title", "新对话", "messages", List.of(), "modelId", "qwen");
     }
+    /** 校验会话归属并返回会话记录，lock 为真时加悲观锁。 */
     private Map<String, Object> owned(long user, String id, boolean lock) {
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT id,title,messages,model_id AS modelId FROM ai_conversation WHERE id=? AND user_id=?" + (lock ? " FOR UPDATE" : ""), id, user);
         if (rows.isEmpty()) throw new BusinessException("对话不存在或无权访问。");
         return rows.getFirst();
     }
+    /** 返回指定会话详情，含消息与来源。 */
     public Map<String, Object> detail(long user, String id) {
         Map<String, Object> result = new LinkedHashMap<>(owned(user, id, false));
         result.put("messages", decodeMessages(result.get("messages"))); return result;
     }
+    /** 删除指定会话及其消息。 */
     public void delete(long user, String id) {
         if (jdbc.update("DELETE FROM ai_conversation WHERE id=? AND user_id=?", id, user) == 0)
             throw new BusinessException("对话不存在或无权访问。");
     }
+    /** 同步发送问题，使用指定模型生成回复并返回会话详情。 */
     public Map<String, Object> send(long user, String id, String question, String modelId) {
         return send(user, id, question, modelId, null);
     }
+    /** 流式发送问题，逐段回调增量文本，生成完成后返回会话详情。 */
     public Map<String, Object> send(long user, String id, String question, String modelId, java.util.function.Consumer<String> delta) {
         return send(user, id, question, modelId, delta, false, ignored -> {});
     }
@@ -74,13 +84,13 @@ public class AiChatService {
                                     boolean webSearch, java.util.function.Consumer<String> progress) {
         String text = question == null ? "" : question.trim();
         if (text.isEmpty() || text.length() > 2000) throw new BusinessException("请输入一至两千字的问题。");
-        // Serialize each conversation, including across backend instances.
+        // 逐个会话串行处理消息，跨后端实例时也保持一致。
         return transactions.execute(status -> {
             Map<String, Object> conversation = owned(user, id, true);
             List<Map<String, Object>> history = decodeMessages(conversation.get("messages"));
             if (history.size() >= 2000) throw new BusinessException("当前话题已达到一千轮，请新建话题继续。");
             AiModelSettings selected = models.resolve(user, modelId == null ? Objects.toString(conversation.get("modelId"), "qwen") : modelId);
-            Map<String, Object> snapshot = analytics.dashboard("public_rss_latest");
+            Map<String, Object> snapshot = analytics.dashboard(AnalysisDataset.EVENT_ID);
             List<Map<String, Object>> sources = new ArrayList<>();
             Map<String, Object> facts = new LinkedHashMap<>();
             for (String key : List.of("overview", "platformTimeline", "sentimentTrend", "keywordRank", "contentRank", "heatTrend")) {
@@ -107,14 +117,17 @@ public class AiChatService {
             return detail(user, id);
         });
     }
+    /** 将对象序列化为 JSON 字符串。 */
     private String encode(Object value) {
         try { return json.writeValueAsString(value); }
         catch (Exception ex) { throw new BusinessException("整理对话数据失败，请稍后重试。"); }
     }
+    /** 将 JSON 文本反序列化为消息列表。 */
     private List<Map<String, Object>> decodeMessages(Object value) {
         try { return value == null ? new ArrayList<>() : json.readValue(value.toString(), new TypeReference<ArrayList<Map<String, Object>>>() {}); }
         catch (Exception ex) { throw new BusinessException("读取话题记录失败，请联系管理员检查数据。"); }
     }
+    /** 将 JSON 文本反序列化为来源对象。 */
     private Object decodeSources(Object value) {
         try { return value == null ? List.of() : json.readValue(value.toString(), Object.class); }
         catch (Exception ex) { throw new BusinessException("迁移旧话题依据失败，请检查历史数据。"); }

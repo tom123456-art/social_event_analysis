@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!-- MyBatis 映射文件头：声明 XML 版本与编码。 -->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 用户数据访问映射：声明用户查询、新增、更新、删除的 SQL 语句。 -->
 <mapper namespace="com.social.hotspot.mapper.UserMapper">
-    <select id="users" resultType="map">SELECT * FROM app_user ORDER BY id ASC</select>
-    <select id="userById" resultType="map">SELECT * FROM app_user WHERE id = #{id}</select>
-    <insert id="insertUser" useGeneratedKeys="true" keyProperty="item.id">
-        INSERT INTO app_user (username, nickname, phone, email, role, status, bio)
-        VALUES (#{item.username}, #{item.nickname}, #{item.phone}, #{item.email}, #{item.role}, #{item.status}, #{item.bio})
-    </insert>
+    <!-- 按主键更新用户资料：不含用户名。 -->
     <update id="updateUser">
+        <!-- 账号身份和启用状态不接受客户端修改。 -->
         UPDATE app_user SET nickname = #{item.nickname}, phone = #{item.phone}, email = #{item.email},
-            role = #{item.role}, status = #{item.status}, bio = #{item.bio} WHERE id = #{id}
+            bio = #{item.bio} WHERE id = #{id}
     </update>
-    <delete id="deleteUser">DELETE FROM app_user WHERE id = #{id} AND username &lt;&gt; 'admin'</delete>
-    <select id="userByUsername" resultType="map">SELECT * FROM app_user WHERE username = #{username} LIMIT 1</select>
+    <!-- 按用户名查询单个用户：用于登录校验，限制一条。 -->
+    <select id="userByUsername" resultType="map">
+        <!-- 按用户名查询用户记录，限制一条。 -->
+        SELECT id, username, nickname, phone, email, status, bio, created_at, updated_at
+        FROM app_user WHERE username = #{username} AND account_slot = 1 LIMIT 1
+    </select>
 </mapper>

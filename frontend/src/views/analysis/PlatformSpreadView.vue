@@ -64,7 +64,7 @@
       </div>
     </div>
     <!-- 传入当前证据模式、事件编号和快照，关闭时清空模式以隐藏弹框。 -->
-    <PropagationEvidenceDialog :mode="evidenceMode" :event-id="eventId" :dashboard="data" @close="evidenceMode = ''" />
+    <PropagationEvidenceDialog :mode="evidenceMode" :dashboard="data" @close="evidenceMode = ''" />
   </div>
 </template>
 
@@ -76,10 +76,9 @@ import ChartBox from '../../components/common/ChartBox.vue'
 import PropagationEvidenceDialog from '../../components/analysis/PropagationEvidenceDialog.vue'
 import { clearGetCache, getData, getErrorMessage } from '../../api/client'
 import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 // 保存查询接口使用的统一事件编号。
-const eventId = ref(ANALYSIS_EVENT_ID)
 // 保存后端返回的整份仪表盘数据，供各图表共享。
 const data = ref<any>({})
 // 控制刷新按钮的加载状态，提示请求尚未结束。
@@ -169,7 +168,7 @@ const funnelOption = computed(() => ({
 
 async function load() {
   // 查询当前事件的仪表盘接口，并用返回结果替换旧快照。
-  data.value = await getData(`/events/${eventId.value}/dashboard`)
+  data.value = await getData('/analysis/dashboard')
 }
 // 刷新期间显示加载状态，请求成功或失败后均恢复按钮。
 async function refreshData() {

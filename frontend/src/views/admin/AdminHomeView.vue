@@ -134,8 +134,7 @@
           <el-button @click="router.push('/admin/data')">数据管理</el-button>
           <!-- 点击“ETL任务”时执行 router.push('/admin/etl')。 -->
           <el-button @click="router.push('/admin/etl')">ETL任务</el-button>
-          <!-- 点击“用户管理”时执行 router.push('/admin/users')。 -->
-          <el-button @click="router.push('/admin/users')">用户管理</el-button>
+          <el-button @click="router.push('/admin/profile')">账号设置</el-button>
           <!-- 点击“打开大屏”时执行 router.push('/screen')。 -->
           <el-button type="primary" @click="router.push('/screen')">打开大屏</el-button>
         </div>
@@ -233,7 +232,7 @@ const platformOption = computed(() => ({
 async function load() {
   // 先获取后台批次统计，再获取分析图表所用的仪表盘数据。
   admin.value = await getData('/admin/overview')
-  dashboard.value = await getData('/events/public_rss_latest/dashboard')
+  dashboard.value = await getData('/analysis/dashboard')
 }
 
 // 手动刷新先清理共享请求缓存，避免沿用旧的数据库快照。

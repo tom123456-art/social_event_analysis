@@ -1,5 +1,7 @@
 package com.social.hotspot.service.review;
 
+import com.social.hotspot.config.AnalysisDataset;
+
 import com.social.hotspot.service.etl.EtlWorkflowService;
 import com.social.hotspot.cache.AnalyticsCache;
 import com.social.hotspot.common.sync.DataSyncCoordinator;
@@ -93,7 +95,7 @@ public class ReviewApplicationService {
                 // 读取新生成的分析批次号；将审核记录标记为已应用；清理公开事件缓存，确保页面读取新结果。
                 String batch = result.get("batch_id").toString();
                 store.finishApplication(snapshot, batch, null);
-                cache.evictEvent("public_rss_latest");
+                cache.evictEvent(AnalysisDataset.EVENT_ID);
                 try { remote.markFullBaseline(source, batch); }
                 catch (Exception checkpoint) {
                     org.slf4j.LoggerFactory.getLogger(getClass()).warn("审核已生效，增量检查点未更新；后续任务将重建基线", checkpoint);

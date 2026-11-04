@@ -1,4 +1,6 @@
 package com.social.hotspot.service.etl;
+
+import com.social.hotspot.config.AnalysisDataset;
 import com.social.hotspot.integration.spark.RemoteCommandExecutor;
 import com.social.hotspot.integration.spark.RemoteCommandResult;
 import com.social.hotspot.integration.python.LocalSentimentRunner;
@@ -34,13 +36,14 @@ import java.util.Properties;
 public class EtlWorkflowService {
     private final com.social.hotspot.service.review.ReviewInputPreparationService reviewPipeline;
 
+    /** 构造 ETL 工作流服务，注入质检输入准备服务。 */
     public EtlWorkflowService(com.social.hotspot.service.review.ReviewInputPreparationService reviewPipeline) {
         this.reviewPipeline = reviewPipeline;
     }
     // 保存远程任务完整错误，不把命令、密码或堆栈返回用户。
     private static final Logger LOG = LoggerFactory.getLogger(EtlWorkflowService.class);
     // 配置远程事件标识、远程事件名称。
-    private static final String EVENT_ID = "public_rss_latest";
+    private static final String EVENT_ID = AnalysisDataset.EVENT_ID;
     private static final String EVENT_NAME = "网络媒体热点事件传播态势与舆情分析";
     // 定义并初始化含毫秒的批次时间格式。
     private static final DateTimeFormatter BATCH_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
@@ -117,8 +120,8 @@ public class EtlWorkflowService {
 
     // 依据检查点处理新增完整行，无基线时全量处理。
     public Map<String, Object> runIncremental(Path localCsv) throws Exception {
-        // Effective review overrides may replace or remove an old DWD key.
-        // Rebuild instead of append-merging so a rejected old row cannot survive.
+        // 已生效的审核覆盖记录可能替换或删除已有明细键。
+        // 重新构建明细而非追加合并，防止已驳回的旧记录继续保留。
         if (reviewPipeline.hasEffectiveDecisions()) {
             Map<String, Object> result = runFull(localCsv);
             markFullBaseline(localCsv, result.get("batch_id").toString());
@@ -629,6 +632,7 @@ public class EtlWorkflowService {
 
     // 持续读取远程命令输出，检查超时和退出码。
 
+    /** 通过 SSH 会话执行远程命令并返回结果，超时或失败时抛出异常。 */
     private RemoteCommandResult exec(Session session, String command, int timeoutSeconds) throws Exception { return RemoteCommandExecutor.exec(session, command, timeoutSeconds); }
 
     // 返回实际读到的字节。

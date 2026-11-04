@@ -11,7 +11,6 @@ async function main() {
       await page.addInitScript(() => {
         localStorage.setItem('social_token', 'test')
         localStorage.setItem('social_user', 'admin')
-        localStorage.setItem('social_role', 'admin')
       })
       await page.route('**/api/**', route => {
         if (!new URL(route.request().url()).pathname.startsWith('/api/')) return route.continue()

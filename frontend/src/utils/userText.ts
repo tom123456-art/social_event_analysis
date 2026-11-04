@@ -28,11 +28,6 @@ export function statusName(value: unknown): string {
   return display(value, { SUCCESS: '成功', FAILED: '失败', RUNNING: '运行中', PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回', ENABLED: '启用', DISABLED: '禁用', ACTIVE: '有效', INACTIVE: '停用' }, '未知状态')
 }
 
-// 将账号角色编码转为中文名称。
-export function roleName(value: unknown): string {
-  return display(value, { ADMIN: '管理员', USER: '普通用户' }, '未知角色')
-}
-
 // 将来源平台编码转为中文名称。
 export function platformName(value: unknown): string {
   return display(value, { TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', WEIBO: '微博', NEWS: '新闻', FRONT: '用户投稿', UNKNOWN: '未知平台' }, '其他平台')

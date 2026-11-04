@@ -138,11 +138,9 @@ import ChartBox from '../../components/common/ChartBox.vue'
 import MetricGrid from '../../components/common/MetricGrid.vue'
 import { clearGetCache, getData, getErrorMessage } from '../../api/client'
 import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
 const router = useRouter()
-// 保存统一分析事件编号，各分析页面使用同一份当前数据集。
-const eventId = ref(ANALYSIS_EVENT_ID)
 // 保存平台、类别等当前筛选条件，后续查询或计算据此过滤。
 const platform = ref('全部')
 const category = ref('全部')
@@ -262,7 +260,7 @@ const heatOption = computed(() => ({
 
 async function load() {
   // 按固定事件编号请求仪表盘，替换快照后各项计算属性自动更新。
-  dashboard.value = await getData(`/events/${eventId.value}/dashboard`)
+  dashboard.value = await getData('/analysis/dashboard')
 }
 async function refreshData() {
   // 先启动按钮加载状态，再清缓存重新读取；finally 保证错误时也能恢复按钮。

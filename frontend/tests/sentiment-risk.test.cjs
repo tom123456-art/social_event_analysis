@@ -91,15 +91,16 @@ test('neutral and skipped rows cannot enter sentiment counts, charts or percenta
   const chartContext = vm.createContext({
     computed: fn => ({ get value() { return fn() } }),
     sentimentRows: { value: rows }, NEWS_PLATFORMS: ['SOHU_NEWS'],
-    trendRange: { value: '7' }, heatValue: () => null, riskScore: () => 0
+    trendRange: { value: '7' }, heatValue: () => null, riskScore: () => 0,
+    sentimentName: value => value, SENTIMENT_COLORS: { positive: 'green', negative: 'red' }
   })
   const prefixes = [
     'const binarySentimentRows =', 'const isWeibo =', 'const tokens =',
     'const weiboRows =', 'const totals =', 'const weiboTotals =',
-    'const daily =', 'const dailyWeibo =', 'function topicStats(', 'const topics ='
+    'const daily =', 'const dailyWeibo =', 'const weiboTrendOption ='
   ]
   const logic = source.split('\n').filter(line => prefixes.some(prefix => line.startsWith(prefix))).join('\n')
-  vm.runInContext(ts.transpileModule(logic + '\nglobalThis.result = { weiboRows: weiboRows.value, newsRows: newsRows.value, totals: weiboTotals.value, total: weiboTotal.value, day: dailyWeibo.value[0], heatmap: topicHeatOption.value, positiveShare: share(weiboTotals.value.positive, weiboTotal.value) }', {
+  vm.runInContext(ts.transpileModule(logic + '\nglobalThis.result = { weiboRows: weiboRows.value, newsRows: newsRows.value, totals: weiboTotals.value, total: weiboTotal.value, day: dailyWeibo.value[0], chart: weiboTrendOption.value, positiveShare: share(weiboTotals.value.positive, weiboTotal.value) }', {
     compilerOptions: { target: ts.ScriptTarget.ES2020 }
   }).outputText, chartContext)
   const result = chartContext.result
@@ -110,10 +111,10 @@ test('neutral and skipped rows cannot enter sentiment counts, charts or percenta
   assert.equal(result.totals.negative, 1)
   assert.equal(result.positiveShare, '50.0%')
   assert.equal(result.day.total, 2)
-  assert.equal(result.heatmap.yAxis.data.length, 2)
-  assert.equal(result.heatmap.series[0].data.length, 2)
-  assert.equal(result.heatmap.series[0].data[0][2], 50)
-  assert.equal(result.heatmap.series[0].data[1][2], 50)
+  assert.equal(result.chart.series.length, 2)
+  assert.equal(result.chart.series[0].data.length, 1)
+  assert.equal(result.chart.series[0].data[0], 1)
+  assert.equal(result.chart.series[1].data[0], 1)
 })
 
 test('sentiment API only selects positive and negative labels', () => {

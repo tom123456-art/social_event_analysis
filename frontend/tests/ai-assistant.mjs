@@ -17,7 +17,6 @@ try {
     await page.addInitScript(() => {
       localStorage.setItem('social_token', 'a'.repeat(64))
       localStorage.setItem('social_user', 'reader')
-      localStorage.setItem('social_role', 'user')
     })
     await page.route(url => url.pathname.startsWith('/api/'), async route => {
       const request = route.request(), path = new URL(request.url()).pathname

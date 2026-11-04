@@ -2,12 +2,11 @@ package com.social.hotspot.controller;
 
 import com.social.hotspot.common.ApiResponse;
 import com.social.hotspot.service.auth.AuthService;
-import com.social.hotspot.exception.AuthException;
 import jakarta.servlet.http.HttpServletRequest;
 import com.social.hotspot.service.community.CommunityService;
 import com.social.hotspot.service.user.UserProfileService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,16 +41,14 @@ public class UserProfileCommunityController {
         return ApiResponse.ok(userProfileService.profile(String.valueOf(AuthService.current(request).get("username"))));
     }
 
-    // 将 PUT 请求 /profile/{username} 交给下面的方法。
-    @PutMapping("/profile/{username}")
-    // 更新个人资料并保留原角色与状态。
+    // 本人资料查询和更新使用同一地址，身份来自认证信息。
+    @PutMapping("/profile")
+    // 只更新允许编辑的资料字段。
     public ApiResponse<Map<String, Object>> updateProfile(
-            // 绑定参数 username，按注解名称从 SQL 映射或 HTTP 请求中取值。
-            @PathVariable("username") String username,
             // 将 JSON 请求体转换为键值映射，作为业务输入。
-            @RequestBody Map<String, Object> item, HttpServletRequest request) {
-        if (!username.equals(AuthService.current(request).get("username"))) throw new AuthException(403, "只能修改本人资料。");
-        return ApiResponse.ok(userProfileService.updateProfile(username, item));
+            @Valid @RequestBody ProfileUpdateRequest item, HttpServletRequest request) {
+        String username = String.valueOf(AuthService.current(request).get("username"));
+        return ApiResponse.ok(userProfileService.updateProfile(username, item.fields()));
     }
 
     // 将 GET 请求 /interactions 交给下面的方法。

@@ -86,10 +86,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getData } from '../../api/client'
 import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh'
-import { ANALYSIS_EVENT_ID, ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
+import { ANALYSIS_EVENT_NAME } from '../../config/analysisDataset'
 
-// 固定当前查询所属的分析事件。
-const eventId = ref(ANALYSIS_EVENT_ID)
 // 保存后端返回的当前页内容，不在前端再次切片。
 const rows = ref<any[]>([])
 // 保存文本、平台、情感和类别四项查询条件。
@@ -134,7 +132,7 @@ async function load(force = false) {
     if (sentiment.value !== '全部') params.set('sentiment', sentiment.value)
     if (category.value !== '全部') params.set('category', category.value)
     // force 为真时绕过请求缓存，重新读取筛选后的当前页。
-    const data = await getData(`/events/${eventId.value}/content-page?${params.toString()}`, force)
+    const data = await getData(`/analysis/content-page?${params.toString()}`, force)
     // 同步当前页记录和匹配总数，兼容响应字段为空的情况。
     rows.value = data.rows || []
     total.value = Number(data.total || 0)

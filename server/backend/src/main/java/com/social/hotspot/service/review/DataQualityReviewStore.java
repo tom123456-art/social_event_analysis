@@ -1,5 +1,7 @@
 package com.social.hotspot.service.review;
 
+import com.social.hotspot.config.AnalysisDataset;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.social.hotspot.exception.BusinessException;
@@ -25,6 +27,7 @@ public class DataQualityReviewStore {
     private final ObjectMapper json;
     private final TransactionTemplate tx;
 
+    /** 构造质检存储，注入 JDBC 模板、JSON 序列化器与事务模板。 */
     public DataQualityReviewStore(JdbcTemplate jdbc, ObjectMapper json, TransactionTemplate tx) {
         this.jdbc = jdbc;
         this.json = json;
@@ -32,29 +35,33 @@ public class DataQualityReviewStore {
     }
 
     @PostConstruct
+    /** 初始化质检表结构。 */
     public void initialize() {
         new ResourceDatabasePopulator(new ClassPathResource("db/review-schema.sql")).execute(jdbc.getDataSource());
         Integer provenance = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ads_content_hot_rank' AND COLUMN_NAME='sentiment_source'", Integer.class);
         if (provenance != null && provenance == 0) jdbc.execute("ALTER TABLE ads_content_hot_rank ADD COLUMN sentiment_source VARCHAR(20) DEFAULT 'MODEL'");
-        // A process restart must not leave a permanently locked application job.
-        // Deployment is single-backend; do not run multiple instances against this store.
+        // 进程重启后应恢复任务状态，避免应用任务永久锁定。
+        // 当前部署只支持单个后端实例，不得由多个实例同时操作此存储。
         tx.executeWithoutResult(s -> {
             jdbc.update("UPDATE data_quality_review SET apply_status='FAILED', apply_error=? WHERE apply_status='PROCESSING'",
                     "服务重启，任务未确认完成，请重试");
         });
     }
 
+    /** 将对象序列化为 JSON 字符串，空值返回 null。 */
     public String encode(Object value) {
         try { return json.writeValueAsString(value); }
         catch (Exception e) { throw new BusinessException("审核数据序列化失败", e); }
     }
 
+    /** 将 JSON 文本反序列化为 Map，空值返回空 Map。 */
     public Map<String, Object> object(Object value) {
         if (value == null) return new LinkedHashMap<>();
         try { return json.readValue(value.toString(), new TypeReference<LinkedHashMap<String, Object>>() {}); }
         catch (Exception e) { throw new BusinessException("审核数据格式不正确", e); }
     }
 
+    /** 收集质检结果并按内容去重写入队列，合并相同内容的质检原因。 */
     public void collect(List<Map<String, Object>> entries, String batch) {
         tx.executeWithoutResult(s -> {
             for (Map<String, Object> item : entries) {
@@ -70,13 +77,14 @@ public class DataQualityReviewStore {
                 String reasons = mergeReasons(previous.isEmpty() ? null : previous.getFirst().get("reasons"), item.get("reasons"));
                 jdbc.update("INSERT INTO data_quality_review (source_key,source_version,source_row,event_id,platform,content_id,title,original_data,corrected_data,reasons,last_seen_batch) "
                                 + "VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE reasons=VALUES(reasons),last_seen_batch=VALUES(last_seen_batch)",
-                        item.get("source_key"), item.get("source_version"), item.get("source_row"), "public_rss_latest",
+                        item.get("source_key"), item.get("source_version"), item.get("source_row"), AnalysisDataset.EVENT_ID,
                         clip(raw.get("platform"), 50), clip(raw.get("content_id"), 128), clip(raw.get("title"), 300),
                         encode(raw), encode(raw), reasons, batch);
             }
         });
     }
 
+    /** 合并新旧质检原因文本，去重后以分号连接。 */
     private String mergeReasons(Object previous, Object current) {
         var result = new java.util.LinkedHashSet<String>();
         try {
@@ -86,6 +94,7 @@ public class DataQualityReviewStore {
         } catch (Exception e) { throw new BusinessException("审核原因格式不正确", e); }
     }
 
+    /** 按状态、应用标记、关键词分页查询质检列表，返回记录与总数。 */
     public Map<String, Object> list(String status, String apply, String query, int page, int size) {
         page = Math.max(1, page); size = Math.max(1, Math.min(100, size));
         String where = " WHERE is_deleted=0";
@@ -104,6 +113,7 @@ public class DataQualityReviewStore {
                 "waiting_count", jdbc.queryForObject("SELECT COUNT(*) FROM data_quality_review WHERE is_deleted=0 AND status IN ('APPROVED','REJECTED') AND apply_status IN ('WAITING','FAILED')", Long.class));
     }
 
+    /** 按主键查询单条质检详情。 */
     public Map<String, Object> detail(long id) {
         var row = jdbc.queryForMap("SELECT * FROM data_quality_review WHERE id=? AND is_deleted=0", id);
         row.put("original_data", object(row.get("original_data")));
@@ -111,6 +121,7 @@ public class DataQualityReviewStore {
         return row;
     }
 
+    /** 对质检记录做人工决策：通过或驳回，写入决策与数据。 */
     public void decide(long id, Map<String, Object> body) {
         String status = String.valueOf(body.getOrDefault("status", "PENDING"));
         if (!Set.of("PENDING", "APPROVED", "REJECTED").contains(status)) throw new BusinessException("审核状态不正确");
@@ -139,6 +150,7 @@ public class DataQualityReviewStore {
         });
     }
 
+    /** 校验决策数据完整性，缺少必要字段时抛出异常。 */
     private void validate(Map<String, Object> data) {
         if (!Set.of("TENCENT_NEWS", "SOHU_NEWS", "SINA_NEWS", "THE_PAPER", "NETEASE_NEWS", "WEIBO").contains(data.get("platform")))
             throw new BusinessException("请选择标准平台");
@@ -150,6 +162,7 @@ public class DataQualityReviewStore {
             throw new BusinessException("标题和正文不能同时为空");
     }
 
+    /** 归档质检记录，记录操作人。 */
     public void archive(long id, String actor) {
         tx.executeWithoutResult(s -> {
             var row = jdbc.queryForMap("SELECT status,apply_status FROM data_quality_review WHERE id=? AND is_deleted=0 FOR UPDATE", id);
@@ -159,6 +172,7 @@ public class DataQualityReviewStore {
         });
     }
 
+    /** 预留待应用的质检记录，标记为处理中并返回列表。 */
     public List<Map<String, Object>> reserveForApplication() {
         return tx.execute(s -> {
             var snapshot = jdbc.queryForList("SELECT id,revision,status,corrected_data,manual_sentiment FROM data_quality_review WHERE is_deleted=0 AND status IN ('APPROVED','REJECTED') AND apply_status IN ('WAITING','FAILED') ORDER BY id FOR UPDATE");
@@ -171,6 +185,7 @@ public class DataQualityReviewStore {
         });
     }
 
+    /** 查询预留快照中的有效决策列表。 */
     public List<Map<String, Object>> decisions(List<Map<String, Object>> snapshot) {
         Map<Long, Map<String, Object>> result = new LinkedHashMap<>();
         for (var row : jdbc.queryForList("SELECT * FROM data_quality_review WHERE effective_decision IS NOT NULL")) {
@@ -184,6 +199,7 @@ public class DataQualityReviewStore {
         return new ArrayList<>(result.values());
     }
 
+    /** 组装单条决策记录，包含状态、数据与情感。 */
     private Map<String, Object> decision(Map<String, Object> row, Object status, Object data, Object sentiment) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", row.get("id")); result.put("source_key", row.get("source_key")); result.put("source_version", row.get("source_version"));
@@ -193,6 +209,7 @@ public class DataQualityReviewStore {
         return result;
     }
 
+    /** 结束应用流程：成功时归档，失败时回滚预留标记并记录错误。 */
     public void finishApplication(List<Map<String, Object>> snapshot, String batch, String error) {
         tx.executeWithoutResult(s -> {
             for (var row : snapshot) {
@@ -205,6 +222,7 @@ public class DataQualityReviewStore {
         });
     }
 
+    /** 截取字符串到指定长度，空值返回空字符串。 */
     private static String clip(Object value, int length) {
         String text = value == null ? "" : value.toString();
         return text.substring(0, Math.min(length, text.length()));

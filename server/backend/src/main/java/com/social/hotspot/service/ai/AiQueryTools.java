@@ -1,5 +1,7 @@
 package com.social.hotspot.service.ai;
 
+import com.social.hotspot.config.AnalysisDataset;
+
 import com.social.hotspot.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,12 +35,15 @@ public class AiQueryTools {
         this.user = user.isBlank() ? local.getProperty("username", "") : user;
         this.password = password.isBlank() ? local.getProperty("password", "") : password;
     }
+    /** 判断 SQL 查询是否启用：连接信息完整且非 root 账号。 */
     public boolean sqlEnabled() { return !url.isBlank() && !user.isBlank() && !user.equalsIgnoreCase("root"); }
+    /** 返回白名单表与字段 schema。 */
     public Map<String, Set<String>> schema() { return SCHEMA; }
+    /** 执行工具调用：根据参数类型选择 SQL 查询或自然语言查询，返回结果。 */
     public Object query(Map<String, Object> args) {
         String table = Objects.toString(args.get("table"), "");
         if (!SCHEMA.containsKey(table)) throw new BusinessException("不允许查询此数据表。");
-        List<Object> parameters = new ArrayList<>(List.of("public_rss_latest"));
+        List<Object> parameters = new ArrayList<>(List.of(AnalysisDataset.EVENT_ID));
         StringBuilder where = new StringBuilder(" WHERE event_id=?");
         for (String field : List.of("platform", "sentiment_label", "category")) {
             String value = Objects.toString(args.get(field), "").trim();
@@ -70,6 +75,7 @@ public class AiQueryTools {
         return Map.of("table", table, "matchedRows", executePrepared(countSql, parameters), "rows", executePrepared(dataSql, parameters),
                 "scope", "当前已发布分析表；内容排行表不是全部原始新闻", "rowLimit", 50);
     }
+    /** 执行参数化 SQL 查询，返回行列表。 */
     private List<Map<String, Object>> executePrepared(String sql, List<Object> parameters) {
         return jdbc.query(connection -> {
             PreparedStatement statement = connection.prepareStatement(sql); statement.setQueryTimeout(5); statement.setMaxRows(50);
@@ -77,6 +83,7 @@ public class AiQueryTools {
             return statement;
         }, (rs, index) -> row(rs));
     }
+    /** 校验并执行 AI 生成的 SQL，返回列名与行数据。 */
     public Object sql(String input) {
         if (!sqlEnabled()) throw new BusinessException("只读 SQL 尚未配置独立数据库账号，可先使用条件查询工具。");
         String sql = AiSqlPolicy.validate(input, SCHEMA);
@@ -95,6 +102,7 @@ public class AiQueryTools {
             } finally { connection.rollback(); }
         } catch (SQLException ex) { throw new BusinessException("只读查询执行失败，请检查字段、账号权限或查询范围；查询最多运行五秒。"); }
     }
+    /** 将结果集当前行转换为列名到列值的映射。 */
     private static Map<String, Object> row(ResultSet rs) throws SQLException {
         Map<String, Object> row = new LinkedHashMap<>();
         for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {

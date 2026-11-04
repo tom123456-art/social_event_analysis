@@ -15,20 +15,17 @@ public class UserProfileService {
     public Map<String, Object> profile(String username) {
         // 按用户名查询资料。
         Map<String, Object> user = mapper.userByUsername(username);
-        // 返回资料时规范角色。
-        if (user != null) { user.put("role", normalizeRole(user.get("role"))); return user; }
-        // 未找到已注册账号时拒绝资料请求，不自动创建用户。
-        throw new com.social.hotspot.exception.BusinessException("账号不存在，请先注册。");
+        // 返回资料白名单，不包含密码凭据和内部账号约束字段。
+        if (user != null) return user;
+        // 查询失败时不自动创建新账号。
+        throw new com.social.hotspot.exception.BusinessException("账号不存在，请检查系统账号配置。");
     }
-    // 更新个人资料并保留原角色与状态。
+    // 账号身份和启用状态不属于可编辑资料。
     public Map<String, Object> updateProfile(String username, Map<String, Object> item) {
-        // 查询当前账号资料；保留原用户角色和状态，个人资料更新不能在此直接更改这两个字段；按用户编号更新资料，再按用户名重新读取数据库结果。
+        // 使用认证账号定位资料，保存后重新读取实际值。
         Map<String, Object> user = profile(username);
-        item.put("role", user.getOrDefault("role", "USER")); item.put("status", user.getOrDefault("status", "ENABLED"));
         mapper.updateUser(number(user.get("id")).longValue(), item); return mapper.userByUsername(username);
     }
-    // 去除角色首尾空格并忽略大小写，只有 ADMIN 为管理员，其余统一为 USER。
-    private String normalizeRole(Object role) { return "ADMIN".equalsIgnoreCase(String.valueOf(role == null ? "" : role).trim()) ? "ADMIN" : "USER"; }
     // 编号已是数值时直接返回，否则解析为长整数；非法文本会抛出异常。
     private Number number(Object value) { if (value instanceof Number number) return number; return Long.parseLong(String.valueOf(value)); }
 }

@@ -22,7 +22,6 @@ test('状态、角色、平台和任务代码显示为中文且不修改输入',
   assert.equal(userText.statusName('SUCCESS'), '成功')
   assert.equal(userText.statusName('FAILED'), '失败')
   assert.equal(userText.statusName('PENDING'), '待审核')
-  assert.equal(userText.roleName('ADMIN'), '管理员')
   assert.equal(userText.platformName('TENCENT_NEWS'), '腾讯新闻')
   assert.equal(userText.platformName('UNRECOGNIZED'), '其他平台')
   assert.equal(userText.stageName('MYSQL_SYNC'), '数据库同步')

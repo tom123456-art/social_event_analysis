@@ -34,14 +34,34 @@ for (const page of pages) {
 
 test('已移除的事件列表接口不保留底层查询，分析接口由后端选择固定数据集', () => {
   const root = path.join(__dirname, '../..')
-  const mapper = readFileSync(path.join(root, 'server/backend/src/main/resources/mapper/AnalyticsMapper.xml'), 'utf8')
-  assert.doesNotMatch(mapper, /<select\s+id="events"/)
-  for (const file of ['mapper/AnalyticsMapper.java', 'service/analysis/AnalyticsService.java', 'service/analysis/AnalyticsServiceImpl.java']) {
-    const source = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot', file), 'utf8')
-    assert.doesNotMatch(source, /\bevents\s*\(/)
+  for (const name of ['Overview', 'HotspotTrend', 'PlatformSpread', 'KeywordAnalysis', 'SentimentAnalysis', 'Content', 'AdminHome', 'Screen']) {
+    const mapper = readFileSync(path.join(root, `server/backend/src/main/resources/mapper/${name}Mapper.xml`), 'utf8')
+    assert.doesNotMatch(mapper, /<select\s+id="events"/)
+    for (const file of [`mapper/${name}Mapper.java`, `service/analysis/${name}Service.java`, `service/analysis/impl/${name}ServiceImpl.java`]) {
+      const source = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot', file), 'utf8')
+      assert.doesNotMatch(source, /\bevents\s*\(/)
+    }
+    const controller = readFileSync(path.join(root, `server/backend/src/main/java/com/social/hotspot/controller/${name}Controller.java`), 'utf8')
+    assert.doesNotMatch(controller, /@GetMapping\("\/events/)
+    assert.doesNotMatch(controller, /@(?:PathVariable|RequestParam)\([^)]*eventId/)
+    assert.match(controller, /service\.\w+\(EVENT_ID/)
   }
-  const controller = readFileSync(path.join(root, 'server/backend/src/main/java/com/social/hotspot/controller/AnalyticsController.java'), 'utf8')
-  assert.doesNotMatch(controller, /@GetMapping\("\/events/)
-  assert.doesNotMatch(controller, /@(?:PathVariable|RequestParam)\([^)]*eventId/)
-  assert.match(controller, /service\.dashboard\(EVENT_ID\)/)
+})
+
+test('每个页面只请求自己的数据入口，不再加载跨页面 dashboard', () => {
+  const routes = {
+    'analysis/OverviewView': '/analysis/overview',
+    'analysis/HotspotTrendView': '/analysis/hotspot-trend',
+    'analysis/PlatformSpreadView': '/analysis/platform-spread',
+    'analysis/KeywordAnalysisView': '/analysis/keyword-analysis',
+    'analysis/SentimentAnalysisView': '/analysis/sentiment-analysis',
+    'analysis/ContentListView': '/analysis/content-page',
+    'admin/AdminHomeView': '/admin/overview',
+    'screen/ScreenView': '/analysis/screen'
+  }
+  for (const [page, endpoint] of Object.entries(routes)) {
+    const source = readFileSync(path.join(__dirname, `../src/views/${page}.vue`), 'utf8')
+    assert.ok(source.includes(endpoint), `${page}: ${endpoint}`)
+    assert.doesNotMatch(source, /\/analysis\/dashboard/)
+  }
 })

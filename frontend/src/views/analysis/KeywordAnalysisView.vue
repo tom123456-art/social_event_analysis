@@ -423,7 +423,7 @@ const topicInsights = computed(() => {
 const topTopics = computed(() => topicInsights.value.filter(topic => !isContextOnlyKeyword(topic.keyword)))
 // 去除被隐藏类别后，截取前二十五个主题绘制词云。
 const cloudTopics = computed(() => topTopics.value.filter(topic => !hiddenCloudCategories.value.has(topic.category_top)).slice(0, 25))
-// 默认显示前八个主题；额外选择的主题替换末位以保持可见。
+// 默认显示前八个主题择的主题替换末位；额外选以保持可见。
 const trendTopics = computed(() => {
   const primary = topTopics.value.slice(0, 8)
   const selected = topTopics.value.find(topic => topic.keyword === selectedTopic.value)

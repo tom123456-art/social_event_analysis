@@ -260,7 +260,7 @@ const heatOption = computed(() => ({
 
 async function load() {
   // 按固定事件编号请求仪表盘，替换快照后各项计算属性自动更新。
-  dashboard.value = await getData('/analysis/dashboard')
+  dashboard.value = await getData('/analysis/overview')
 }
 async function refreshData() {
   // 先启动按钮加载状态，再清缓存重新读取；finally 保证错误时也能恢复按钮。

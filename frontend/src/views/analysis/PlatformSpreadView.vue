@@ -34,24 +34,29 @@
 
     <div class="grid two equal-grid" style="margin-top:12px">
       <div class="analysis-card table-card">
-        <div class="card-title">类别热度响应时间线 <span>{{ formatWindow(categorySummary) }} · 首次达到阈值</span></div>
-        <!-- 使用表格展示当前列表，表头定义列含义，表体按记录循环生成行。 -->
-        <table class="table fixed-rows">
-          <thead><tr><th>平台</th><th>首达类别</th><th>首次达阈值</th><th>时间差</th><th>类别数</th><th>峰值关注指数</th></tr></thead>
-          <tbody>
-            <!-- 按 row in timeline 循环生成表格行，使用 key 保持行标识稳定。 -->
-            <tr v-for="row in timeline" :key="row.platform">
-              <td>{{ platformName(row.platform) }}</td>
-              <td><b>{{ row.lead_category || '-' }}</b></td>
-              <td>{{ formatTime(row.first_hot_time) }}</td>
-              <td>{{ row.delay_minutes }} 分钟</td>
-              <td>{{ row.category_count || 0 }}</td>
-              <td>{{ fixed(row.peak_attention) }}</td>
-            </tr>
-            <!-- 按 i in Math.max(0, 5 - timeline.length) 循环生成表格行，使用 key 保持行标识稳定。 -->
-            <tr v-for="i in Math.max(0, 5 - timeline.length)" :key="`timeline-empty-${i}`"><td colspan="6"></td></tr>
-          </tbody>
-        </table>
+        <div class="card-title daily-title">近7天每日类别响应 <span>{{ dailyWindow }}</span></div>
+        <div class="daily-metric">当日首达类别 / 时分 / 较当日最早平台的分钟差</div>
+        <div class="daily-table-wrap">
+          <table class="table daily-responses" aria-label="近7天每日类别响应">
+            <thead><tr><th scope="col">日期</th><th v-for="platform in spreadPlatforms" :key="platform" scope="col">{{ platformName(platform) }}</th></tr></thead>
+            <tbody>
+              <tr v-for="day in dailyResponses" :key="day.date">
+                <th scope="row"><time :datetime="day.date">{{ day.date.slice(5) }}</time></th>
+                <td v-for="row in day.platforms" :key="row.platform">
+                  <button v-if="row.status === 'activated'" class="daily-record" :class="{ earliest: row.delay_minutes === 0 }"
+                    :aria-label="`${day.date} ${platformName(row.platform)} ${dailyCategories(row)} 查看依据`"
+                    :title="`${day.date} ${platformName(row.platform)} · 查看当天依据`" @click="openDailyEvidence(day.date, row)">
+                    <b>{{ dailyCategories(row) }}</b>
+                    <span class="daily-time">{{ formatTime(row.first_hot_time).slice(11, 16) }} <el-icon><View /></el-icon></span>
+                    <span class="daily-delay">{{ row.delay_minutes === 0 ? '当日最早' : `+${row.delay_minutes} 分钟` }}</span>
+                  </button>
+                  <span v-else class="daily-missing">{{ row.status === 'below_threshold' ? '未达阈值' : '无数据' }}</span>
+                </td>
+              </tr>
+              <tr v-if="!dailyResponses.length"><td colspan="6" class="daily-empty">暂无每日响应数据</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
       <div class="analysis-card">
         <div class="card-title">类别扩散结论摘要 <span>统计推断</span></div>
@@ -64,12 +69,13 @@
       </div>
     </div>
     <!-- 传入当前证据模式、事件编号和快照，关闭时清空模式以隐藏弹框。 -->
-    <PropagationEvidenceDialog :mode="evidenceMode" :dashboard="data" @close="evidenceMode = ''" />
+    <PropagationEvidenceDialog :mode="evidenceMode" :dashboard="data" :daily-selection="dailySelection" @close="evidenceMode = ''" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { numberText, formatTime, fixed } from '../../utils/analysisFormat'
+import { numberText, formatTime } from '../../utils/analysisFormat'
+import { View } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import ChartBox from '../../components/common/ChartBox.vue'
@@ -85,6 +91,16 @@ const data = ref<any>({})
 const refreshing = ref(false)
 // 保存要查看的结论类型；空字符串表示关闭证据弹框。
 const evidenceMode = ref('')
+const dailySelection = ref<{ date: string; platform: string; category: string; time: string }>()
+const dailyResponses = computed<any[]>(() => data.value.categoryDailyResponses || [])
+const dailyWindow = computed(() => dailyResponses.value.length
+  ? `${dailyResponses.value[0].date} 至 ${dailyResponses.value[dailyResponses.value.length - 1].date}`
+  : '最近 7 天')
+function dailyCategories(row: any) { return (row.lead_categories || [row.lead_category]).join('、') }
+function openDailyEvidence(date: string, row: any) {
+  dailySelection.value = { date, platform: row.platform, category: row.lead_category, time: String(row.first_hot_time) }
+  evidenceMode.value = 'daily'
+}
 // 限定扩散分析参与展示的五个新闻平台。
 const spreadPlatforms = ['TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER']
 // 记录用户隐藏了关联线的平台编号。
@@ -104,11 +120,11 @@ const timeline = computed<any[]>(() => [...(data.value.categoryPropagationTimeli
   .sort((a, b) => Number(a.delay_minutes || 0) - Number(b.delay_minutes || 0)))
 // 读取类别传播摘要，数据未加载时用空对象防止访问报错。
 const categorySummary = computed<any>(() => data.value.categoryPropagationSummary || {})
-// 拼接最早达到阈值的平台名称；同一小时有多个平台时注明并列。
+// 拼接最早达到阈值的平台名称；同一分钟有多个平台时注明并列。
 const leadText = computed(() => {
   // 优先使用并列平台列表，兼容只有一个领先平台字段的响应。
   const platforms = categorySummary.value.lead_platforms || (categorySummary.value.lead_platform ? [categorySummary.value.lead_platform] : [])
-  return platforms.length ? `${platforms.map(platformName).join('、')}${platforms.length > 1 ? '（同一小时）' : `，${categorySummary.value.lead_category}`}` : '暂无达阈值数据'
+  return platforms.length ? `${platforms.map(platformName).join('、')}${platforms.length > 1 ? '（同一分钟）' : `，${categorySummary.value.lead_category}`}` : '暂无达阈值数据'
 })
 // 排序后的首项就是近期累计热度最高的平台。
 const hottestPlatform = computed(() => recentPlatformTimeline.value[0])
@@ -168,7 +184,7 @@ const funnelOption = computed(() => ({
 
 async function load() {
   // 查询当前事件的仪表盘接口，并用返回结果替换旧快照。
-  data.value = await getData('/analysis/dashboard')
+  data.value = await getData('/analysis/platform-spread')
 }
 // 刷新期间显示加载状态，请求成功或失败后均恢复按钮。
 async function refreshData() {
@@ -197,12 +213,6 @@ function togglePlatform(params: any) {
 }
 // 清空隐藏列表，使所有平台的关系线重新出现。
 function clearHiddenPlatforms() { hiddenPlatforms.value = [] }
-// 将统计窗口的起止时间格式化为日期文本，无有效日期时显示默认窗口说明。
-function formatWindow(summary: any) {
-  const start = formatTime(summary?.window_start).slice(0, 10)
-  const end = formatTime(summary?.window_end).slice(0, 10)
-  return start && end && start !== '-' && end !== '-' ? `${start} 至 ${end}` : '最近 7 天'
-}
 // 将平台编码映射为中文名称，未知平台使用备用名称。
 function platformName(value: string) { return ({ DOUYIN: '抖音', WEIBO: '微博', BILIBILI: 'B站', XIAOHONGSHU: '小红书', NEWS: '新闻', TENCENT_NEWS: '腾讯新闻', NETEASE_NEWS: '网易新闻', SOHU_NEWS: '搜狐新闻', SINA_NEWS: '新浪新闻', THE_PAPER: '澎湃新闻', OWN_SITE: '新闻都知道', own_site: '新闻都知道', news: '新闻' } as Record<string, string>)[value] || '其他平台' }
 
@@ -214,6 +224,23 @@ useDatabaseAutoRefresh(load)
 </script>
 
 <style scoped>
+.daily-title { flex-wrap: wrap; gap: 6px 12px; }
+.daily-metric { font-size: 12px; color: #64748b; margin: -2px 0 12px; }
+.daily-table-wrap { overflow-x: auto; max-width: 100%; }
+.daily-responses { table-layout: fixed; min-width: 570px; width: 100%; }
+.daily-responses th, .daily-responses td { text-align: center; padding: 5px 3px; vertical-align: middle; white-space: normal; }
+.daily-responses thead th { height: 36px; white-space: normal; font-size: 12px; }
+.daily-responses th:first-child { width: 54px; }
+.daily-responses tbody th { color: #475569; font-size: 12px; font-weight: 600; }
+.daily-record { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; min-height: 72px; padding: 5px 2px; background: transparent; border: 1px solid transparent; border-radius: 4px; color: #334155; font: inherit; font-size: 12px; cursor: pointer; }
+.daily-record b { font-size: 13px; overflow-wrap: anywhere; }
+.daily-record:hover, .daily-record:focus-visible { background: #eff6ff; border-color: #93c5fd; outline: none; }
+.daily-time { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.daily-time .el-icon { color: #64748b; }
+.daily-delay { color: #64748b; font-size: 11px; }
+.earliest .daily-delay { color: #047857; }
+.daily-missing { font-size: 12px; color: #94a3b8; }
+.daily-empty { height: 150px; color: #94a3b8; }
 .insight-list > div { flex-wrap: wrap; gap: 8px; }
 .insight-list > div > span { flex: 1; min-width: 130px; }
 </style>

@@ -11,7 +11,7 @@ test('requested terms are excluded from UI, ETL and existing rankings', () => {
   const stopwords = vm.runInNewContext(view.match(/const STOPWORDS = (new Set\([^\n]+\))/)[1])
   const etl = read('../../server/etl/src/main/java/com/social/hotspot/etl/aggregate/DwsSummaryAggregator.java')
   const etlTerms = etl.match(/col\("keyword"\)\.isin\(([\s\S]*?)\)\)\);/)[1]
-  const mapper = read('../../server/backend/src/main/resources/mapper/AnalyticsMapper.xml')
+  const mapper = read('../../server/backend/src/main/resources/mapper/OverviewMapper.xml')
   const query = mapper.match(/<select id="keywordRank"[\s\S]*?<\/select>/)[0]
   for (const word of excluded) {
     assert.ok(stopwords.has(word), `UI: ${word}`)

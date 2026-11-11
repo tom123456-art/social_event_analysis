@@ -4,6 +4,15 @@ const { readFileSync } = require('node:fs')
 const { join } = require('node:path')
 const { parse, compileScript, compileTemplate } = require('@vue/compiler-sfc')
 
+test('propagation SQL groups by actual publish minutes', () => {
+  const sql = readFileSync(join(__dirname, '../../server/backend/src/main/resources/mapper/PlatformSpreadMapper.xml'), 'utf8')
+  assert.equal((sql.match(/%Y-%m-%d %H:%i:00/g) || []).length, 2)
+  assert.doesNotMatch(sql, /%H:00:00/)
+  const dialog = readFileSync(join(__dirname, '../src/components/analysis/PropagationEvidenceDialog.vue'), 'utf8')
+  assert.match(dialog, /逐分钟计算/)
+  assert.match(dialog, /平台该分钟/)
+})
+
 test('propagation evidence dialog compiles and supports source paging and request race protection', () => {
   const source = readFileSync(join(__dirname, '../src/components/analysis/PropagationEvidenceDialog.vue'), 'utf8')
   const { descriptor, errors } = parse(source)
@@ -23,4 +32,17 @@ test('each summary has a distinct evidence entry and does not label cumulative h
   assert.match(source, /累计热度最高/)
   assert.match(source, /最早达到阈值/)
   assert.match(source, /lead_platforms/)
+})
+
+test('daily response matrix and evidence retain the selected day without playback', () => {
+  const source = readFileSync(join(__dirname, '../src/views/analysis/PlatformSpreadView.vue'), 'utf8')
+  const dialog = readFileSync(join(__dirname, '../src/components/analysis/PropagationEvidenceDialog.vue'), 'utf8')
+  assert.match(source, /近7天每日类别响应/)
+  assert.match(source, /day in dailyResponses/)
+  assert.match(source, /openDailyEvidence\(day.date, row\)/)
+  assert.match(source, /未达阈值/)
+  assert.match(source, /无数据/)
+  assert.doesNotMatch(source, /PropagationPlayback|setInterval/)
+  assert.match(dialog, /params.set\('date', props.dailySelection.date\)/)
+  assert.match(dialog, /仅使用当天新闻/)
 })

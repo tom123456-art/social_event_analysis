@@ -399,7 +399,7 @@ const categoryChartOption = computed(() => selectedPlatform.value === 'ALL' ? ca
 
 async function load() {
   // 先取得日统计并初始化有效日期范围，再请求该范围的内容热榜。
-  data.value = await getData('/analysis/dashboard')
+  data.value = await getData('/analysis/hotspot-trend')
   setDefaultDateRange()
   await loadTrendContentRank()
 }

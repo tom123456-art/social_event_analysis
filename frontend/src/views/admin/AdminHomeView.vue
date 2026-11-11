@@ -155,24 +155,22 @@ import { useDatabaseAutoRefresh } from '../../composables/useDatabaseAutoRefresh
 import { statusName, stageName, platformName, eventName } from '../../utils/userText'
 
 const router = useRouter()
-// 分别保存后台管理概览与前台分析快照，两组接口数据不混用。
+// 保存后台首页独立接口返回的指标、批次和图表数据。
 const admin = ref<any>({})
-// 保存后端仪表盘快照，供概览指标和来源统计读取。
-const dashboard = ref<any>({})
 // 三张表各自保存页码，翻动一张表不影响另外两张。
 const batchPage = ref(1)
 const contentPage = ref(1)
 const noisePage = ref(1)
 // 每张表固定展示六行记录。
 const pageSize = 6
-// 从管理概览与分析快照提取数据，缺失列表使用空数组以支持首次加载。
+// 从后台首页响应提取数据，缺失列表使用空数组以支持首次加载。
 const batches = computed<any[]>(() => admin.value.batches || [])
 // 后端按时间倒序返回批次，首项用作最新运行状态。
 const latestBatch = computed(() => batches.value[0])
 // 提取平台时间线、内容热榜和噪声统计，缺失时提供空列表。
-const platformSummary = computed<any[]>(() => dashboard.value.platformTimeline || [])
-const contentRank = computed<any[]>(() => dashboard.value.contentRank || [])
-const noiseSummary = computed<any[]>(() => dashboard.value.noiseSummary || [])
+const platformSummary = computed<any[]>(() => admin.value.platformTimeline || [])
+const contentRank = computed<any[]>(() => admin.value.contentRank || [])
+const noiseSummary = computed<any[]>(() => admin.value.noiseSummary || [])
 // 将接口计数转为数字，未返回事件计数时显示零。
 const eventCount = computed(() => Number(admin.value.eventCount?.event_count || 0))
 // 分别统计成功与失败的批次数，作为成功率和饼图的数据来源。
@@ -195,7 +193,7 @@ const metrics = computed(() => [
   { label: '热点主题', value: Number(admin.value.topicCount?.topic_count || 0), sub: '按标题聚合' },
   { label: '源记录数', value: latestBatch.value?.source_count || 0, sub: 'CSV输入' },
   { label: '有效记录', value: latestBatch.value?.valid_count || 0, sub: 'Spark清洗后' },
-  { label: '关键词结果', value: dashboard.value.keywordRank?.length || 0, sub: '关键词排名结果' }
+  { label: '关键词结果', value: admin.value.keywordRank?.length || 0, sub: '关键词排名结果' }
 ])
 
 // 组织部署信息，并从最新批次读取动态运行状态。
@@ -228,11 +226,10 @@ const platformOption = computed(() => ({
   series: [{ type: 'bar', data: platformSummary.value.map(item => Number(item.hot_score || 0)), itemStyle: { color: '#2f6feb' } }]
 }))
 
-// 分别读取后台运行概览和统一分析数据集的仪表盘结果。
+// 后台首页一次请求获取本页需要的全部数据。
 async function load() {
-  // 先获取后台批次统计，再获取分析图表所用的仪表盘数据。
+  // 查询后台首页独立接口，指标与图表共用同一份响应。
   admin.value = await getData('/admin/overview')
-  dashboard.value = await getData('/analysis/dashboard')
 }
 
 // 手动刷新先清理共享请求缓存，避免沿用旧的数据库快照。

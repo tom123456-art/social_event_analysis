@@ -73,10 +73,10 @@ async function main() {
     const saved = requests.find(r => r.path === '/api/front/profile' && r.method === 'PUT')
     assert.deepEqual(Object.keys(saved.body).sort(), ['bio','email','nickname','phone'])
     assert.ok(requests.filter(r => r.path === '/api/front/profile').every(r => r.search === ''))
-    const dashboardRequest = page.waitForRequest(r => r.url().endsWith('/api/analysis/dashboard'))
+    const dashboardRequest = page.waitForRequest(r => r.url().endsWith('/api/analysis/overview'))
     await page.goto(base + '/overview')
     await dashboardRequest
-    assert.ok(requests.some(r => r.path === '/api/analysis/dashboard'))
+    assert.ok(requests.some(r => r.path === '/api/analysis/overview'))
     assert.ok(requests.every(r => !r.path.includes('/api/events') && !r.search.includes('eventId=') && r.path !== '/api/auth/register'))
     await page.goto(base + '/admin/users'); await page.waitForURL('**/overview')
     await page.goto(base + '/admin/profile')

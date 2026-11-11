@@ -5,7 +5,7 @@ import com.social.hotspot.config.AnalysisDataset;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.social.hotspot.exception.BusinessException;
-import com.social.hotspot.service.analysis.AnalyticsService;
+import com.social.hotspot.service.analysis.ScreenService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,13 +19,14 @@ public class AiChatService {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final AiModelClient model;
-    private final AnalyticsService analytics;
+    // 复用数据大屏的跨板块摘要，为智能助手提供当前分析集合的事实数据。
+    private final ScreenService analytics;
     private final ObjectMapper json;
     private final AiModelRegistry models;
     @org.springframework.beans.factory.annotation.Autowired
     private AiToolAgent agent;
     /** 构造聊天服务，注入数据库、事务、模型客户端与分析服务。 */
-    public AiChatService(JdbcTemplate jdbc, TransactionTemplate transactions, AiModelClient model, AnalyticsService analytics, ObjectMapper json, AiModelRegistry models) {
+    public AiChatService(JdbcTemplate jdbc, TransactionTemplate transactions, AiModelClient model, ScreenService analytics, ObjectMapper json, AiModelRegistry models) {
         this.jdbc = jdbc; this.transactions = transactions; this.model = model; this.analytics = analytics; this.json = json;
         this.models = models;
     }
@@ -90,7 +91,8 @@ public class AiChatService {
             List<Map<String, Object>> history = decodeMessages(conversation.get("messages"));
             if (history.size() >= 2000) throw new BusinessException("当前话题已达到一千轮，请新建话题继续。");
             AiModelSettings selected = models.resolve(user, modelId == null ? Objects.toString(conversation.get("modelId"), "qwen") : modelId);
-            Map<String, Object> snapshot = analytics.dashboard(AnalysisDataset.EVENT_ID);
+            // 读取已有分析结果作为对话上下文，不在聊天过程中重新执行 Spark 分析。
+            Map<String, Object> snapshot = analytics.screen(AnalysisDataset.EVENT_ID);
             List<Map<String, Object>> sources = new ArrayList<>();
             Map<String, Object> facts = new LinkedHashMap<>();
             for (String key : List.of("overview", "platformTimeline", "sentimentTrend", "keywordRank", "contentRank", "heatTrend")) {

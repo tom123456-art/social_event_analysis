@@ -26,7 +26,7 @@ public final class CategoryPropagationAnalyzer {
     }
     /** 基于各平台类别关注指数序列，计算类别首达时间、平台先后关系与平台首达时间轴，输出传播态势分析结果。 */
     public static Map<String, Object> analyzeCategoryPropagation(List<Map<String, Object>> rows) {
-        // 创建类别、平台、时间三级映射；创建小时计算依据列表。
+        // 创建类别、平台、时间三级映射；创建分钟计算依据列表。
         Map<String, Map<String, Map<LocalDateTime, Double>>> series = new HashMap<>();
         List<Map<String, Object>> hourlyEvidence = new ArrayList<>();
         for (Map<String, Object> row : rows) {
@@ -40,18 +40,19 @@ public final class CategoryPropagationAnalyzer {
                 continue;
             }
             // 安全转为小数，空值和格式错误按零处理；安全转为小数，空值和格式错误按零处理；读取类别平均相对热度，异常负值按零处理。
+            time = time.truncatedTo(ChronoUnit.MINUTES);
             double count = doubleValue(row.get("content_count"));
             double platformCount = doubleValue(row.get("platform_content_count"));
             double averageHeat = Math.max(0D, doubleValue(row.get("average_relative_heat_index")));
-            // 计算类别内容占平台内容的百分比，平台内容量为零时取零以免除零；类别占比乘平均相对热度再开平方，得到类别关注指数；创建小时计算依据，复制原行。
+            // 计算类别内容占平台内容的百分比，平台内容量为零时取零以免除零；类别占比乘平均相对热度再开平方，得到类别关注指数；创建分钟计算依据，复制原行。
             double coverageShare = platformCount <= 0D ? 0D : count / platformCount * 100D;
             double attention = Math.sqrt(Math.max(0D, coverageShare) * averageHeat);
             Map<String, Object> evidence = new LinkedHashMap<>(row);
-            // 组装小时计算依据，包含：内容类别、平台代码、类别内容占比。
+            // 组装分钟计算依据，包含：内容类别、平台代码、类别内容占比。
             evidence.put("category", category);
             evidence.put("platform", platform);
             evidence.put("coverage_share", coverageShare);
-            // 向小时计算依据写入类别关注指数；把小时计算依据加入小时计算依据列表；分组第一次出现时创建容器，已有则复用并继续汇总。
+            // 向分钟计算依据写入类别关注指数；把分钟计算依据加入分钟计算依据列表；分组第一次出现时创建容器，已有则复用并继续汇总。
             evidence.put("attention", attention);
             hourlyEvidence.add(evidence);
             series.computeIfAbsent(category, ignored -> new HashMap<>())
@@ -270,7 +271,7 @@ public final class CategoryPropagationAnalyzer {
                     // 返回首达记录。
                     return activation;
                 }).toList();
-        // 组装处理结果，包含：类别首达明细、小时统计依据、逐类别先后关系。
+        // 组装处理结果，包含：类别首达明细、分钟统计依据、逐类别先后关系。
         result.put("activations", activations);
         result.put("hourly", hourlyEvidence);
         result.put("relations", relations);

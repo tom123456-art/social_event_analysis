@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.ContentMapper">
+    <!-- 内容明细 / 内容明细列表：按搜索条件查询当前页。 -->
+    <select id="contentPage" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
+        SELECT *
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 关键词非空时在标题、正文、作者名中模糊匹配。 -->
+        <if test="query != null and query != ''">
+            AND (title LIKE CONCAT('%', #{query}, '%')
+                 OR clean_text LIKE CONCAT('%', #{query}, '%')
+                 OR author_name LIKE CONCAT('%', #{query}, '%'))
+        </if>
+        <!-- 平台非空时按平台精确匹配。 -->
+        <if test="platform != null and platform != ''">
+            AND platform = #{platform}
+        </if>
+        <!-- 情感非空时按情感标签精确匹配。 -->
+        <if test="sentiment != null and sentiment != ''">
+            AND sentiment_label = #{sentiment}
+        </if>
+        <!-- 类别非空时排除微博并按标准化类别匹配。 -->
+        <if test="category != null and category != ''">
+            <!-- 排除微博与新浪微博。 -->
+            AND UPPER(TRIM(platform)) NOT IN ('WEIBO', 'SINA_WEIBO')
+            <!-- 类别为空时归为综合，再与传入英文类别翻译后的中文比较。 -->
+            AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
+            <!-- 将传入的英文类别代码翻译为中文标签。 -->
+            CASE #{category}
+                WHEN 'finance' THEN '财经'
+                WHEN 'politics' THEN '政治'
+                WHEN 'technology' THEN '科技'
+                WHEN 'sports' THEN '体育'
+                WHEN 'culture' THEN '文娱'
+                WHEN 'society' THEN '社会'
+                ELSE '综合'
+            END
+        </if>
+        <!-- 按发布时间、主键倒序排列。 -->
+        ORDER BY publish_time DESC, id DESC
+        <!-- 偏移量分页，从 offset 起取 pageSize 条。 -->
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 内容明细 / 内容明细分页：按相同搜索条件统计总条数。 -->
+    <select id="contentCount" resultType="long">
+        <!-- 统计满足条件的记录总数。 -->
+        SELECT COUNT(*)
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 关键词非空时在标题、正文、作者名中模糊匹配。 -->
+        <if test="query != null and query != ''">
+            AND (title LIKE CONCAT('%', #{query}, '%')
+                 OR clean_text LIKE CONCAT('%', #{query}, '%')
+                 OR author_name LIKE CONCAT('%', #{query}, '%'))
+        </if>
+        <!-- 平台非空时按平台精确匹配。 -->
+        <if test="platform != null and platform != ''">
+            AND platform = #{platform}
+        </if>
+        <!-- 情感非空时按情感标签精确匹配。 -->
+        <if test="sentiment != null and sentiment != ''">
+            AND sentiment_label = #{sentiment}
+        </if>
+        <!-- 类别非空时排除微博并按标准化类别匹配。 -->
+        <if test="category != null and category != ''">
+            <!-- 排除微博与新浪微博。 -->
+            AND UPPER(TRIM(platform)) NOT IN ('WEIBO', 'SINA_WEIBO')
+            <!-- 类别为空时归为综合，再与传入英文类别翻译后的中文比较。 -->
+            AND COALESCE(NULLIF(TRIM(category), ''), '综合') =
+            <!-- 将传入的英文类别代码翻译为中文标签。 -->
+            CASE #{category}
+                WHEN 'finance' THEN '财经'
+                WHEN 'politics' THEN '政治'
+                WHEN 'technology' THEN '科技'
+                WHEN 'sports' THEN '体育'
+                WHEN 'culture' THEN '文娱'
+                WHEN 'society' THEN '社会'
+                ELSE '综合'
+            END
+        </if>
+    </select>
+</mapper>

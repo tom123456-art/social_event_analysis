@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.EtlTaskMapper">
+    <!-- ETL 批次和日志 / 批次列表：按开始时间倒序查询批次。 -->
+    <select id="batches" resultType="map">
+        <!-- 选取批次表全部字段。 -->
+        SELECT *
+        FROM etl_batch
+        <!-- 按开始时间倒序排列。 -->
+        ORDER BY started_at DESC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+
+    <!-- ETL 批次和日志 / 批次日志：按开始时间查询任务日志。 -->
+    <select id="taskLogs" resultType="map">
+        <!-- 选取任务日志表全部字段。 -->
+        SELECT *
+        FROM etl_task_log
+        <!-- 按批次标识筛选。 -->
+        WHERE batch_id = #{batchId}
+        <!-- 按开始时间升序排列。 -->
+        ORDER BY started_at ASC
+    </select>
+</mapper>

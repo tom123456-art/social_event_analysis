@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.SentimentAnalysisMapper">
+    <!-- 情感分析 / 微博情绪与新闻导向：查询通过过滤的正负面样本。 -->
+    <select id="sentimentAnalysisRows" resultType="map">
+        <!-- 选取内容标识、标题、平台、作者、发布时间、关键词、正文及情感与互动指标字段。 -->
+        SELECT content_id, title, UPPER(TRIM(platform)) AS platform, author_name, publish_time, keywords, clean_text AS content_text,
+               sentiment_label, sentiment_source, category, content_type, sentiment_positive_score, sentiment_neutral_score, sentiment_negative_score,
+               hot_score, platform_heat_index, like_count, favorite_count, comment_count, repost_count, source_url
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+          <!-- 限定微博与新闻平台，统一大写比较。 -->
+          AND UPPER(TRIM(platform)) IN ('WEIBO', 'SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          <!-- 只取正面与负面情感样本。 -->
+          AND sentiment_label IN ('positive', 'negative')
+        <!-- 按发布时间、主键升序排列。 -->
+        ORDER BY publish_time ASC, id ASC
+    </select>
+</mapper>

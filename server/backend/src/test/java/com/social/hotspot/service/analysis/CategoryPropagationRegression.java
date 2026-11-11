@@ -1,6 +1,5 @@
 // 声明包名 com.social.hotspot.service.analysis。
 package com.social.hotspot.service.analysis;
-import com.social.hotspot.service.analysis.AnalyticsServiceImpl;
 
 // 引入反射方法类型。
 import java.lang.reflect.Method;
@@ -32,8 +31,8 @@ public class CategoryPropagationRegression {
     @SuppressWarnings("unchecked")
     // 程序入口，启动应用或运行本类回归检查。
     public static void main(String[] args) throws Exception {
-        // 创建业务服务。
-        AnalyticsServiceImpl service = new AnalyticsServiceImpl(null, null, null);
+        // 静态算法不依赖页面服务，反射调用不需要创建 ServiceImpl。
+        Object service = null;
         // 通过反射获取类别热度先后关系分析方法。
         Method method = com.social.hotspot.service.analysis.CategoryPropagationAnalyzer.class.getDeclaredMethod("analyzeCategoryPropagation", List.class);
         // 测试中允许反射访问私有成员以验证内部规则。
@@ -78,9 +77,32 @@ public class CategoryPropagationRegression {
             check(((List<?>) relation.get("relations")).size() == (hour == 72 ? 1 : 0), "72-hour relation boundary");
         // 结束当前遍历循环。
         }
+        Map<String, Object> minutes = CategoryPropagationAnalyzer.analyzeCategoryPropagation(List.of(
+                minutePoint("TENCENT_NEWS", BASE.plusHours(23).plusMinutes(47).plusSeconds(59)),
+                minutePoint("NETEASE_NEWS", BASE.plusHours(23).plusMinutes(54).plusSeconds(1)),
+                minutePoint("SOHU_NEWS", BASE.plusDays(1).plusMinutes(8).plusSeconds(30))));
+        List<Map<String, Object>> minuteTimeline = (List<Map<String, Object>>) minutes.get("timeline");
+        check(minuteTimeline.stream().map(row -> row.get("delay_minutes")).toList().equals(List.of(0L, 7L, 21L)),
+                "actual minutes, ignored seconds and midnight crossing");
+        check(minuteTimeline.get(0).get("first_hot_time").equals(BASE.plusHours(23).plusMinutes(47)),
+                "activation preserves hour/minute and drops seconds");
+        List<Map<String, Object>> minuteRelations = (List<Map<String, Object>>) minutes.get("relations");
+        check(minuteRelations.stream().map(row -> row.get("lag_minutes")).toList().equals(List.of(7L, 14L)),
+                "same-hour platforms retain minute direction");
+        Map<String, Object> sameMinute = CategoryPropagationAnalyzer.analyzeCategoryPropagation(List.of(
+                minutePoint("TENCENT_NEWS", BASE.plusMinutes(12).plusSeconds(1)),
+                minutePoint("NETEASE_NEWS", BASE.plusMinutes(12).plusSeconds(59))));
+        check(((List<?>) sameMinute.get("relations")).isEmpty(), "same-minute platforms have no direction");
+        check(((List<?>) ((Map<?, ?>) sameMinute.get("summary")).get("lead_platforms")).size() == 2,
+                "same-minute tied leads");
         // 前置断言通过后输出测试结果。
         System.out.println("PASS: empty input, minimum threshold, 70% peak, tied leads, same-hour exclusion, 72-hour boundary.");
     // 结束当前方法。
+    }
+
+    private static Map<String, Object> minutePoint(String platform, LocalDateTime time) {
+        return Map.of("platform", platform, "category", "technology", "time_bucket", time,
+                "content_count", 1, "platform_content_count", 1, "average_relative_heat_index", 25D);
     }
 
     // 断言不成立时抛出错误。

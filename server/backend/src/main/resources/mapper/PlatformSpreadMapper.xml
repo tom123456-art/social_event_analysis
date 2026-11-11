@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.PlatformSpreadMapper">
+    <sql id="propagationCategory">
+        <!-- 对去首尾空白后的类别字段做小写转换后匹配。 -->
+        CASE LOWER(TRIM(category))
+            <!-- 英文类别映射为中文标签。 -->
+            WHEN 'finance' THEN '财经' WHEN 'politics' THEN '政治' WHEN 'technology' THEN '科技'
+            WHEN 'sports' THEN '体育' WHEN 'culture' THEN '文娱' WHEN 'society' THEN '社会'
+            <!-- 综合类与中文别名归并到标准类别。 -->
+            WHEN 'general' THEN '综合' WHEN '娱乐' THEN '文娱' WHEN '影视' THEN '文娱'
+            WHEN '音乐' THEN '文娱' WHEN '社会新闻' THEN '社会' WHEN '民生' THEN '社会'
+            <!-- 综合类别名归并为综合，其余类别原样返回。 -->
+            WHEN '综合类' THEN '综合' ELSE TRIM(category)
+        END
+    </sql>
+
+    <!-- 平台扩散 / 平台汇总：查询各平台最早发布时间、内容量和热度。 -->
+    <select id="platformTimeline" resultType="map">
+        <!-- 选取平台传播时间轴表全部字段。 -->
+        SELECT *
+        FROM ads_platform_spread_timeline
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按首次发布时间升序排列，最早发布的平台在前。 -->
+        ORDER BY first_publish_time ASC
+    </select>
+
+    <!-- 平台扩散 / 日度热度：查询平台每日内容量与平均热度。 -->
+    <select id="platformDailyHeat" resultType="map">
+        <!-- 选取平台日度热度表全部字段。 -->
+        SELECT *
+        FROM ads_platform_daily_heat
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按时间桶、平台升序排列。 -->
+        ORDER BY time_bucket ASC, platform ASC
+    </select>
+
+    <!-- 平台扩散 / 类别扩散：按平台、分钟、类别统计内容量与平均相对热度。 -->
+    <select id="platformCategoryHourlyHeat" resultType="map">
+        <!-- 分钟类别 CTE：按平台、分钟、类别聚合内容量与平均相对热度。 -->
+        WITH hourly_category AS (
+            SELECT event_id,
+                   platform,
+                   <!-- 保留实际发布时分，仅忽略秒。 -->
+                   DATE_FORMAT(publish_time, '%Y-%m-%d %H:%i:00') AS time_bucket,
+                   <!-- 引用公共片段将类别标准化为中文标签。 -->
+                   <include refid="propagationCategory" /> AS category,
+                   <!-- 统计该分组下的内容数量。 -->
+                   COUNT(*) AS content_count,
+                   <!-- 计算平台热度指数的均值，保留两位小数，空值按零处理。 -->
+                   ROUND(AVG(COALESCE(platform_heat_index, 0)), 2) AS average_relative_heat_index
+            FROM ads_content_hot_rank
+            <!-- 按事件标识筛选。 -->
+            WHERE event_id = #{eventId}
+              <!-- 限定参与分析的固定新闻平台。 -->
+              AND platform IN ('TENCENT_NEWS', 'NETEASE_NEWS', 'SOHU_NEWS', 'SINA_NEWS', 'THE_PAPER')
+              <!-- 发布时间非空。 -->
+              AND publish_time IS NOT NULL
+              <!-- 类别非空且非空白。 -->
+              AND NULLIF(TRIM(category), '') IS NOT NULL
+            <!-- 按事件、平台、时间桶、标准化类别分组。 -->
+            GROUP BY event_id, platform, DATE_FORMAT(publish_time, '%Y-%m-%d %H:%i:00'), <include refid="propagationCategory" />
+        ), hourly_total AS (
+            <!-- 平台分钟总量 CTE：按平台、时间桶汇总内容数量。 -->
+            SELECT event_id, platform, time_bucket, SUM(content_count) AS platform_content_count
+            FROM hourly_category
+            <!-- 按事件、平台、时间桶分组。 -->
+            GROUP BY event_id, platform, time_bucket
+        )
+        <!-- 关联分钟类别与平台分钟总量，输出类别占比相关字段。 -->
+        SELECT category.event_id,
+               category.platform,
+               category.time_bucket,
+               category.category,
+               <!-- 类别内容数量。 -->
+               category.content_count,
+               <!-- 平台分钟内容总量。 -->
+               total.platform_content_count,
+               <!-- 类别平均相对热度指数。 -->
+               category.average_relative_heat_index
+        FROM hourly_category category
+        JOIN hourly_total total
+          <!-- 关联条件：事件、平台、时间桶一致。 -->
+          ON total.event_id = category.event_id
+         AND total.platform = category.platform
+         AND total.time_bucket = category.time_bucket
+        <!-- 按时间桶、平台、类别升序排列。 -->
+        ORDER BY category.time_bucket ASC, category.platform ASC, category.category ASC
+    </select>
+
+    <!-- 平台扩散 / 查看依据：按平台、类别和时间窗口分页查询新闻。 -->
+    <select id="propagationContents" resultType="map">
+        <!-- 选取内容标识、标题、正文、链接、平台、发布时间、类别及互动指标字段。 -->
+        SELECT content_id, title, clean_text, source_url, platform, publish_time, category,
+               hot_score, platform_heat_index, like_count, comment_count, repost_count, favorite_count
+        FROM ads_content_hot_rank
+        <!-- 按事件标识与平台筛选。 -->
+        WHERE event_id = #{eventId}
+          AND platform = #{platform}
+          <!-- 类别非空时按标准化类别筛选。 -->
+          <if test="category != null">AND <include refid="propagationCategory" /> = #{category}</if>
+          <!-- 起始时间非空时筛选发布时间下限。 -->
+          <if test="start != null">AND publish_time &gt;= #{start}</if>
+          <!-- 结束时间非空时筛选发布时间上限。 -->
+          <if test="end != null">AND publish_time &lt; #{end}</if>
+        <!-- 按发布时间升序、平台热度倒序、主键升序排列。 -->
+        ORDER BY publish_time ASC, platform_heat_index DESC, id ASC
+        <!-- 偏移量分页，从 offset 起取 limit 条。 -->
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- 平台扩散 / 查看依据：按相同筛选条件统计新闻总数。 -->
+    <select id="propagationContentCount" resultType="long">
+        <!-- 统计满足条件的记录总数。 -->
+        SELECT COUNT(*)
+        FROM ads_content_hot_rank
+        <!-- 按事件标识与平台筛选。 -->
+        WHERE event_id = #{eventId}
+          AND platform = #{platform}
+          <!-- 类别非空时按标准化类别筛选。 -->
+          <if test="category != null">AND <include refid="propagationCategory" /> = #{category}</if>
+          <!-- 起始时间非空时筛选发布时间下限。 -->
+          <if test="start != null">AND publish_time &gt;= #{start}</if>
+          <!-- 结束时间非空时筛选发布时间上限。 -->
+          <if test="end != null">AND publish_time &lt; #{end}</if>
+    </select>
+</mapper>

@@ -3,7 +3,8 @@ package com.social.hotspot.service.review;
 import com.social.hotspot.config.AnalysisDataset;
 
 import com.social.hotspot.service.etl.EtlWorkflowService;
-import com.social.hotspot.cache.AnalyticsCache;
+import com.social.hotspot.common.cache.RedisCache;
+import com.social.hotspot.common.cache.CacheKeys;
 import com.social.hotspot.common.sync.DataSyncCoordinator;
 import com.social.hotspot.config.ProjectPaths;
 import com.social.hotspot.exception.BusinessException;
@@ -23,9 +24,10 @@ public class ReviewApplicationService {
     private final DataQualityReviewStore store;
     private final ReviewInputPreparationService pipeline;
     private final EtlWorkflowService remote;
-    // 串行协调数据库写入和分析任务，避免并发快照冲突；任务成功后清理分析缓存。
+    // 串行协调数据库写入和分析任务，避免并发快照冲突。
     private final DataSyncCoordinator coordinator;
-    private final AnalyticsCache cache;
+    // 审核结果发布成功后，删除各分析页面的缓存，使下次访问读取新结果。
+    private final RedisCache cache;
     // 保存最近一次审核应用任务的可查询状态。
     private volatile Map<String, Object> latestJob = Map.of();
     // 标记是否已有审核应用任务运行。
@@ -37,7 +39,7 @@ public class ReviewApplicationService {
     });
 
     public ReviewApplicationService(DataQualityReviewStore store, ReviewInputPreparationService pipeline, EtlWorkflowService remote,
-                                    DataSyncCoordinator coordinator, AnalyticsCache cache) {
+                                    DataSyncCoordinator coordinator, RedisCache cache) {
         // 保存审核应用流程所需的依赖。
         this.store = store; this.pipeline = pipeline; this.remote = remote; this.coordinator = coordinator; this.cache = cache;
     }
@@ -95,7 +97,7 @@ public class ReviewApplicationService {
                 // 读取新生成的分析批次号；将审核记录标记为已应用；清理公开事件缓存，确保页面读取新结果。
                 String batch = result.get("batch_id").toString();
                 store.finishApplication(snapshot, batch, null);
-                cache.evictEvent(AnalysisDataset.EVENT_ID);
+                cache.delete(CacheKeys.analysisKeys(AnalysisDataset.EVENT_ID));
                 try { remote.markFullBaseline(source, batch); }
                 catch (Exception checkpoint) {
                     org.slf4j.LoggerFactory.getLogger(getClass()).warn("审核已生效，增量检查点未更新；后续任务将重建基线", checkpoint);

@@ -31,7 +31,7 @@ public class AuthRegression {
         check("admin".equals(auth.authenticate(header).get("username")), "account authenticates");
         reject(AuthException.class, () -> auth.authenticate("Bearer local-demo-token"));
         AuthInterceptor interceptor = new AuthInterceptor(auth);
-        for (String path : List.of("/api/analysis/dashboard", "/api/admin/reviews", "/api/etl/run", "/api/front/profile")) {
+        for (String path : List.of("/api/analysis/overview", "/api/analysis/hotspot-trend", "/api/analysis/platform-spread", "/api/analysis/keyword-analysis", "/api/analysis/sentiment-analysis", "/api/analysis/content-page", "/api/analysis/screen", "/api/admin/overview", "/api/admin/reviews", "/api/etl/run", "/api/front/profile")) {
             reject(AuthException.class, () -> interceptor.preHandle(request(path, null), null, null));
             check(interceptor.preHandle(request(path, header), null, null), "authenticated account can access " + path);
         }
@@ -79,17 +79,27 @@ public class AuthRegression {
         reject(AuthException.class, () -> routes.login(Map.of(), front));
         check(Arrays.stream(AuthController.class.getDeclaredMethods()).noneMatch(m -> m.getName().equals("register")), "registration is removed");
         var captured = new ArrayList<String>();
-        var analytics = (com.social.hotspot.service.analysis.AnalyticsService) Proxy.newProxyInstance(AuthRegression.class.getClassLoader(), new Class[]{com.social.hotspot.service.analysis.AnalyticsService.class}, (proxy, method, values) -> {
+        new com.social.hotspot.controller.OverviewController(analysisService(com.social.hotspot.service.analysis.OverviewService.class, captured)).overview();
+        var trend = new com.social.hotspot.controller.HotspotTrendController(analysisService(com.social.hotspot.service.analysis.HotspotTrendService.class, captured));
+        trend.hotspotTrend();
+        trend.trendContentRankByRange("2026-09-01", "2026-09-30");
+        var spread = new com.social.hotspot.controller.PlatformSpreadController(analysisService(com.social.hotspot.service.analysis.PlatformSpreadService.class, captured));
+        spread.platformSpread();
+        spread.propagationEvidence("TENCENT_NEWS", null, null, 1);
+        new com.social.hotspot.controller.KeywordAnalysisController(analysisService(com.social.hotspot.service.analysis.KeywordAnalysisService.class, captured)).keywordAnalysis();
+        new com.social.hotspot.controller.SentimentAnalysisController(analysisService(com.social.hotspot.service.analysis.SentimentAnalysisService.class, captured)).sentimentAnalysis();
+        new com.social.hotspot.controller.ContentController(analysisService(com.social.hotspot.service.analysis.ContentService.class, captured)).contentPage(null, null, null, null, 1, 5);
+        new com.social.hotspot.controller.AdminHomeController(analysisService(com.social.hotspot.service.analysis.AdminHomeService.class, captured)).adminOverview();
+        new com.social.hotspot.controller.ScreenController(analysisService(com.social.hotspot.service.analysis.ScreenService.class, captured)).screen();
+        check(captured.size() == 10 && captured.stream().allMatch(com.social.hotspot.config.AnalysisDataset.EVENT_ID::equals), "all page endpoints select the server dataset");
+        System.out.println("PASS: single-account authentication, no roles/registration, profile ownership, analysis dataset, password/session lifecycle and throttling.");
+    }
+
+    static <T> T analysisService(Class<T> type, List<String> captured) {
+        return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class[]{type}, (proxy, method, values) -> {
             captured.add(String.valueOf(values[0]));
             return method.getReturnType() == List.class ? List.of() : Map.of();
-        });
-        var analysis = new com.social.hotspot.controller.AnalyticsController(analytics);
-        analysis.dashboard(); analysis.keywordAnalysis(); analysis.sentimentAnalysis();
-        analysis.contentPage(null, null, null, null, 1, 5);
-        analysis.propagationEvidence("TENCENT_NEWS", null, null, 1);
-        analysis.trendContentRankByRange("2026-09-01", "2026-09-30");
-        check(captured.size() == 6 && captured.stream().allMatch(com.social.hotspot.config.AnalysisDataset.EVENT_ID::equals), "all analysis endpoints select the server dataset");
-        System.out.println("PASS: single-account authentication, no roles/registration, profile ownership, analysis dataset, password/session lifecycle and throttling.");
+        }));
     }
 
     static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }

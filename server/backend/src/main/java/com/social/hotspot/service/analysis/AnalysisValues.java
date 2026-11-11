@@ -10,7 +10,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public final class AnalysisValues {
+public final class
+AnalysisValues {
     /** 工具类私有构造，禁止实例化。 */
     private AnalysisValues() {}
     public static final Set<String> GENERIC_SOURCE_CATEGORIES = Set.of("未分类", "新闻", "微博", "微博文章");

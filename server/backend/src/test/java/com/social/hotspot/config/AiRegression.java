@@ -3,7 +3,7 @@ package com.social.hotspot.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.social.hotspot.exception.BusinessException;
 import com.social.hotspot.service.ai.*;
-import com.social.hotspot.service.analysis.AnalyticsService;
+import com.social.hotspot.service.analysis.ScreenService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.*;
 import java.lang.reflect.Proxy;
@@ -25,7 +25,7 @@ public class AiRegression {
             throw new AssertionError("incomplete stream accepted");
         } catch (BusinessException expected) { }
         Store store = new Store(); Model model = new Model(json);
-        AnalyticsService analytics = (AnalyticsService) Proxy.newProxyInstance(AnalyticsService.class.getClassLoader(), new Class<?>[]{AnalyticsService.class},
+        ScreenService analytics = (ScreenService) Proxy.newProxyInstance(ScreenService.class.getClassLoader(), new Class<?>[]{ScreenService.class},
                 (proxy, method, values) -> Map.of("overview", Map.of("content_count", 123), "keywordRank", List.of(Map.of("keyword", "test"))));
         TransactionTemplate transactions = new TransactionTemplate() {
             @Override public <T> T execute(TransactionCallback<T> action) { return action.doInTransaction(new SimpleTransactionStatus()); }

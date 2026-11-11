@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.HotspotTrendMapper">
+    <!-- 热点趋势 / 日度热度：查询平台每日内容量与平均热度。 -->
+    <select id="platformDailyHeat" resultType="map">
+        <!-- 选取平台日度热度表全部字段。 -->
+        SELECT *
+        FROM ads_platform_daily_heat
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按时间桶、平台升序排列。 -->
+        ORDER BY time_bucket ASC, platform ASC
+    </select>
+
+    <!-- 热点趋势 / 类别热度趋势：查询平台每日类别热度。 -->
+    <select id="platformCategoryHeat" resultType="map">
+        <!-- 选取平台类别热度表全部字段。 -->
+        SELECT *
+        FROM ads_platform_category_heat
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+          <!-- 排除微博平台。 -->
+          AND platform &lt;&gt; 'WEIBO'
+        <!-- 按时间桶、平台、类别升序排列。 -->
+        ORDER BY time_bucket ASC, platform ASC, category ASC
+    </select>
+
+    <!-- 热点趋势 / 热门事件前三名：按日期范围查询高热内容候选，前端再按平台取前三。 -->
+    <select id="trendContentRankByRange" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
+        SELECT *
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+          <!-- 排除微博平台。 -->
+          AND platform &lt;&gt; 'WEIBO'
+          <!-- 发布时间非空。 -->
+          AND publish_time IS NOT NULL
+          <!-- 发布时间大于等于起始日期零点。 -->
+          AND publish_time &gt;= CONCAT(#{startDate}, ' 00:00:00')
+          <!-- 发布时间小于结束日期次日零点，形成左闭右开区间。 -->
+          AND publish_time &lt; DATE_ADD(CONCAT(#{endDate}, ' 00:00:00'), INTERVAL 1 DAY)
+        <!-- 按平台热度指数、热度分、发布时间倒序排列。 -->
+        ORDER BY platform_heat_index DESC, hot_score DESC, publish_time DESC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+</mapper>

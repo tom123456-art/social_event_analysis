@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.AdminHomeMapper">
+    <!-- 后台首页 / 顶部指标：统计事件容器数量。 -->
+    <select id="eventCount" resultType="map">
+        <!-- 统计事件信息表记录数。 -->
+        SELECT COUNT(*) event_count
+        FROM event_info
+    </select>
+
+    <!-- 后台首页 / 顶部指标：按标题去重统计主题数量。 -->
+    <select id="topicCount" resultType="map">
+        <!-- 统计去重主题数。 -->
+        SELECT COUNT(*) topic_count
+        FROM (
+            <!-- 按去首尾空白的标题去重。 -->
+            SELECT TRIM(title) topic
+            FROM ads_content_hot_rank
+            <!-- 按事件标识筛选。 -->
+            WHERE event_id = #{eventId}
+              <!-- 标题非空。 -->
+              AND TRIM(COALESCE(title, '')) &lt;&gt; ''
+            <!-- 按标题分组去重。 -->
+            GROUP BY TRIM(title)
+        ) topics
+    </select>
+
+    <!-- 后台首页 / 批次列表：按开始时间倒序查询批次。 -->
+    <select id="batches" resultType="map">
+        <!-- 选取批次表全部字段。 -->
+        SELECT *
+        FROM etl_batch
+        <!-- 按开始时间倒序排列。 -->
+        ORDER BY started_at DESC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+
+    <!-- 后台首页 / 关键词排行：按词频取前 limit 条关键词。 -->
+    <select id="keywordRank" resultType="map">
+        <!-- 选取关键词排名表全部字段。 -->
+        SELECT *
+        FROM ads_keyword_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按词频倒序排列。 -->
+        ORDER BY word_count DESC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+
+    <!-- 后台首页 / 平台汇总：查询各平台最早发布时间、内容量和热度。 -->
+    <select id="platformTimeline" resultType="map">
+        <!-- 选取平台传播时间轴表全部字段。 -->
+        SELECT *
+        FROM ads_platform_spread_timeline
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按首次发布时间升序排列，最早发布的平台在前。 -->
+        ORDER BY first_publish_time ASC
+    </select>
+
+    <!-- 后台首页 / 高热内容：按排名取前 limit 条内容。 -->
+    <select id="contentRank" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
+        SELECT *
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按排名号升序排列。 -->
+        ORDER BY rank_no ASC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+
+    <!-- 后台首页 / 数据质量巡检：查询内容、噪声和重复统计。 -->
+    <select id="noiseSummary" resultType="map">
+        <!-- 选取噪声汇总表全部字段。 -->
+        SELECT *
+        FROM ads_noise_summary
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按时间桶升序排列。 -->
+        ORDER BY time_bucket ASC
+    </select>
+</mapper>

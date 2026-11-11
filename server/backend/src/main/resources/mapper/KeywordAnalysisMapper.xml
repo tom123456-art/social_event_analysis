@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.KeywordAnalysisMapper">
+    <!-- 关键词分析 / 关键词分析各板块：查询带关键词的新闻样本。 -->
+    <select id="keywordAnalysisRows" resultType="map">
+        <!-- 选取内容标识、标题、链接、平台、发布时间、关键词、类别、作者及互动指标字段。 -->
+        SELECT content_id, title, source_url, platform, publish_time, keywords, category, author_name,
+               like_count, comment_count, repost_count, favorite_count
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+          <!-- 限定新闻平台。 -->
+          AND platform IN ('SOHU_NEWS', 'TENCENT_NEWS', 'NETEASE_NEWS', 'SINA_NEWS', 'THE_PAPER')
+          <!-- 关键词非空且非空白。 -->
+          AND NULLIF(TRIM(keywords), '') IS NOT NULL
+        <!-- 按发布时间、主键倒序排列。 -->
+        ORDER BY publish_time DESC, id DESC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+</mapper>

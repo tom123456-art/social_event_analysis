@@ -2,14 +2,15 @@ package com.social.hotspot.service.etl;
 
 import com.social.hotspot.config.AnalysisDataset;
 
-import com.social.hotspot.cache.AnalyticsCache;
+import com.social.hotspot.common.cache.RedisCache;
+import com.social.hotspot.common.cache.CacheKeys;
 import com.social.hotspot.config.ProjectPaths;
 import com.social.hotspot.common.ApiResponse;
 import com.social.hotspot.common.UserMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.social.hotspot.common.sync.DataSyncCoordinator;
-import com.social.hotspot.service.analysis.AnalyticsService;
+import com.social.hotspot.mapper.EtlTaskMapper;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -63,31 +64,31 @@ public class EtlTaskServiceImpl implements EtlTaskService {
             "author_name", "publish_time", "crawl_time", "like_count", "comment_count", "repost_count",
             "favorite_count", "keywords", "source_url", "image_url", "category"
     );
-    // 集中保存业务服务、远程 ETL 服务、同步任务协调器。
-    private final AnalyticsService service;
+    // 批次与日志查询映射、远程 ETL 服务和同步任务协调器。
+    private final EtlTaskMapper mapper;
     private final EtlWorkflowService remoteEtlService;
     private final DataSyncCoordinator dataSyncCoordinator;
-    // 保存概览缓存组件。
-    private final AnalyticsCache analyticsCache;
+    // 公共 Redis 缓存组件，ETL 成功后删除各分析页面的缓存。
+    private final RedisCache redisCache;
 
     // 构造 ETL 业务实现，接收所需组件并保存依赖。
-    public EtlTaskServiceImpl(AnalyticsService service, EtlWorkflowService remoteEtlService,
-                         DataSyncCoordinator dataSyncCoordinator, AnalyticsCache analyticsCache) {
-        this.service = service;
+    public EtlTaskServiceImpl(EtlTaskMapper mapper, EtlWorkflowService remoteEtlService,
+                         DataSyncCoordinator dataSyncCoordinator, RedisCache redisCache) {
+        this.mapper = mapper;
         this.remoteEtlService = remoteEtlService;
         this.dataSyncCoordinator = dataSyncCoordinator;
-        this.analyticsCache = analyticsCache;
+        this.redisCache = redisCache;
     }
     @Override
     // 查询批次并包装响应，最多返回 200 条。
     public ApiResponse<List<Map<String, Object>>> batchesResponse(int limit) {
-        return ApiResponse.ok(service.batches(Math.min(limit, 200)));
+        return ApiResponse.ok(mapper.batches(Math.min(limit, 200)));
     }
 
     @Override
     // 查询批次日志并包装响应。
     public ApiResponse<List<Map<String, Object>>> logsResponse(String batchId) {
-        return ApiResponse.ok(service.taskLogs(batchId));
+        return ApiResponse.ok(mapper.taskLogs(batchId));
     }
 
     @Override
@@ -113,7 +114,7 @@ public class EtlTaskServiceImpl implements EtlTaskService {
             // 依据检查点处理新增完整行，无基线时全量处理。
             Map<String, Object> result = remoteEtlService.runIncremental(RAW_CSV_PATH);
             // ETL 成功后删除旧缓存，下次请求读取新结果。
-            if ("SUCCESS".equals(result.get("status"))) analyticsCache.evictEvent(CANONICAL_EVENT_ID);
+            if ("SUCCESS".equals(result.get("status"))) redisCache.delete(CacheKeys.analysisKeys(CANONICAL_EVENT_ID));
             return result;
         }));
     }
@@ -215,7 +216,7 @@ public class EtlTaskServiceImpl implements EtlTaskService {
                 // 执行全量 ETL 并标记模式。
                 Map<String, Object> result = remoteEtlService.runFull(tempCsv);
                 // ETL 成功后删除旧缓存，下次请求读取新结果。
-                if ("SUCCESS".equals(result.get("status"))) analyticsCache.evictEvent(CANONICAL_EVENT_ID);
+                if ("SUCCESS".equals(result.get("status"))) redisCache.delete(CacheKeys.analysisKeys(CANONICAL_EVENT_ID));
                 // 全量成功后替换正式 CSV。
                 replaceRawCsv(tempCsv);
                 // 替换正式文件后登记新的全量基线。

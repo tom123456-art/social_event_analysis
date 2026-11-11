@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.social.hotspot.mapper.OverviewMapper">
+    <!-- 热点门户 / 平台汇总：查询各平台最早发布时间、内容量和热度。 -->
+    <select id="platformTimeline" resultType="map">
+        <!-- 选取平台传播时间轴表全部字段。 -->
+        SELECT *
+        FROM ads_platform_spread_timeline
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按首次发布时间升序排列，最早发布的平台在前。 -->
+        ORDER BY first_publish_time ASC
+    </select>
+
+    <!-- 热点门户 / 顶部指标：查询事件内容量与热度概览。 -->
+    <select id="overview" resultType="map">
+        <!-- 选取概览表全部字段。 -->
+        SELECT *
+        FROM ads_event_overview
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+    </select>
+
+    <!-- 热点门户 / 内容列表：按类别各取最多 limit 条最新内容。 -->
+    <select id="realPublicContents" resultType="map">
+        <!-- 排序内容 CTE：按类别分区编号。 -->
+        WITH ranked_contents AS (
+            SELECT content.*,
+                   <!-- 按类别分区，发布时间、主键倒序编号，取每类最新若干条。 -->
+                   ROW_NUMBER() OVER (
+                       <!-- 类别为空时归为综合。 -->
+                       PARTITION BY COALESCE(NULLIF(TRIM(category), ''), '综合')
+                       ORDER BY publish_time DESC, id DESC
+                   ) AS category_row_no
+            FROM ads_content_hot_rank content
+            <!-- 按事件标识筛选。 -->
+            WHERE event_id = #{eventId}
+        )
+        <!-- 从分区编号结果中取每类前若干条。 -->
+        SELECT *
+        FROM ranked_contents
+        <!-- 只保留每类前 limit 条。 -->
+        WHERE category_row_no &lt;= #{limit}
+        <!-- 按发布时间、主键倒序排列。 -->
+        ORDER BY publish_time DESC, id DESC
+    </select>
+
+    <!-- 热点门户 / 批次信息：查询当前事件的最新 ETL 批次。 -->
+    <select id="latestBatch" resultType="map">
+        <!-- 选取批次表全部字段。 -->
+        SELECT *
+        FROM etl_batch
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按开始时间倒序排列。 -->
+        ORDER BY started_at DESC
+        <!-- 只取最新一条。 -->
+        LIMIT 1
+    </select>
+
+    <!-- 热点门户 / 来源贡献排行：查询各平台内容量与累计热度。 -->
+    <select id="interaction" resultType="map">
+        <!-- 选取互动汇总表全部字段。 -->
+        SELECT *
+        FROM ads_interaction_summary
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按热度分倒序排列。 -->
+        ORDER BY hot_score DESC
+    </select>
+
+    <!-- 热点门户 / 高热内容：按排名取前 limit 条内容。 -->
+    <select id="contentRank" resultType="map">
+        <!-- 选取内容热度排名表全部字段。 -->
+        SELECT *
+        FROM ads_content_hot_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按排名号升序排列。 -->
+        ORDER BY rank_no ASC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+
+    <!-- 热点门户 / 关键词排行：按词频取前 limit 条关键词。 -->
+    <select id="keywordRank" resultType="map">
+        <!-- 选取关键词排名表全部字段。 -->
+        SELECT *
+        FROM ads_keyword_rank
+        <!-- 按事件标识筛选。 -->
+        WHERE event_id = #{eventId}
+        <!-- 按词频倒序排列。 -->
+        ORDER BY word_count DESC
+        <!-- 限制返回条数。 -->
+        LIMIT #{limit}
+    </select>
+</mapper>

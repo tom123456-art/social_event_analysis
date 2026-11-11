@@ -24,17 +24,16 @@ CREATE EXTERNAL TABLE IF NOT EXISTS social_ods.ods_social_content_raw (
   keywords STRING,
   source_url STRING,
   image_url STRING,
-  category STRING
+  category STRING,
+  `_review_id` STRING,
+  `_review_approved` STRING,
+  `_review_sentiment` STRING,
+  `_review_hold` STRING,
+  `_corrupt_record` STRING
 )
 PARTITIONED BY (batch_id STRING)
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
-WITH SERDEPROPERTIES (
-  "separatorChar" = ",",
-  "quoteChar" = "\""
-)
-STORED AS TEXTFILE
-LOCATION '/social-hotspot-analytics/raw/social_event'
-TBLPROPERTIES ('skip.header.line.count'='1');
+STORED AS PARQUET
+LOCATION '/social-hotspot-analytics/warehouse/ods/ods_social_content_raw';
 
 CREATE EXTERNAL TABLE IF NOT EXISTS social_dwd.dwd_social_content_detail (
   event_id STRING,

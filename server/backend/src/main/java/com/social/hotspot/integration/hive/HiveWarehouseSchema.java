@@ -18,6 +18,9 @@ public final class HiveWarehouseSchema {
             additions.put("source_url", "STRING");
             additions.put("image_url", "STRING");
             additions.put("category", "STRING");
+            for (String field : new String[]{"_review_id", "_review_approved", "_review_sentiment", "_review_hold", "_corrupt_record"}) {
+                additions.put(field, "STRING");
+            }
         } else if (table.equals("social_dwd.dwd_social_content_detail")) {
             additions.put("share_count", "BIGINT");
             additions.put("forward_count", "BIGINT");

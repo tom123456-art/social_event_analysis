@@ -10,7 +10,8 @@ public class HiveWarehouseSchemaRegression {
         if (!initial.contains("`source_url` STRING") || !initial.endsWith("RESTRICT;")) {
             throw new AssertionError("ODS upgrade must preserve historical partition schemas");
         }
-        if (!HiveWarehouseSchema.missingColumns(table, Set.of("source_url", "image_url", "category")).isEmpty()) {
+        if (!HiveWarehouseSchema.missingColumns(table, Set.of("source_url", "image_url", "category",
+                "_review_id", "_review_approved", "_review_sentiment", "_review_hold", "_corrupt_record")).isEmpty()) {
             throw new AssertionError("Metadata upgrade must be repeatable");
         }
         String partial = HiveWarehouseSchema.missingColumns(table, Set.of("source_url"));

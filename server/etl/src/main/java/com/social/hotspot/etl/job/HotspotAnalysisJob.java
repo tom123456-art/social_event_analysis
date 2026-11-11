@@ -82,6 +82,7 @@ public class HotspotAnalysisJob {
             Dataset<Row> parsed = ensureColumns(readInput(spark, input), "_corrupt_record").cache();
             long sourceCount = parsed.count();
             long structuralDirtyCount = parsed.filter(col("_corrupt_record").isNotNull()).count();
+            com.social.hotspot.etl.warehouse.WarehouseDatasetWriter.writeWarehouseOds(warehouseOutput, batchId, parsed);
             // 清洗入口同时提供原始损坏证据和规范化视图；日志、隔离输出仍由作业负责；保留原始字段供损坏计数和隔离文件使用。
             CleaningStage.Prepared prepared = CleaningStage.prepare(parsed, eventId, eventName, batchId);
             Dataset<Row> raw = prepared.raw();

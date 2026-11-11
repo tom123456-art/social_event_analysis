@@ -4,6 +4,9 @@ set -euo pipefail
 # 大型情感模型保留在本地数据处理主机上，虚拟机脚本
 # 只读取原始文件及本地推理生成的小型结果文件。
 SPARK_HOME=/opt/bigdata/spark
+export HADOOP_HOME=/opt/bigdata/hadoop-client
+export HADOOP_CONF_DIR="$HADOOP_HOME/etc/hadoop"
+export PATH="$HADOOP_HOME/bin:$PATH"
 APP_HOME=/opt/apps/social-hotspot-analytics
 BATCH_ID=$(date +%Y%m%d%H%M%S)
 RAW_INPUT="$APP_HOME/data/crawler/social_event_real.csv"
@@ -46,7 +49,7 @@ BEELINE=/opt/bigdata/hive/bin/beeline
 HIVE_SCHEMA=$(cat "$APP_HOME/deploy/sql/hive_tables.sql")
 "$BEELINE" -u jdbc:hive2://127.0.0.1:10000/default -n root -e "$HIVE_SCHEMA"
 "$BEELINE" -u jdbc:hive2://127.0.0.1:10000/default -n root -e "
-ALTER TABLE social_ods.ods_social_content_raw ADD IF NOT EXISTS PARTITION (batch_id='$BATCH_ID') LOCATION '$HDFS_RAW';
+ALTER TABLE social_ods.ods_social_content_raw ADD IF NOT EXISTS PARTITION (batch_id='$BATCH_ID') LOCATION '$HDFS_ROOT/warehouse/ods/ods_social_content_raw/batch_id=$BATCH_ID';
 ALTER TABLE social_dwd.dwd_social_content_detail ADD IF NOT EXISTS PARTITION (batch_id='$BATCH_ID') LOCATION '$HDFS_ROOT/warehouse/dwd/dwd_social_content_detail/batch_id=$BATCH_ID';"
 DWS_SQL=$(hdfs dfs -cat "$HDFS_ROOT/warehouse/manifests/batch_id=$BATCH_ID/dws.sql")
 "$BEELINE" -u jdbc:hive2://127.0.0.1:10000/default -n root -e "$DWS_SQL"

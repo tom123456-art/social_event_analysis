@@ -7,6 +7,22 @@ import java.util.Map;
 import static org.apache.spark.sql.functions.*;
 
 public final class WarehouseDatasetWriter {
+    public static final String[] ODS_COLUMNS = {
+            "event_id", "event_name", "platform", "content_id", "parent_content_id", "content_type", "title", "content_text",
+            "author_id", "author_name", "publish_time", "crawl_time", "like_count", "comment_count", "repost_count",
+            "favorite_count", "view_count", "keywords", "source_url", "image_url", "category",
+            "_review_id", "_review_approved", "_review_sentiment", "_review_hold", "_corrupt_record"
+    };
+
+    // 按字段名对齐原始值，保留 CSV 多行正文，不做业务清洗。
+    public static void writeWarehouseOds(String root, String batchId, Dataset<Row> parsed) {
+        if (!batchId.matches("[0-9]+")) throw new IllegalArgumentException("Invalid ODS batch ID");
+        Dataset<Row> aligned = com.social.hotspot.etl.cleaning.DataFrameColumns.ensureColumns(parsed, ODS_COLUMNS);
+        aligned.select(java.util.Arrays.stream(ODS_COLUMNS).map(name -> col(name).cast("string").alias(name))
+                        .toArray(org.apache.spark.sql.Column[]::new))
+                .write().mode(SaveMode.Overwrite).parquet(root + "/ods/ods_social_content_raw/batch_id=" + batchId);
+    }
+
     // 禁止实例化仓库写入工具类。
     private WarehouseDatasetWriter() {}
     // 将 DWS 汇总转换为应用层 ADS 快照并覆盖对应 Parquet 目录。

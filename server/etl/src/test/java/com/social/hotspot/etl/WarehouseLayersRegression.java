@@ -16,6 +16,7 @@ public class WarehouseLayersRegression {
                 .config("spark.sql.session.timeZone", "Asia/Shanghai").getOrCreate()) {
             spark.sparkContext().setLogLevel("WARN");
             String root = args[0];
+            verifyOds(spark, root);
             Dataset<Row> detail = spark.range(3).withColumn("event_id", lit("test-event"))
                     .withColumn("platform", when(col("id").equalTo(2), "WEIBO").otherwise("SOHU_NEWS"))
                     .withColumn("publish_time", to_timestamp(lit("2026-10-01 10:00:00")))
@@ -78,5 +79,47 @@ public class WarehouseLayersRegression {
             }
             System.out.println("PASS: 12 DWS tables preserve values, 6 ADS outputs read DWS, batch isolation and Hive manifest");
         }
+    }
+
+    private static void verifyOds(SparkSession spark, String root) throws Exception {
+        for (int width : new int[]{19, 21, 25}) {
+            var fields = new java.util.ArrayList<String>(java.util.List.of(
+                    com.social.hotspot.etl.warehouse.WarehouseDatasetWriter.ODS_COLUMNS).subList(0, 25));
+            if (width == 21) fields = new java.util.ArrayList<>(fields.subList(0, 21));
+            if (width == 19) {
+                fields = new java.util.ArrayList<>(fields.subList(0, 21));
+                fields.remove("author_id"); fields.remove("view_count");
+            }
+            String text = "line one, \"quoted\"\nline two";
+            String values = fields.stream().map(f -> "\"" + (f.equals("content_text") ? text : f + "_value")
+                    .replace("\"", "\"\"") + "\"").collect(java.util.stream.Collectors.joining(","));
+            var file = java.nio.file.Files.createTempFile("ods-columns-", ".csv");
+            try {
+                java.nio.file.Files.writeString(file, String.join(",", fields) + System.lineSeparator() + values);
+                var parsed = com.social.hotspot.etl.source.InputDatasetReader.readInput(spark, file.toUri().toString());
+                String batch = "20261109" + width;
+                com.social.hotspot.etl.warehouse.WarehouseDatasetWriter.writeWarehouseOds(root, batch, parsed);
+                var stored = spark.read().parquet(root + "/ods/ods_social_content_raw/batch_id=" + batch);
+                if (stored.count() != 1) throw new AssertionError("Multiline CSV split into multiple ODS rows");
+                var row = stored.first();
+                for (String field : fields) {
+                    String expected = field.equals("content_text") ? text : field + "_value";
+                    if (!expected.equals(row.getAs(field))) throw new AssertionError("ODS field shifted: " + width + "/" + field);
+                }
+                if (width == 19 && (row.getAs("author_id") != null || row.getAs("view_count") != null)) {
+                    throw new AssertionError("Missing CSV fields must stay NULL");
+                }
+            } finally { java.nio.file.Files.deleteIfExists(file); }
+        }
+        var broken = java.nio.file.Files.createTempFile("ods-broken-", ".csv");
+        try {
+            java.nio.file.Files.writeString(broken, "event_id,content_id\nevent,valid\nevent,broken,extra\n");
+            var parsed = com.social.hotspot.etl.source.InputDatasetReader.readInput(spark, broken.toUri().toString()).cache();
+            try {
+                if (parsed.count() != 2 || parsed.filter(col("_corrupt_record").isNotNull()).count() != 1) {
+                    throw new AssertionError("Malformed CSV evidence lost before DWD quality checks");
+                }
+            } finally { parsed.unpersist(); }
+        } finally { java.nio.file.Files.deleteIfExists(broken); }
     }
 }

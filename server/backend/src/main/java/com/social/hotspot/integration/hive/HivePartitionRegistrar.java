@@ -13,7 +13,7 @@ public final class HivePartitionRegistrar {
         String partition = batchId.replace("'", "''");
         String sql = "ALTER TABLE social_ods.ods_social_content_raw ADD IF NOT EXISTS PARTITION (batch_id='" + partition
                 // 继续拼接命令、路径或文本：+ "') LOCATION '" + rawPath.replace("'", "''") + "'; "；sh 负责参数引号转义。
-                + "') LOCATION '" + rawPath.replace("'", "''") + "'; "
+                + "') LOCATION '" + (warehouseOutput + "/ods/ods_social_content_raw/batch_id=" + batchId).replace("'", "''") + "'; "
                 // 继续拼接命令、路径或文本：+ "ALTER TABLE social_dwd.dwd_social_content_detail ADD IF NOT EXISTS PARTITION (batch_id='" + partition；sh 负责参数引号转义。
                 + "ALTER TABLE social_dwd.dwd_social_content_detail ADD IF NOT EXISTS PARTITION (batch_id='" + partition
                 // 继续拼接命令、路径或文本：+ "') LOCATION '" + dwdPath.replace("'", "''") + "'";；sh 负责参数引号转义。
@@ -33,7 +33,12 @@ public final class HivePartitionRegistrar {
             String upgrade = HiveWarehouseSchema.missingColumns(table, columns);
             if (!upgrade.isEmpty()) exec(session, hiveCli() + " -e " + sh(upgrade), timeoutSeconds);
         }
-        exec(session, hiveCli() + " -e " + sh("ALTER TABLE social_ods.ods_social_content_raw SET TBLPROPERTIES ('skip.header.line.count'='1'); " + sql), timeoutSeconds);
+        RemoteCommandResult odsDescription = exec(session, hiveCli() + " -e "
+                + sh("DESCRIBE FORMATTED social_ods.ods_social_content_raw"), timeoutSeconds);
+        if (!odsDescription.stdout().contains("ParquetHiveSerDe")) {
+            throw new IllegalStateException("ODS still uses legacy CSV metadata; migrate to Parquet before registering partitions");
+        }
+        exec(session, hiveCli() + " -e " + sh(sql), timeoutSeconds);
         RemoteCommandResult manifest = exec(session, "hdfs dfs -cat "
                 + sh(warehouseOutput + "/manifests/batch_id=" + batchId + "/dws.sql"), timeoutSeconds);
         if (manifest.stdout().isBlank()) throw new IllegalStateException("Missing DWS Hive manifest");

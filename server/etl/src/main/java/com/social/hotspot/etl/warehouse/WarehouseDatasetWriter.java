@@ -17,7 +17,7 @@ public final class WarehouseDatasetWriter {
     // 按字段名对齐原始值，保留 CSV 多行正文，不做业务清洗。
     public static void writeWarehouseOds(String root, String batchId, Dataset<Row> parsed) {
         if (!batchId.matches("[0-9]+")) throw new IllegalArgumentException("Invalid ODS batch ID");
-        Dataset<Row> aligned = com.social.hotspot.etl.cleaning.DataFrameColumns.ensureColumns(parsed, ODS_COLUMNS);
+        Dataset<Row> aligned = com.social.hotspot.etl.cleaning.FieldNormalizer.ensureColumns(parsed, ODS_COLUMNS);
         aligned.select(java.util.Arrays.stream(ODS_COLUMNS).map(name -> col(name).cast("string").alias(name))
                         .toArray(org.apache.spark.sql.Column[]::new))
                 .write().mode(SaveMode.Overwrite).parquet(root + "/ods/ods_social_content_raw/batch_id=" + batchId);

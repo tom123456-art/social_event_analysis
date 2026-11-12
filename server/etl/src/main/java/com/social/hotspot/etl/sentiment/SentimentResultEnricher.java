@@ -1,7 +1,7 @@
 package com.social.hotspot.etl.sentiment;
-import static com.social.hotspot.etl.cleaning.DataFrameColumns.hasColumn;
-import static com.social.hotspot.etl.cleaning.DataFrameColumns.nullIfBlank;
-import static com.social.hotspot.etl.cleaning.DataFrameColumns.safeCol;
+import static com.social.hotspot.etl.cleaning.FieldNormalizer.hasColumn;
+import static com.social.hotspot.etl.cleaning.FieldNormalizer.nullIfBlank;
+import static com.social.hotspot.etl.cleaning.FieldNormalizer.safeCol;
 
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;

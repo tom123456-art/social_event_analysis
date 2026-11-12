@@ -73,7 +73,7 @@ Spark ETL 负责批量处理内容数据、关联分析结果并计算面向页�
 
 分析模块已按页面拆分为独立的 Controller、Service、ServiceImpl、Mapper 和 SQL 映射，文件入口见 [分析模块代码导航](server/backend/分析模块代码导航.md)。
 
-系统使用单账号登录，不提供注册、角色权限和用户管理。已有数据库升级步骤见 [单账号迁移说明](deploy/sql/migrations/README.md)。分析接口统一为 `/api/analysis/...`，数据集由后端确定。
+系统使用单账号、单有效会话登录，不提供注册、角色权限、用户管理、站内投稿或站内互动。账号资料、密码哈希和当前会话统一保存在 `app_user`，新登录会使旧会话失效。已有数据库升级步骤见 [单账号迁移说明](deploy/sql/migrations/README.md)。分析接口统一为 `/api/analysis/...`，数据集由后端确定。后台事件数量仅统计有效事件，归档事件保留作历史追溯。
 
 - **前端**：Vue 3、TypeScript、Vite、Element Plus、ECharts，用于页面开发、组件交互和数据可视化。
 - **后端**：Java、Spring Boot、MyBatis，用于构建业务接口和数据库访问服务。

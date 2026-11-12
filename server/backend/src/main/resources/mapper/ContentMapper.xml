@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.social.hotspot.mapper.ContentMapper">
+    <select id="rankedContents" resultType="map">
+        SELECT * FROM ads_content_hot_rank
+        WHERE event_id = #{eventId}
+        ORDER BY rank_no ASC LIMIT #{limit}
+    </select>
     <!-- 内容明细 / 内容明细列表：按搜索条件查询当前页。 -->
     <select id="contentPage" resultType="map">
         <!-- 选取内容热度排名表全部字段。 -->

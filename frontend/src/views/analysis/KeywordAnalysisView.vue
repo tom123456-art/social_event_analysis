@@ -183,7 +183,7 @@
         <p v-if="evidenceTopic.valid_count">平均{{ evidenceMetricLabel }} = {{ decimal(evidenceTopic.interaction_total) }} 次 ÷ {{ evidenceTopic.valid_count }} 篇 = {{ decimal(evidenceTopic.average_interaction) }} 次/篇。</p>
         <p v-else>无有效互动值，无法计算平均数或划分象限。</p>
         <p>{{ evidencePosition }}；报道量中位数 {{ decimal(evidenceCountMedian) }} 篇，平均互动中位数 {{ decimal(evidenceInteractionMedian) }} 次/篇。</p>
-        <div class="topic-evidence-list"><article v-for="row in evidenceArticles" :key="row.id"><a v-if="safeSourceUrl(row.source.source_url)" :href="safeSourceUrl(row.source.source_url)" target="_blank" rel="noopener noreferrer">{{ row.source.title || row.source.content_id }}</a><b v-else>{{ row.source.title || row.source.content_id }}</b><small>{{ row.day }} · {{ evidenceMetricLabel }} {{ decimal(numericInteraction(row.source[evidenceField])) }} 次</small><span v-if="!safeSourceUrl(row.source.source_url)">未提供有效原文链接</span></article></div>
+        <div class="topic-evidence-list"><article v-for="row in evidenceArticles" :key="row.id"><a v-if="safeSourceUrl(row.source.source_url)" :href="safeSourceUrl(row.source.source_url)" target="_blank" rel="noopener noreferrer">{{ row.source.title || row.source.content_id }}</a><b v-else>{{ row.source.title || row.source.content_id }}</b><span v-if="!safeSourceUrl(row.source.source_url)">未提供有效原文链接</span></article></div>
         <!-- 绑定当前页码和总条数，翻页后重新查询或重新截取对应记录。 -->
         <el-pagination v-model:current-page="evidencePage" :page-size="10" layout="total, prev, pager, next" :total="evidenceTopic.articles.length" />
       </template>
@@ -249,8 +249,6 @@ const evidenceTopic = ref<any>(null)
 const evidencePage = ref(1)
 // 保存打开依据时的平台和日期说明。
 const evidenceScope = ref('')
-// 保存打开依据时的互动字段，避免后续筛选改变弹框计算口径。
-const evidenceField = ref('like_count')
 // 保存互动字段的中文名，供弹框公式说明使用。
 const evidenceMetricLabel = ref('点赞')
 // 保存本次依据采用的报道量中位数。
@@ -730,7 +728,7 @@ function escapeHtml(value: unknown) { return String(value || '').replace(/&/g, '
 function safeSourceUrl(value: unknown) { const url = String(value || ''); return /^https?:\/\//i.test(url) ? url : '' }
 // 打开证据时冻结当前观察范围、字段和中位数，确保弹框说明与点击时的结论一致。
 function openTopicEvidence(topic: any) {
-  evidenceTopic.value = topic; evidencePage.value = 1; evidenceField.value = observationMetric.value; evidenceMetricLabel.value = metricLabel.value
+  evidenceTopic.value = topic; evidencePage.value = 1; evidenceMetricLabel.value = metricLabel.value
   evidenceScope.value = observationScopeText.value; evidenceCountMedian.value = supplyMedian.value; evidenceInteractionMedian.value = demandMedian.value
   evidencePosition.value = observationPosition(topic, supplyMedian.value, demandMedian.value); evidenceVisible.value = true
 }
@@ -823,7 +821,6 @@ onMounted(async () => {
 .observation-topic-list b { color: #0f766e; }
 .topic-evidence-list { max-height: 420px; overflow: auto; }
 .topic-evidence-list article { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; overflow-wrap: anywhere; }
-.topic-evidence-list small { color: #64748b; }
 @media (max-width: 600px) { .observation-filters { grid-template-columns: 1fr 1fr; } .observation-filters :deep(.el-date-editor) { grid-column: 1 / -1; } .observation-topic-list { grid-template-columns: 1fr; } }
 .keyword-table-card { grid-column: 1 / -1; min-height: 430px; }
 .keyword-table-tools { display: grid; grid-template-columns: minmax(0, 1.15fr) .85fr .95fr; gap: 8px; margin-bottom: 10px; }

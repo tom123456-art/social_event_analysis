@@ -18,7 +18,7 @@ public class SourceLayoutRegression {
         var resources = new PathMatchingResourcePatternResolver().getResources("classpath:/mapper/**/*.xml");
         Set<String> expected = Set.of("OverviewMapper.xml", "HotspotTrendMapper.xml", "PlatformSpreadMapper.xml",
                 "KeywordAnalysisMapper.xml", "SentimentAnalysisMapper.xml", "ContentMapper.xml", "AdminHomeMapper.xml",
-                "ScreenMapper.xml", "EtlTaskMapper.xml", "UserMapper.xml", "CommunityMapper.xml");
+                "ScreenMapper.xml", "EtlTaskMapper.xml", "UserMapper.xml");
         Set<String> actual = new HashSet<>();
         for (var resource : resources) actual.add(resource.getFilename());
         if (resources.length != expected.size() || !actual.equals(expected)) throw new AssertionError("Unexpected mapper resources: " + actual);
@@ -66,6 +66,12 @@ public class SourceLayoutRegression {
             if (!names.contains(Introspector.decapitalize(page + "ServiceImpl"))) throw new AssertionError("Implementation not scanned: " + page);
         }
         if (!names.contains("redisCache") || names.contains("analyticsCache")) throw new AssertionError("Wrong common cache component");
-        System.out.println("PASS: eleven page/ETL/account Mapper XMLs, all SQL bindings, unique components and page GET routes.");
+        String countSql = configuration.getMappedStatement("com.social.hotspot.mapper.AdminHomeMapper.eventCount").getBoundSql(null).getSql();
+        if (!countSql.contains("status = 'ACTIVE'")) throw new AssertionError("Archived events must not count as active datasets");
+        for (String route : Set.of("/api/front/interactions", "/api/front/submissions", "/api/admin/interactions", "/api/admin/submissions")) {
+            if (routes.contains(route)) throw new AssertionError("Removed community route remains: " + route);
+        }
+        if (!routes.contains("/api/admin/contents") || !routes.contains("/api/front/profile")) throw new AssertionError("Content/profile routes must remain");
+        System.out.println("PASS: ten page/ETL/account Mapper XMLs, active event count, removed community routes, unique components and SQL bindings.");
     }
 }

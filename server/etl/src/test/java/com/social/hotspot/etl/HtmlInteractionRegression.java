@@ -1,7 +1,6 @@
 package com.social.hotspot.etl;
-import com.social.hotspot.etl.cleaning.HtmlTextCleaner;
+import com.social.hotspot.etl.cleaning.TextNormalizer;
 
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -22,13 +21,13 @@ public class HtmlInteractionRegression {
             "WEIBO", List.of());
 
     public static void main(String[] args) throws Exception {
-        if (!"A B C D & E A B".equals(HtmlTextCleaner.clean("<p>A&nbsp;<b>B</b></p><div>C<br>D &amp; E &#65; &#x42;</div>")))
+        if (!"A B C D & E A B".equals(TextNormalizer.normalizeText("<p>A&nbsp;<b>B</b></p><div>C<br>D &amp; E &#65; &#x42;</div>")))
             throw new AssertionError("HTML extraction failed");
-        if (!"AB".equals(HtmlTextCleaner.clean("A<script>alert(1)</script><style>x</style><template>hidden</template><!-- note -->B")))
+        if (!"AB".equals(TextNormalizer.normalizeText("A<script>alert(1)</script><style>x</style><template>hidden</template><!-- note -->B")))
             throw new AssertionError("Hidden HTML leaked");
-        if (!"1 < 2 & 3 > 2".equals(HtmlTextCleaner.clean("1 < 2 &amp; 3 > 2")))
+        if (!"1 < 2 & 3 > 2".equals(TextNormalizer.normalizeText("1 < 2 &amp; 3 > 2")))
             throw new AssertionError("Plain text comparison damaged");
-        if (!"<b>text</b>".equals(HtmlTextCleaner.clean("&lt;b&gt;text&lt;/b&gt;")))
+        if (!"<b>text</b>".equals(TextNormalizer.normalizeText("&lt;b&gt;text&lt;/b&gt;")))
             throw new AssertionError("Entities decoded twice");
         try (SparkSession spark = SparkSession.builder().master("local[1]").appName("html-interaction-regression")
                 .config("spark.ui.enabled", "false").config("spark.sql.ansi.enabled", "false")
@@ -43,10 +42,9 @@ public class HtmlInteractionRegression {
                 input.add(RowFactory.create("event", platform, "zero-" + platform, "0", "0", "0", "0"));
                 input.add(RowFactory.create("event", platform, "value-" + platform, "10", "20", "30", "40"));
             }
-            var normalize = com.social.hotspot.etl.cleaning.ContentNormalizer.class.getDeclaredMethod("normalize", Dataset.class, String.class);
-            normalize.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Dataset<Row> normalized = (Dataset<Row>) normalize.invoke(null, spark.createDataFrame(input, schema), "test");
+            Dataset<Row> inspected = com.social.hotspot.etl.cleaning.RecordFilter.inspectRaw(spark.createDataFrame(input, schema));
+            Dataset<Row> normalized = com.social.hotspot.etl.metric.InteractionHeatCalculator.applyInteractionPolicy(
+                    com.social.hotspot.etl.cleaning.FieldNormalizer.normalize(TextNormalizer.normalize(inspected), "test"));
             for (Row row : normalized.collectAsList()) {
                 String platform = row.getAs("platform");
                 boolean valued = row.<String>getAs("content_id").startsWith("value-");
@@ -74,11 +72,9 @@ public class HtmlInteractionRegression {
                 if (supported == 0 && row.getAs("platform_heat_index") != null)
                     throw new AssertionError("Weibo received heat signal");
             }
-            var clean = com.social.hotspot.etl.cleaning.ContentNormalizer.class.getDeclaredMethod("cleanText", Column.class);
-            clean.setAccessible(true);
             var html = spark.createDataFrame(List.of(RowFactory.create("<p>A&nbsp;B</p>")),
                     new StructType().add("text", DataTypes.StringType));
-            if (!"A B".equals(html.select((Column) clean.invoke(null, org.apache.spark.sql.functions.col("text"))).first().getString(0)))
+            if (!"A B".equals(html.select(TextNormalizer.cleanText(org.apache.spark.sql.functions.col("text"))).first().getString(0)))
                 throw new AssertionError("Spark HTML UDF failed");
         }
         System.out.println("PASS: HTML cleanup, six-platform null/zero policy, totals, heat signals.");

@@ -22,7 +22,7 @@ async function main() {
     await page.route('**/api/**', async route => {
       const url = new URL(route.request().url()), method = route.request().method()
       if (!url.pathname.startsWith('/api/')) return route.continue()
-      if (url.pathname.startsWith('/api/admin/submissions')) submissionRequests++
+      if (/^\/api\/(admin|front)\/(submissions|interactions)(\/|$)/.test(url.pathname)) submissionRequests++
       let data = []
       if (url.pathname === '/api/admin/reviews/jobs/latest') data = latest
       else if (url.pathname === '/api/admin/reviews/apply') {
@@ -41,6 +41,7 @@ async function main() {
     })
     await page.goto(`${process.env.REVIEW_BASE_URL || 'http://127.0.0.1:5174'}/admin/data`)
     assert.equal(await page.getByRole('tab', { name: '用户投稿审核', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('tab', { name: '互动记录', exact: true }).count(), 0)
     await page.getByRole('tab', { name: '人工标注审核', exact: true }).click()
     await page.getByText('情感低置信度', { exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: /应用审核结果/ }).isDisabled(), true)

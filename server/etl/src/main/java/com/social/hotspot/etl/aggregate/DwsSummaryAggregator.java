@@ -1,5 +1,5 @@
 package com.social.hotspot.etl.aggregate;
-import static com.social.hotspot.etl.cleaning.DataFrameColumns.nullIfBlank;
+import static com.social.hotspot.etl.cleaning.FieldNormalizer.nullIfBlank;
 import static com.social.hotspot.etl.publish.JdbcDatasetPublisher.upsertEvent;
 
 import org.apache.spark.sql.Column;

@@ -26,10 +26,10 @@ public class SourceRankRegression {
                     RowFactory.create("event", "SOHU_NEWS", "item-001", "10", "10", "10", "1"),
                     RowFactory.create("event", "SOHU_NEWS", "item-002", "20", "20", "20", "bad-rank"),
                     RowFactory.create("event", "SOHU_NEWS", "item-003", "30", "30", "30", "999")), schema);
-            var normalize = com.social.hotspot.etl.cleaning.ContentNormalizer.class.getDeclaredMethod("normalize", Dataset.class, String.class);
-            normalize.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Dataset<Row> normalized = (Dataset<Row>) normalize.invoke(null, raw, "test");
+            Dataset<Row> inspected = com.social.hotspot.etl.cleaning.RecordFilter.inspectRaw(raw);
+            Dataset<Row> normalized = com.social.hotspot.etl.metric.InteractionHeatCalculator.applyInteractionPolicy(
+                    com.social.hotspot.etl.cleaning.FieldNormalizer.normalize(
+                            com.social.hotspot.etl.cleaning.TextNormalizer.normalize(inspected), "test"));
             if (List.of(normalized.columns()).contains("hot_rank") || normalized.filter(col("has_invalid_numeric")).count() != 0)
                 throw new AssertionError("Source rank affected normalization or validity");
             Dataset<Row> scored = com.social.hotspot.etl.metric.InteractionHeatCalculator.buildPlatformRelativeHeat(normalized);

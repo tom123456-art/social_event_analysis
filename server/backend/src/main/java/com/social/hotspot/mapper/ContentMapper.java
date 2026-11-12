@@ -8,6 +8,9 @@ import java.util.Map;
 /** 内容明细数据查询，SQL 位于同名 XML 映射文件。 */
 @Mapper
 public interface ContentMapper {
+    // 后台只读内容列表沿用热度排名顺序。
+    List<Map<String, Object>> rankedContents(@Param("eventId") String eventId, @Param("limit") int limit);
+
     // 内容明细 / 内容明细列表：按搜索条件查询当前页。
     List<Map<String, Object>> contentPage(@Param("eventId") String eventId, @Param("query") String query, @Param("platform") String platform, @Param("sentiment") String sentiment, @Param("category") String category, @Param("offset") int offset, @Param("pageSize") int pageSize);
 

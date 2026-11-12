@@ -6,6 +6,7 @@
         <!-- 统计事件信息表记录数。 -->
         SELECT COUNT(*) event_count
         FROM event_info
+        WHERE status = 'ACTIVE'
     </select>
 
     <!-- 后台首页 / 顶部指标：按标题去重统计主题数量。 -->

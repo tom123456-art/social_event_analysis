@@ -5,7 +5,16 @@ const { test } = require('node:test')
 const vm = require('node:vm')
 const ts = require('typescript')
 const helpers = {}
+const keywordView = readFileSync(path.join(__dirname, '../src/views/analysis/KeywordAnalysisView.vue'), 'utf8')
 vm.runInNewContext(ts.transpileModule(readFileSync(path.join(__dirname, '../src/utils/topicObservation.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: helpers })
+
+test('keyword evidence articles keep source links without dates or interaction counts', () => {
+  const evidenceList = keywordView.match(/<div class="topic-evidence-list">([\s\S]*?)<\/div>/)?.[1]
+  assert.ok(evidenceList)
+  assert.match(evidenceList, /row\.source\.title/)
+  assert.match(evidenceList, /safeSourceUrl\(row\.source\.source_url\)/)
+  assert.doesNotMatch(evidenceList, /row\.day|publish_time|evidenceMetricLabel|numericInteraction|evidenceField/)
+})
 
 test('standalone countries are contextual entities, specific issue words remain', () => {
   for (const word of ['中国', '美国', '日本']) assert.equal(helpers.isContextOnlyKeyword(word), true)

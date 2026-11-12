@@ -82,7 +82,7 @@ public class SentimentConfidenceRegression {
             try {
                 java.nio.file.Files.writeString(csv, "platform,content_id,sentiment_label,sentiment_positive_score,sentiment_neutral_score,sentiment_negative_score,sentiment_status,sentiment_reason\n"
                         + "WEIBO,skipped,,,,,SKIPPED,NO_ATTITUDE_CUE\nWEIBO,predicted,positive,0.96,0,0.04,PREDICTED,MODEL_BINARY\n");
-                @SuppressWarnings("unchecked") Dataset<Row> predictions = (Dataset<Row>) inputReader.invoke(null, spark, csv.toString());
+                @SuppressWarnings("unchecked") Dataset<Row> predictions = (Dataset<Row>) inputReader.invoke(null, spark, csv.toUri().toString());
                 if (predictions.count() != 2) throw new AssertionError("Skipped CSV row discarded");
                 Dataset<Row> content = spark.createDataFrame(List.of(RowFactory.create("WEIBO", "skipped"),
                         RowFactory.create("WEIBO", "predicted"), RowFactory.create("WEIBO", "missing")),

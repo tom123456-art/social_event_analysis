@@ -1,11 +1,11 @@
 package com.social.hotspot.etl.job;
-import static com.social.hotspot.etl.cleaning.DataFrameColumns.alignToSchema;
+import static com.social.hotspot.etl.cleaning.FieldNormalizer.alignToSchema;
 import static com.social.hotspot.etl.metric.InteractionHeatCalculator.applyInteractionPolicy;
 import static com.social.hotspot.etl.sentiment.SentimentResultEnricher.applySentimentEligibility;
 import static com.social.hotspot.etl.sentiment.SentimentResultEnricher.applySentimentResults;
 import static com.social.hotspot.etl.aggregate.DwsSummaryAggregator.buildDwsSummaries;
 import static com.social.hotspot.etl.metric.InteractionHeatCalculator.buildPlatformRelativeHeat;
-import static com.social.hotspot.etl.cleaning.DataFrameColumns.ensureColumns;
+import static com.social.hotspot.etl.cleaning.FieldNormalizer.ensureColumns;
 import static com.social.hotspot.etl.sentiment.SentimentResultEnricher.highConfidenceSentiment;
 import static com.social.hotspot.etl.tracking.EtlProgressRecorder.logTask;
 import static com.social.hotspot.etl.sentiment.SentimentResultEnricher.manualSentiment;
@@ -13,7 +13,7 @@ import static com.social.hotspot.etl.config.JobArguments.parseArgs;
 import static com.social.hotspot.etl.source.InputDatasetReader.readInput;
 import static com.social.hotspot.etl.sentiment.SentimentResultEnricher.readSentimentInput;
 import static com.social.hotspot.etl.config.JobArguments.required;
-import static com.social.hotspot.etl.cleaning.RecordQualityExpressions.textQualityReason;
+import static com.social.hotspot.etl.cleaning.RecordFilter.textQualityReason;
 import static com.social.hotspot.etl.tracking.EtlProgressRecorder.truncate;
 import static com.social.hotspot.etl.tracking.EtlProgressRecorder.upsertBatch;
 import static com.social.hotspot.etl.publish.JdbcDatasetPublisher.upsertEvent;
@@ -21,8 +21,10 @@ import static com.social.hotspot.etl.sentiment.SentimentResultEnricher.validBina
 import static com.social.hotspot.etl.publish.JdbcDatasetPublisher.writeJdbc;
 import static com.social.hotspot.etl.warehouse.WarehouseDatasetWriter.writeWarehouseAds;
 import static com.social.hotspot.etl.warehouse.WarehouseDatasetWriter.writeWarehouseDwd;
-import com.social.hotspot.etl.cleaning.CleaningStage;
-import com.social.hotspot.etl.cleaning.TextDamageDetector;
+import com.social.hotspot.etl.cleaning.FieldNormalizer;
+import com.social.hotspot.etl.cleaning.TextNormalizer;
+import com.social.hotspot.etl.cleaning.RecordDeduplicator;
+import com.social.hotspot.etl.cleaning.RecordFilter;
 import com.social.hotspot.etl.warehouse.DwsSnapshotMaterializer;
 import com.social.hotspot.etl.publish.AdsSnapshotPublisher;
 
@@ -83,15 +85,15 @@ public class HotspotAnalysisJob {
             long sourceCount = parsed.count();
             long structuralDirtyCount = parsed.filter(col("_corrupt_record").isNotNull()).count();
             com.social.hotspot.etl.warehouse.WarehouseDatasetWriter.writeWarehouseOds(warehouseOutput, batchId, parsed);
-            // 清洗入口同时提供原始损坏证据和规范化视图；日志、隔离输出仍由作业负责；保留原始字段供损坏计数和隔离文件使用。
-            CleaningStage.Prepared prepared = CleaningStage.prepare(parsed, eventId, eventName, batchId);
-            Dataset<Row> raw = prepared.raw();
+            // 先检查原始记录，再规范化，避免修复过程抹掉损坏证据。
+            Dataset<Row> raw = RecordFilter.inspectRaw(FieldNormalizer.prepareEvent(parsed, eventId, eventName));
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "RawToOdsJob", "ODS", sourceCount, sourceCount, "SUCCESS", null);
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityStructural", "DWD", sourceCount,
                     sourceCount - structuralDirtyCount, "SUCCESS", null);
 
             // 规范化视图携带审核和质量标记，供统计及核验使用。
-            Dataset<Row> normalized = prepared.normalized();
+            Dataset<Row> normalized = applyInteractionPolicy(
+                    FieldNormalizer.normalize(TextNormalizer.normalize(raw), batchId));
             upsertBatch(jdbcUrl, jdbcUser, jdbcPassword, batchId, eventId, input, "RUNNING", "DWD", startedAt, null, null, sourceCount, 0, 0, 0);
             long textRepairedCount = normalized.filter(col("text_normalized")).count();
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityTextNormalization", "DWD", sourceCount,
@@ -99,22 +101,23 @@ public class HotspotAnalysisJob {
             long textRejectedCount = raw.filter(col("text_quality_reason").isNotNull()).count();
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityTextEncoding", "DWD", sourceCount,
                     sourceCount - textRejectedCount, "SUCCESS", null);
-            System.out.println("text_quality_policy=" + TextDamageDetector.version() + " text_damage_discarded=" + textRejectedCount);
+            System.out.println("text_quality_policy=" + RecordFilter.version() + " text_damage_discarded=" + textRejectedCount);
             if (textRejectedCount > 0 && warehouseOutput != null && !warehouseOutput.isBlank()) {
                 raw.filter(col("text_quality_reason").isNotNull()).withColumn("batch_id", lit(batchId))
                         .write().mode(SaveMode.ErrorIfExists).parquet(warehouseOutput
                                 + "/quarantine/text_encoding/batch_id=" + batchId);
             }
-            // 统一执行有效性过滤和批内去重，作业层不再拼装规则；此处仍为去重前的质量通过数，与原任务日志口径一致。
-            CleaningStage.Result cleaned = CleaningStage.clean(normalized);
-            long candidateCount = cleaned.candidateCount();
+            // 无效记录先退出，不能参与保留版本的竞争。
+            Dataset<Row> candidates = RecordFilter.retainUsable(normalized);
+            long candidateCount = candidates.count();
             long dirtyCount = Math.max(0, sourceCount - candidateCount);
             logTask(jdbcUrl, jdbcUser, jdbcPassword, batchId, "DataQualityCompletenessValidity", "DWD", sourceCount, candidateCount, "SUCCESS", null);
 
             // 重复数仅包含通过质量过滤的候选记录。
-            long duplicateCount = cleaned.duplicateCount();
+            RecordDeduplicator.Result deduplicated = RecordDeduplicator.deduplicate(candidates);
+            long duplicateCount = deduplicated.duplicateCount();
             // 从去重完成的明细开始合并情感结果。
-            Dataset<Row> valid = cleaned.valid();
+            Dataset<Row> valid = deduplicated.valid();
             Dataset<Row> sentimentAnalyzed = applySentimentResults(valid, readSentimentInput(spark, sentimentInput));
             long missingSentimentCount = sentimentAnalyzed
                     .filter(col("platform").isin("WEIBO", "SOHU_NEWS", "TENCENT_NEWS", "NETEASE_NEWS", "SINA_NEWS", "THE_PAPER")
@@ -157,10 +160,9 @@ public class HotspotAnalysisJob {
                 // 替换过期预测结果，同时保留较新的有效内容。
                 Dataset<Row> combined = previous.unionByName(scoredIncoming, true);
                 // 增量合并规则也由清洗包维护，按最近采集版本覆盖历史。
-                Dataset<Row> merged = CleaningStage.rankIncremental(combined);
-                long mergeDuplicates = merged.filter(col("_merge_rank").gt(1)).count();
-                duplicateCount += mergeDuplicates;
-                completeCore = applySentimentEligibility(merged.filter(col("_merge_rank").equalTo(1)).drop("_merge_rank"), sentimentMinConfidence);
+                RecordDeduplicator.Result merged = RecordDeduplicator.deduplicateIncremental(combined);
+                duplicateCount += merged.duplicateCount();
+                completeCore = applySentimentEligibility(merged.valid(), sentimentMinConfidence);
             }
             Dataset<Row> detail = buildPlatformRelativeHeat(completeCore).persist(StorageLevel.MEMORY_AND_DISK());
             long fullValidCount = detail.count();

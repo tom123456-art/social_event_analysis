@@ -7,7 +7,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 
-import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -42,10 +41,9 @@ public class TimestampQualityRegression {
                     RowFactory.create("missing-both", null, null)
             ), schema);
             // 调用实际字段规范化方法，检查缺失时间没有被另一个时间替代。
-            Method normalize = com.social.hotspot.etl.cleaning.ContentNormalizer.class.getDeclaredMethod("normalize", Dataset.class, String.class);
-            normalize.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Dataset<Row> normalized = (Dataset<Row>) normalize.invoke(null, input, "timestamp-test");
+            Dataset<Row> inspected = com.social.hotspot.etl.cleaning.RecordFilter.inspectRaw(input);
+            Dataset<Row> normalized = com.social.hotspot.etl.cleaning.FieldNormalizer.normalize(
+                    com.social.hotspot.etl.cleaning.TextNormalizer.normalize(inspected), "timestamp-test");
             for (Row row : normalized.select("content_id", "publish_time", "crawl_time").collectAsList()) {
                 String id = row.getString(0);
                 if ((id.contains("publish") || id.equals("missing-both")) && !row.isNullAt(1)) {

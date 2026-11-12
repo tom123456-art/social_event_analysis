@@ -3,7 +3,7 @@ import com.social.hotspot.service.user.UserProfileService;
 
 import com.social.hotspot.security.AuthInterceptor;
 import com.social.hotspot.controller.AuthController;
-import com.social.hotspot.controller.UserProfileCommunityController;
+import com.social.hotspot.controller.UserProfileController;
 import com.social.hotspot.exception.AuthException;
 import com.social.hotspot.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,7 +44,7 @@ public class AuthRegression {
         };
         HttpServletRequest front = request("/api/front/profile?username=student", header);
         interceptor.preHandle(front, null, null);
-        UserProfileCommunityController controller = new UserProfileCommunityController(profile, null);
+        UserProfileController controller = new UserProfileController(profile);
         check("admin".equals(controller.profile(front).data().get("username")), "query cannot select another account");
         var update = new com.social.hotspot.controller.ProfileUpdateRequest("Name", "", "", "");
         check("admin".equals(controller.updateProfile(update, front).data().get("username")), "update uses principal");
@@ -65,6 +65,11 @@ public class AuthRegression {
         reject(BusinessException.class, () -> AuthService.newPassword("中".repeat(30)));
         reject(BusinessException.class, () -> auth.changePassword(1L, Map.of("oldPassword", "wrong", "password", "new-password-123", "confirmPassword", "new-password-123")));
         check(store.sessions.containsKey(AuthService.digest(token)), "failed password change retains sessions");
+        String replacement = (String) auth.login(Map.of("username", "admin", "password", "example-pass-123")).get("token");
+        reject(AuthException.class, () -> auth.authenticate(header));
+        check(store.sessions.size() == 1, "new login replaces the previous session");
+        auth.logout(header);
+        check("admin".equals(auth.authenticate("Bearer " + replacement).get("username")), "old logout cannot revoke a newer login");
         auth.changePassword(1L, Map.of("oldPassword", "example-pass-123", "password", "new-password-123", "confirmPassword", "new-password-123"));
         reject(AuthException.class, () -> auth.authenticate(header));
         reject(AuthException.class, () -> auth.login(Map.of("username", "admin", "password", "example-pass-123")));
@@ -129,20 +134,26 @@ public class AuthRegression {
         Set<String> expired = new HashSet<>();
         @Override public int update(String sql) { return update(sql, new Object[0]); }
         @Override public int update(String sql, Object... args) {
-            if (sql.startsWith("INSERT INTO app_user_session")) sessions.put((String) args[0], ((Number) args[1]).longValue());
-            else if (sql.startsWith("UPDATE app_user_credential")) passwords.put(((Number) args[1]).longValue(), (String) args[0]);
+            if (sql.startsWith("UPDATE app_user SET token_hash=?")) {
+                long id = ((Number) args[1]).longValue();
+                sessions.entrySet().removeIf(entry -> entry.getValue().equals(id));
+                sessions.put((String) args[0], id);
+            }
+            else if (sql.startsWith("UPDATE app_user SET password_hash=?")) {
+                long id = ((Number) args[1]).longValue();
+                passwords.put(id, (String) args[0]);
+                sessions.entrySet().removeIf(entry -> entry.getValue().equals(id));
+            }
             else if (sql.contains("WHERE token_hash=?")) sessions.remove(args[0]);
-            else if (sql.contains("WHERE user_id=?")) sessions.entrySet().removeIf(entry -> entry.getValue().equals(((Number) args[0]).longValue()));
-            else if (sql.contains("WHERE expires_at")) { expired.forEach(sessions::remove); expired.clear(); }
             else throw new AssertionError(sql);
             return 1;
         }
         @Override public List<Map<String, Object>> queryForList(String sql, Object... args) {
-            if (sql.contains("FROM app_user_session")) {
+            if (sql.contains("WHERE token_hash=?")) {
                 Long id = sessions.get(args[0]);
                 return id == null || expired.contains(args[0]) ? List.of() : List.of(new LinkedHashMap<>(users.get(id)));
             }
-            if (sql.contains("c.password_hash")) {
+            if (sql.contains("WHERE username=?")) {
                 Optional<Map<String, Object>> user = users.values().stream().filter(row -> row.get("username").toString().equalsIgnoreCase(args[0].toString())).findFirst();
                 if (user.isEmpty() || !passwords.containsKey(((Number) user.get().get("id")).longValue())) return List.of();
                 Map<String, Object> row = new LinkedHashMap<>(user.get()); row.put("password_hash", passwords.get(((Number) row.get("id")).longValue())); return List.of(row);
@@ -150,7 +161,10 @@ public class AuthRegression {
             throw new AssertionError(sql);
         }
         @Override public Map<String, Object> queryForMap(String sql, Object... args) {
-            if (sql.contains("FROM app_user_credential")) return Map.of("password_hash", passwords.get(((Number) args[0]).longValue()));
+            if (sql.contains("FROM app_user WHERE id=?")) {
+                long id = ((Number) args[0]).longValue();
+                return Map.of("password_hash", passwords.get(id), "status", users.get(id).get("status"));
+            }
             if (sql.contains("FROM app_user WHERE username")) return users.values().stream().filter(row -> row.get("username").equals(args[0])).findFirst().map(LinkedHashMap::new).orElseThrow();
             throw new AssertionError(sql);
         }

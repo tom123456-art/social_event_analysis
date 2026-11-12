@@ -17,7 +17,7 @@ public class AiToolsRegression {
         check(AiSqlPolicy.validate("SELECT platform, COUNT(*) AS total FROM ads_content_hot_rank GROUP BY platform ORDER BY total DESC", schema).endsWith("LIMIT 100"), "automatic row limit");
         check(AiSqlPolicy.validate("SELECT title FROM ads_content_hot_rank WHERE platform='WEIBO' AND publish_time >= '2026-01-01' LIMIT 5", schema).endsWith("LIMIT 5"), "safe filtered query");
         for (String sql : List.of(
-                "DELETE FROM ads_content_hot_rank", "SELECT title FROM app_user", "SELECT password_hash FROM app_user_credential",
+                "DELETE FROM ads_content_hot_rank", "SELECT title FROM app_user", "SELECT password_hash FROM app_user", "SELECT token_hash FROM app_user",
                 "SELECT title FROM ads_content_hot_rank; SELECT title FROM ads_content_hot_rank", "SELECT sleep(5) FROM ads_content_hot_rank",
                 "SELECT load_file('/etc/passwd') FROM ads_content_hot_rank", "SELECT title FROM ads_content_hot_rank INTO OUTFILE '/tmp/a'",
                 "SELECT title FROM ads_content_hot_rank UNION SELECT username FROM app_user", "SELECT title FROM ads_content_hot_rank -- comment",

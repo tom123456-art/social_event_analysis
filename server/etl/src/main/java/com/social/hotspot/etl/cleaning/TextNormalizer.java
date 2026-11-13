@@ -47,6 +47,7 @@ public final class TextNormalizer {
             // 此处构建 Spark 列表达式，实际清洗在后续执行数据集计算时完成。
             Column cleaned = normalizedText(original);
             // 使用空值安全比较累计变化标记；比较发生在截断前，单纯超长不算格式修复。
+            // 对标题正文等文本中存在的杂乱内容进行清理，如一些乱码字符，链接
             changed = changed.or(not(original.eqNullSafe(cleaned)));
             // Spark 的 substr 起始位置为 1，每个清洗字段最多保留 1000 个字符。
             result = result.withColumn("_normalized_" + field, cleaned.substr(1, 1000));
@@ -70,7 +71,9 @@ public final class TextNormalizer {
         return udf((UDF1<String, String>) TextNormalizer::normalizeText, DataTypes.StringType).apply(source);
     }
 
-    // 依次提取可见文本、移除控制字符与损坏标记、清除链接和长字母串，再合并重复标点及空白。
+    /*
+    依次提取可见文本、移除控制字符与损坏标记、清除链接和长字母串，再合并重复标点及空白。
+     */
     public static String normalizeText(String source) {
         // 先解析 HTML 并解码实体，后续正则只处理提取后的文本。
         String text = extractVisibleText(source);

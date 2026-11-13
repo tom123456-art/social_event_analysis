@@ -51,7 +51,7 @@ public final class RecordFilter {
                 .withColumn("is_potentially_truncated", hasPotentialTruncation(raw));
     }
 
-    // 过滤乱码、人工暂缓、必要字段缺失及正文无效记录；数值、编号和截断异常不单独作为淘汰条件。
+    // 过滤乱码、人工暂缓、必要字段缺失及正文无效记录、数值、编号和截断异常。
     public static Dataset<Row> retainUsable(Dataset<Row> normalized) {
         // 有效字符仅计汉字、英文字母和数字；正文至少四个有效字符，且占去空白字符的比例不低于五分之一。
         Column meaningfulChars = regexp_replace(col("clean_text"), "[^\\p{IsHan}A-Za-z0-9]", "");

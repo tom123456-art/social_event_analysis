@@ -27,6 +27,7 @@ public final class CategoryPropagationAnalyzer {
     /** 基于各平台类别关注指数序列，计算类别首达时间、平台先后关系与平台首达时间轴，输出传播态势分析结果。 */
     public static Map<String, Object> analyzeCategoryPropagation(List<Map<String, Object>> rows) {
         // 创建类别、平台、时间三级映射；创建分钟计算依据列表。
+        // 仅比较各平台的内容数量，无法说明同一新闻类别在哪个平台先受到关注
         Map<String, Map<String, Map<LocalDateTime, Double>>> series = new HashMap<>();
         List<Map<String, Object>> hourlyEvidence = new ArrayList<>();
         for (Map<String, Object> row : rows) {
